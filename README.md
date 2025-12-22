@@ -1,6 +1,46 @@
 # Dorisoy.Meeting.Client - WPF 桌面客户端实现向导
 
+> **Dorisoy.Mediasoup** 是一个基于 .NET 8 的完整实时音视频通信解决方案，采用 Mediasoup SFU 架构实现高性能的 WebRTC 媒体服务。项目包含 Mediasoup 核心库（C# 实现）、libuv 异步 I/O 绑定、ASP.NET Core 集成中间件、SignalR 信令服务器，以及 WPF 桌面客户端和 Blazor Web 客户端。支持 Open/Pull/Invite 三种服务模式，提供房间管理、音视频采集传输、多端互通等功能。技术栈涵盖 WebRTC、SignalR、SIPSorcery、OpenCvSharp、NAudio 等，适用于在线会议、远程协作、直播互动等场景。
 
+---
+
+## 解决方案构成
+
+```
+Dorisoy.Mediasoup.sln
+├── src/                                    # 源代码目录
+│   ├── Dorisoy.Mediasoup/                  # Mediasoup SFU 核心库，C# 实现 WebRTC 媒体路由、传输管理
+│   ├── Dorisoy.Libuv/                      # libuv 异步 I/O 库的 .NET 绑定，提供底层网络通信能力
+│   ├── Dorisoy.Mediasoup.AspNetCore/       # ASP.NET Core 集成中间件，简化 Web 应用集成
+│   ├── Dorisoy.Mediasoup.Common/           # 共享模型、DTO、常量和工具类
+│   ├── Dorisoy.Mediasoup.Runtimes.Builder/ # 构建 mediasoup-worker 原生二进制 NuGet 包的脚本
+│   ├── Dorisoy.Meeting.Server/             # 会议信令服务器，处理房间、成员、媒体状态管理
+│   ├── Dorisoy.Meeting.Web/                # ASP.NET Core Web 服务端，提供 REST API 和 SignalR Hub
+│   ├── Dorisoy.Meeting.Web.Client/         # Blazor WebAssembly 前端客户端
+│   ├── Dorisoy.Meeting.Client/             # WPF 桌面客户端，支持原生音视频采集与传输
+│   └── Dorisoy.Utils/                      # 通用工具库（Excel/图像/缓存/拼音等）
+│
+└── UI/                                     # WPF UI 组件库
+    ├── Wpf.Ui/                             # 现代 Fluent 风格 WPF 控件库，提供主题、导航、对话框等
+    ├── Wpf.Ui.Abstractions/                # UI 抽象接口，定义导航、页面提供者等契约
+    ├── Wpf.Ui.DependencyInjection/         # 依赖注入集成，简化 DI 容器配置
+    ├── Wpf.Ui.Gallery/                     # UI 组件展示应用，演示各类控件用法
+    ├── Wpf.Ui.SyntaxHighlight/             # 代码语法高亮控件
+    ├── Wpf.Ui.ToastNotifications/          # Toast 消息通知组件
+    └── Wpf.Ui.Tray/                        # 系统托盘图标支持
+```
+
+### 核心项目说明
+
+| 项目 | 类型 | 说明 |
+|------|------|------|
+| **Dorisoy.Mediasoup** | 类库 | Mediasoup SFU 的 C# 实现，包含 Router、Transport、Producer、Consumer 等核心组件 |
+| **Dorisoy.Libuv** | 类库 | libuv 异步事件循环的 .NET 封装，用于 mediasoup-worker 进程通信 |
+| **Dorisoy.Meeting.Web** | Web 应用 | 会议服务后端，提供 `/hubs/meetingHub` SignalR 端点和 JWT 认证 |
+| **Dorisoy.Meeting.Client** | WPF 应用 | 桌面客户端，集成 SIPSorcery/OpenCvSharp/NAudio 实现音视频 |
+| **Wpf.Ui** | UI 库 | 提供 FluentWindow、NavigationView、Snackbar 等现代化控件 |
+
+---
 
 ## 1. 项目概述
 

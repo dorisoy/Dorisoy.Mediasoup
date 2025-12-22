@@ -35,7 +35,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "00_Solution Items", "00_Sol
 		Directory.Packages.props = Directory.Packages.props
 		LICENSE = LICENSE
 		README.md = README.md
-		README2.md = README2.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wpf.Ui", "UI\Wpf.Ui\Wpf.Ui.csproj", "{9C140FF9-0656-05D0-716E-DD750ABC3E14}"
