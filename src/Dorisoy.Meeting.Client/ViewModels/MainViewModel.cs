@@ -94,6 +94,16 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isBusy;
 
+    /// <summary>
+    /// 是否可以加入房间 - 已连接且不在处理中
+    /// </summary>
+    public bool CanJoinRoom => IsConnected && !IsBusy;
+
+    /// <summary>
+    /// 是否可以切换媒体 - 已加入房间且不在处理中
+    /// </summary>
+    public bool CanToggleMedia => IsJoinedRoom && !IsBusy;
+
     #endregion
 
     #region 集合属性
@@ -378,6 +388,31 @@ public partial class MainViewModel : ObservableObject
 
         // 如果麦克风正在运行，切换到新设备
         _ = SwitchMicrophoneAsync(value.DeviceId);
+    }
+
+    /// <summary>
+    /// IsBusy 属性变化时通知相关计算属性
+    /// </summary>
+    partial void OnIsBusyChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanJoinRoom));
+        OnPropertyChanged(nameof(CanToggleMedia));
+    }
+
+    /// <summary>
+    /// IsConnected 属性变化时通知相关计算属性
+    /// </summary>
+    partial void OnIsConnectedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanJoinRoom));
+    }
+
+    /// <summary>
+    /// IsJoinedRoom 属性变化时通知相关计算属性
+    /// </summary>
+    partial void OnIsJoinedRoomChanged(bool value)
+    {
+        OnPropertyChanged(nameof(CanToggleMedia));
     }
 
     /// <summary>

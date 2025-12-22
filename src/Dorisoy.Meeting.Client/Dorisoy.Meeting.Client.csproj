@@ -57,6 +57,8 @@
     <ItemGroup>
         <!-- 引用共享模型库 -->
         <ProjectReference Include="..\Dorisoy.Mediasoup.Common\Dorisoy.Mediasoup.Common.csproj" />
+        <!-- Wpf.Ui 现代化 UI 库 -->
+        <ProjectReference Include="..\..\UI\Wpf.Ui\Wpf.Ui.csproj" />
     </ItemGroup>
 
 </Project>

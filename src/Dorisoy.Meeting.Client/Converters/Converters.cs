@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using Wpf.Ui.Controls;
 
 namespace Dorisoy.Meeting.Client.Converters;
 
@@ -258,6 +259,66 @@ public class ConnectedColorConverter : IValueConverter
                 : new SolidColorBrush(Color.FromRgb(0xDC, 0x35, 0x45)); // 红色
         }
         return new SolidColorBrush(Color.FromRgb(0xDC, 0x35, 0x45));
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 连接状态按钮外观转换器 - 用于 Wpf.Ui Button Appearance
+/// </summary>
+public class ConnectedAppearanceConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isConnected)
+        {
+            return isConnected ? ControlAppearance.Success : ControlAppearance.Secondary;
+        }
+        return ControlAppearance.Secondary;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 房间状态按钮外观转换器 - 用于 Wpf.Ui Button Appearance
+/// </summary>
+public class RoomAppearanceConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isJoinedRoom)
+        {
+            return isJoinedRoom ? ControlAppearance.Danger : ControlAppearance.Secondary;
+        }
+        return ControlAppearance.Secondary;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 媒体按钮外观转换器 - 用于 Wpf.Ui Button Appearance
+/// </summary>
+public class MediaAppearanceConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isEnabled)
+        {
+            return isEnabled ? ControlAppearance.Success : ControlAppearance.Secondary;
+        }
+        return ControlAppearance.Secondary;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

@@ -1,8 +1,9 @@
-<Window x:Class="Dorisoy.Meeting.Client.MainWindow"
+<ui:FluentWindow x:Class="Dorisoy.Meeting.Client.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         xmlns:views="clr-namespace:Dorisoy.Meeting.Client.Views"
         mc:Ignorable="d"
         Title="Dorisoy Meeting" 
@@ -11,140 +12,30 @@
         MinHeight="500"
         MinWidth="800"
         WindowStartupLocation="CenterScreen"
-        Background="#1A1A2E"
+        ExtendsContentIntoTitleBar="True"
+        WindowBackdropType="Mica"
+        WindowCornerPreference="Round"
         Closing="Window_Closing">
 
-    <Window.Resources>
-        <!-- 圆形按钮样式 -->
-        <Style x:Key="CircleButtonStyle" TargetType="Button">
-            <Setter Property="Width" Value="56"/>
-            <Setter Property="Height" Value="56"/>
-            <Setter Property="Margin" Value="8"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Grid>
-                            <Ellipse x:Name="bg" Fill="#3D3D5C" Stroke="#5C5C8A" StrokeThickness="1"/>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Fill" Value="#4D4D6D"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bg" Property="Fill" Value="#2D2D4D"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="bg" Property="Fill" Value="#2D2D3D"/>
-                                <Setter TargetName="bg" Property="Stroke" Value="#3D3D4D"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- 绿色激活按钮样式 -->
-        <Style x:Key="CircleButtonActiveStyle" TargetType="Button" BasedOn="{StaticResource CircleButtonStyle}">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Grid>
-                            <Ellipse x:Name="bg" Fill="#28A745" Stroke="#34CE57" StrokeThickness="1"/>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Fill" Value="#34CE57"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bg" Property="Fill" Value="#1E7E34"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- 红色关闭按钮样式 -->
-        <Style x:Key="CircleButtonDangerStyle" TargetType="Button" BasedOn="{StaticResource CircleButtonStyle}">
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Grid>
-                            <Ellipse x:Name="bg" Fill="#DC3545" Stroke="#E4606D" StrokeThickness="1"/>
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Fill" Value="#E4606D"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="bg" Property="Fill" Value="#BD2130"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- 侧边栏切换按钮样式 -->
-        <Style x:Key="SidebarToggleStyle" TargetType="Button">
-            <Setter Property="Width" Value="32"/>
-            <Setter Property="Height" Value="80"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Background" Value="#2D2D4D"/>
-            <Setter Property="Foreground" Value="#AAAACC"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="bg" Background="{TemplateBinding Background}" 
-                                CornerRadius="0,8,8,0">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bg" Property="Background" Value="#3D3D5C"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-
-        <!-- 侧边栏 GroupBox 样式 -->
-        <Style x:Key="SidebarGroupBoxStyle" TargetType="GroupBox">
-            <Setter Property="Foreground" Value="#CCCCEE"/>
-            <Setter Property="BorderBrush" Value="#3D3D5C"/>
-            <Setter Property="Margin" Value="0,0,0,12"/>
-        </Style>
-
-        <!-- 侧边栏标签样式 -->
-        <Style x:Key="SidebarLabelStyle" TargetType="Label">
-            <Setter Property="Foreground" Value="#AAAACC"/>
-            <Setter Property="FontSize" Value="12"/>
-        </Style>
-
-        <!-- 侧边栏 ComboBox 样式 -->
-        <Style x:Key="SidebarComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Background" Value="#2D2D4D"/>
-            <Setter Property="Foreground" Value="#DDDDFF"/>
-            <Setter Property="BorderBrush" Value="#3D3D5C"/>
-        </Style>
-
-        <!-- 侧边栏 TextBox 样式 -->
-        <Style x:Key="SidebarTextBoxStyle" TargetType="TextBox">
-            <Setter Property="Background" Value="#2D2D4D"/>
-            <Setter Property="Foreground" Value="#DDDDFF"/>
-            <Setter Property="BorderBrush" Value="#3D3D5C"/>
-            <Setter Property="CaretBrush" Value="#DDDDFF"/>
-        </Style>
-    </Window.Resources>
-
     <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题栏 -->
+        <ui:TitleBar x:Name="TitleBar"
+                     Title="Dorisoy Meeting Client"
+                     Grid.Row="0"
+                     ShowMaximize="True"
+                     ShowMinimize="True">
+            <ui:TitleBar.Icon>
+                <ui:SymbolIcon Symbol="Video24" FontSize="20" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+
         <!-- 主布局：左侧边栏 + 右侧主内容区 -->
-        <Grid>
+        <Grid Grid.Row="1">
             <Grid.ColumnDefinitions>
                 <!-- 左侧边栏 - 可隐藏 -->
                 <ColumnDefinition Width="Auto"/>
@@ -153,31 +44,46 @@
             </Grid.ColumnDefinitions>
 
             <!-- 左侧控制面板 -->
-            <Border Grid.Column="0" 
-                    Background="#16213E"
-                    Width="300"
+            <Border Grid.Column="0"
+                    Width="320"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
                     Visibility="{Binding IsSidebarVisible, Converter={StaticResource BoolToVisConverter}}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="12">
-                        
+                    <StackPanel Margin="16">
+
                         <!-- 应用标题 -->
-                        <TextBlock Text="Dorisoy Meeting" 
-                                   FontSize="20" 
-                                   FontWeight="Bold"
-                                   Foreground="#7B68EE"
-                                   Margin="0,0,0,20"/>
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,20">
+                            <ui:SymbolIcon Symbol="Settings24"
+                                           FontSize="20"
+                                           Margin="0,0,10,0" />
+                            <TextBlock Text="系统设置"
+                                       FontSize="18"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>
 
                         <!-- 连接设置 -->
-                        <GroupBox Header="📡 连接设置" Style="{StaticResource SidebarGroupBoxStyle}">
+                        <ui:Card Margin="0,0,0,12">
                             <StackPanel>
-                                <Label Content="服务器地址:" Style="{StaticResource SidebarLabelStyle}"/>
-                                <TextBox Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}" 
-                                         Style="{StaticResource SidebarTextBoxStyle}"
-                                         IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBoolConverter}}"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,12">
+                                    <ui:SymbolIcon Symbol="Globe24"
+                                                   Margin="0,0,8,0" />
+                                    <TextBlock Text="连接设置"
+                                               FontWeight="SemiBold" />
+                                </StackPanel>
+                                <TextBlock Text="服务器地址"
+                                           Margin="0,0,0,6"
+                                           Opacity="0.7" />
+                                <ui:TextBox Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}"
+                                            PlaceholderText="输入服务器地址..."
+                                            IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBoolConverter}}" />
 
-                                <Label Content="选择用户:" Margin="0,8,0,0" Style="{StaticResource SidebarLabelStyle}"/>
+                                <TextBlock Text="选择用户"
+                                           Margin="0,12,0,6"
+                                           Opacity="0.7" />
                                 <ComboBox SelectedIndex="{Binding SelectedPeerIndex}"
-                                          Style="{StaticResource SidebarComboBoxStyle}"
                                           IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBoolConverter}}">
                                     <ComboBoxItem>Peer 0</ComboBoxItem>
                                     <ComboBoxItem>Peer 1</ComboBoxItem>
@@ -191,16 +97,23 @@
                                     <ComboBoxItem>Peer 9 (管理员)</ComboBoxItem>
                                 </ComboBox>
                             </StackPanel>
-                        </GroupBox>
+                        </ui:Card>
 
                         <!-- 房间设置 -->
-                        <GroupBox Header="🚪 房间设置" 
-                                  Style="{StaticResource SidebarGroupBoxStyle}"
-                                  IsEnabled="{Binding IsConnected}">
+                        <ui:Card Margin="0,0,0,12"
+                                 IsEnabled="{Binding IsConnected}">
                             <StackPanel>
-                                <Label Content="选择房间:" Style="{StaticResource SidebarLabelStyle}"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,12">
+                                    <ui:SymbolIcon Symbol="Door20"
+                                                   Margin="0,0,8,0" />
+                                    <TextBlock Text="房间设置"
+                                               FontWeight="SemiBold" />
+                                </StackPanel>
+                                <TextBlock Text="选择房间"
+                                           Margin="0,0,0,6"
+                                           Opacity="0.7" />
                                 <ComboBox SelectedIndex="{Binding SelectedRoomIndex}"
-                                          Style="{StaticResource SidebarComboBoxStyle}"
                                           IsEnabled="{Binding IsJoinedRoom, Converter={StaticResource InverseBoolConverter}}">
                                     <ComboBoxItem>Room 0</ComboBoxItem>
                                     <ComboBoxItem>Room 1</ComboBoxItem>
@@ -214,107 +127,123 @@
                                     <ComboBoxItem>Room 9</ComboBoxItem>
                                 </ComboBox>
                             </StackPanel>
-                        </GroupBox>
+                        </ui:Card>
 
                         <!-- 媒体设备选择 -->
-                        <GroupBox Header="🎛️ 设备选择" Style="{StaticResource SidebarGroupBoxStyle}">
+                        <ui:Card Margin="0,0,0,12">
                             <StackPanel>
-                                <Label Content="摄像头:" Style="{StaticResource SidebarLabelStyle}"/>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,12">
+                                    <ui:SymbolIcon Symbol="Speaker224"
+                                                   Margin="0,0,8,0" />
+                                    <TextBlock Text="设备选择"
+                                               FontWeight="SemiBold" />
+                                </StackPanel>
+                                <TextBlock Text="摄像头"
+                                           Margin="0,0,0,6"
+                                           Opacity="0.7" />
                                 <ComboBox ItemsSource="{Binding Cameras}"
                                           SelectedItem="{Binding SelectedCamera}"
                                           DisplayMemberPath="Label"
-                                          Style="{StaticResource SidebarComboBoxStyle}"
-                                          IsEnabled="{Binding IsCameraEnabled, Converter={StaticResource InverseBoolConverter}}"/>
+                                          IsEnabled="{Binding IsCameraEnabled, Converter={StaticResource InverseBoolConverter}}" />
 
-                                <Label Content="麦克风:" Margin="0,8,0,0" Style="{StaticResource SidebarLabelStyle}"/>
+                                <TextBlock Text="麦克风"
+                                           Margin="0,12,0,6"
+                                           Opacity="0.7" />
                                 <ComboBox ItemsSource="{Binding Microphones}"
                                           SelectedItem="{Binding SelectedMicrophone}"
                                           DisplayMemberPath="Label"
-                                          Style="{StaticResource SidebarComboBoxStyle}"
-                                          IsEnabled="{Binding IsMicrophoneEnabled, Converter={StaticResource InverseBoolConverter}}"/>
+                                          IsEnabled="{Binding IsMicrophoneEnabled, Converter={StaticResource InverseBoolConverter}}" />
 
-                                <Button Content="🔄 刷新设备"
-                                        Command="{Binding RefreshDevicesCommand}"
-                                        Margin="0,12,0,0"
-                                        Background="#3D3D5C"
-                                        Foreground="#DDDDFF"
-                                        BorderBrush="#5C5C8A"/>
+                                <ui:Button Content="刷新设备"
+                                           Icon="{ui:SymbolIcon ArrowSync24}"
+                                           Command="{Binding RefreshDevicesCommand}"
+                                           Margin="0,12,0,0"
+                                           HorizontalAlignment="Stretch" />
                             </StackPanel>
-                        </GroupBox>
+                        </ui:Card>
 
                         <!-- 房间成员列表 -->
-                        <GroupBox Header="👥 房间成员" 
-                                  Style="{StaticResource SidebarGroupBoxStyle}"
-                                  IsEnabled="{Binding IsJoinedRoom}">
-                            <ListBox ItemsSource="{Binding Peers}" 
-                                     MinHeight="100"
-                                     MaxHeight="200"
-                                     Background="#1A1A2E"
-                                     BorderBrush="#3D3D5C">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" Margin="4">
-                                            <Ellipse Width="8" Height="8" 
-                                                     Fill="#4CAF50" 
-                                                     VerticalAlignment="Center"
-                                                     Margin="0,0,8,0"/>
-                                            <StackPanel>
-                                                <TextBlock Text="{Binding DisplayName}" 
-                                                           Foreground="#DDDDFF"
-                                                           FontWeight="Medium"/>
-                                                <TextBlock Text="{Binding PeerId}" 
-                                                           Foreground="#7777AA" 
-                                                           FontSize="10"/>
+                        <ui:Card Margin="0,0,0,12"
+                                 IsEnabled="{Binding IsJoinedRoom}">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,12">
+                                    <ui:SymbolIcon Symbol="People24"
+                                                   Margin="0,0,8,0" />
+                                    <TextBlock Text="房间成员"
+                                               FontWeight="SemiBold" />
+                                </StackPanel>
+                                <ListBox ItemsSource="{Binding Peers}"
+                                         MinHeight="80"
+                                         MaxHeight="180"
+                                         Background="Transparent"
+                                         BorderThickness="0">
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Orientation="Horizontal"
+                                                        Margin="4,6">
+                                                <Ellipse Width="10"
+                                                         Height="10"
+                                                         Fill="#4CAF50"
+                                                         VerticalAlignment="Center"
+                                                         Margin="0,0,10,0" />
+                                                <StackPanel>
+                                                    <TextBlock Text="{Binding DisplayName}"
+                                                               FontWeight="Medium" />
+                                                    <TextBlock Text="{Binding PeerId}"
+                                                               Opacity="0.5"
+                                                               FontSize="11" />
+                                                </StackPanel>
                                             </StackPanel>
-                                        </StackPanel>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
-                        </GroupBox>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </StackPanel>
+                        </ui:Card>
 
                         <!-- 状态信息 -->
-                        <GroupBox Header="ℹ️ 状态" Style="{StaticResource SidebarGroupBoxStyle}">
+                        <ui:Card Margin="0,0,0,12">
                             <StackPanel>
-                                <TextBlock Text="{Binding StatusMessage}" 
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,12">
+                                    <ui:SymbolIcon Symbol="Info24"
+                                                   Margin="0,0,8,0" />
+                                    <TextBlock Text="状态"
+                                               FontWeight="SemiBold" />
+                                </StackPanel>
+                                <TextBlock Text="{Binding StatusMessage}"
                                            TextWrapping="Wrap"
-                                           Foreground="#AAAACC"
-                                           Margin="0,0,0,8"/>
-                                <TextBlock Foreground="#8888AA">
-                                    <Run Text="服务模式: "/>
-                                    <Run Text="{Binding ServeMode, Converter={StaticResource ServeModeTextConverter}}" 
-                                         Foreground="#7B68EE"
-                                         FontWeight="Medium"/>
-                                </TextBlock>
-                                <TextBlock Margin="0,4,0,0" Foreground="#8888AA">
-                                    <Run Text="连接状态: "/>
-                                    <Run Text="{Binding IsConnected, Converter={StaticResource ConnectedStatusConverter}}" 
-                                         Foreground="{Binding IsConnected, Converter={StaticResource ConnectedColorConverter}}"
-                                         FontWeight="Medium"/>
-                                </TextBlock>
+                                           Opacity="0.8"
+                                           Margin="0,0,0,8" />
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,4,0,0">
+                                    <TextBlock Text="服务模式: "
+                                               Opacity="0.6" />
+                                    <TextBlock Text="{Binding ServeMode, Converter={StaticResource ServeModeTextConverter}}"
+                                               Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
+                                               FontWeight="Medium" />
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,4,0,0">
+                                    <TextBlock Text="连接状态: "
+                                               Opacity="0.6" />
+                                    <TextBlock Text="{Binding IsConnected, Converter={StaticResource ConnectedStatusConverter}}"
+                                               Foreground="{Binding IsConnected, Converter={StaticResource ConnectedColorConverter}}"
+                                               FontWeight="Medium" />
+                                </StackPanel>
                             </StackPanel>
-                        </GroupBox>
-                        
+                        </ui:Card>
+
                     </StackPanel>
                 </ScrollViewer>
             </Border>
 
-            <!-- 侧边栏切换按钮 -->
-            <Button Grid.Column="1"
-                    HorizontalAlignment="Left"
-                    VerticalAlignment="Center"
-                    Style="{StaticResource SidebarToggleStyle}"
-                    Command="{Binding ToggleSidebarCommand}"
-                    ToolTip="切换侧边栏">
-                <TextBlock Text="{Binding IsSidebarVisible, Converter={StaticResource SidebarArrowConverter}}"
-                           FontSize="14" 
-                           Foreground="#AAAACC"/>
-            </Button>
-
             <!-- 右侧主视频区域 -->
-            <Grid Grid.Column="1" Background="#0F0F1A">
+            <Grid Grid.Column="1" Background="{DynamicResource ApplicationBackgroundBrush}" Margin="0,0,0,0">
                 
                 <!-- 远端视频网格区域 -->
-                <Border Margin="40,12,12,90" CornerRadius="8">
+                <Border Margin="12,12,12,100" CornerRadius="8">
                     <Grid>
                         <!-- 远端视频网格列表 -->
                         <ItemsControl ItemsSource="{Binding RemoteVideos}">
@@ -326,13 +255,12 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border Background="#1E1E2E" 
-                                            Margin="4" 
+                                    <Border Margin="4" 
+                                            Padding="0"
                                             CornerRadius="8"
-                                            MinWidth="200"
-                                            MinHeight="150"
+                                            Background="{DynamicResource ControlFillColorDefaultBrush}"
                                             ClipToBounds="True">
-                                        <Grid>
+                                        <Grid MinWidth="200" MinHeight="150">
                                             <Image Source="{Binding VideoFrame}" 
                                                    Stretch="UniformToFill"
                                                    RenderOptions.BitmapScalingMode="HighQuality"/>
@@ -342,12 +270,12 @@
                                                         VerticalAlignment="Center"
                                                         Visibility="{Binding VideoFrame, 
                                                             Converter={StaticResource NullToVisConverter}}">
-                                                <Ellipse Width="60" Height="60" 
-                                                         Fill="#2D2D4D" Margin="0,0,0,8"/>
+                                                <ui:SymbolIcon Symbol="Person24" FontSize="48" Opacity="0.3"/>
                                                 <TextBlock Text="{Binding DisplayName}" 
-                                                           Foreground="#7777AA"
+                                                           Opacity="0.5"
                                                            FontSize="14"
-                                                           HorizontalAlignment="Center"/>
+                                                           HorizontalAlignment="Center"
+                                                           Margin="0,8,0,0"/>
                                             </StackPanel>
                                             
                                             <!-- 用户名标签 -->
@@ -378,15 +306,14 @@
                                     VerticalAlignment="Center"
                                     Visibility="{Binding HasNoRemoteVideos, 
                                         Converter={StaticResource BoolToVisConverter}}">
-                            <Ellipse Width="100" Height="100" 
-                                     Fill="#1E1E2E"
-                                     Margin="0,0,0,16"/>
+                            <ui:SymbolIcon Symbol="People24" FontSize="80" Opacity="0.2"/>
                             <TextBlock Text="等待其他参与者加入..." 
-                                       Foreground="#5555AA"
+                                       Opacity="0.5"
                                        FontSize="18"
-                                       HorizontalAlignment="Center"/>
+                                       HorizontalAlignment="Center"
+                                       Margin="0,16,0,0"/>
                             <TextBlock Text="当有用户加入房间并开启视频时，将在此处显示" 
-                                       Foreground="#3D3D5C"
+                                       Opacity="0.3"
                                        FontSize="12"
                                        HorizontalAlignment="Center"
                                        Margin="0,8,0,0"/>
@@ -395,20 +322,16 @@
                 </Border>
 
                 <!-- 本地视频预览 - 悬浮右下角 -->
-                <Border Background="#1E1E2E" 
-                        Margin="0,0,20,100" 
+                <Border Margin="0,0,20,110" 
+                        Padding="0"
                         CornerRadius="8"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom"
                         Width="220"
                         Height="150"
-                        ClipToBounds="True"
-                        BorderBrush="#3D3D5C"
-                        BorderThickness="2">
-                    <Border.Effect>
-                        <DropShadowEffect Color="Black" BlurRadius="15" ShadowDepth="5" Opacity="0.5"/>
-                    </Border.Effect>
-                    <Grid>
+                        ClipToBounds="True">
+                    <Grid ClipToBounds="True">
                         <Image Source="{Binding LocalVideoFrame}" 
                                Stretch="UniformToFill"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
@@ -418,12 +341,12 @@
                                     VerticalAlignment="Center"
                                     Visibility="{Binding LocalVideoFrame, 
                                         Converter={StaticResource NullToVisConverter}}">
-                            <Ellipse Width="40" Height="40" 
-                                     Fill="#2D2D4D" Margin="0,0,0,4"/>
+                            <ui:SymbolIcon Symbol="Person24" FontSize="36" Opacity="0.3"/>
                             <TextBlock Text="本地预览" 
-                                       Foreground="#6666AA"
+                                       Opacity="0.5"
                                        FontSize="11"
-                                       HorizontalAlignment="Center"/>
+                                       HorizontalAlignment="Center"
+                                       Margin="0,4,0,0"/>
                         </StackPanel>
                         
                         <!-- 本地视频标签 -->
@@ -433,151 +356,80 @@
                                 VerticalAlignment="Bottom"
                                 Margin="6"
                                 CornerRadius="4">
-                            <TextBlock Text="📹 我" 
-                                       Foreground="White" 
-                                       FontSize="11"/>
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Video24" FontSize="12" Foreground="White" Margin="0,0,4,0"/>
+                                <TextBlock Text="我" Foreground="White" FontSize="11"/>
+                            </StackPanel>
                         </Border>
                     </Grid>
                 </Border>
 
                 <!-- 底部控制栏 -->
-                <Border Background="#16213E"
+                <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
                         VerticalAlignment="Bottom"
-                        Height="80"
+                        Height="90"
                         CornerRadius="16,16,0,0">
-                    <Border.Effect>
-                        <DropShadowEffect Color="Black" BlurRadius="10" ShadowDepth="-3" Opacity="0.3" Direction="90"/>
-                    </Border.Effect>
                     <StackPanel Orientation="Horizontal" 
                                 HorizontalAlignment="Center"
                                 VerticalAlignment="Center">
                         
                         <!-- 连接/断开服务器按钮 -->
-                        <Button Command="{Binding ToggleConnectionCommand}"
-                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"
-                                ToolTip="{Binding IsConnected, Converter={StaticResource ConnectButtonTextConverter}}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource CircleButtonStyle}">
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsConnected}" Value="True">
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate>
-                                                        <Grid>
-                                                            <Ellipse Fill="#28A745" Stroke="#34CE57" StrokeThickness="1"/>
-                                                            <TextBlock Text="🔌" FontSize="20" 
-                                                                       HorizontalAlignment="Center" 
-                                                                       VerticalAlignment="Center"/>
-                                                        </Grid>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                            <TextBlock Text="🔌" FontSize="20" Foreground="#DDDDFF"/>
-                        </Button>
+                        <ui:Button Command="{Binding ToggleConnectionCommand}"
+                                   IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"
+                                   ToolTip="{Binding IsConnected, Converter={StaticResource ConnectButtonTextConverter}}"
+                                   Appearance="{Binding IsConnected, Converter={StaticResource ConnectedAppearanceConverter}}"
+                                   Width="56" Height="56"
+                                   CornerRadius="28"
+                                   Margin="8">
+                            <ui:SymbolIcon Symbol="PlugConnected24" FontSize="24"/>
+                        </ui:Button>
                         
                         <!-- 加入/离开房间按钮 -->
-                        <Button Command="{Binding ToggleRoomCommand}"
-                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"
-                                ToolTip="{Binding IsJoinedRoom, Converter={StaticResource RoomButtonTextConverter}}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource CircleButtonStyle}">
-                                    <Setter Property="IsEnabled" Value="{Binding IsConnected}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsJoinedRoom}" Value="True">
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate>
-                                                        <Grid>
-                                                            <Ellipse Fill="#DC3545" Stroke="#E4606D" StrokeThickness="1"/>
-                                                            <TextBlock Text="🚪" FontSize="20" 
-                                                                       HorizontalAlignment="Center" 
-                                                                       VerticalAlignment="Center"/>
-                                                        </Grid>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                            <TextBlock Text="🚪" FontSize="20" Foreground="#DDDDFF"/>
-                        </Button>
+                        <ui:Button Command="{Binding ToggleRoomCommand}"
+                                   IsEnabled="{Binding CanJoinRoom}"
+                                   ToolTip="{Binding IsJoinedRoom, Converter={StaticResource RoomButtonTextConverter}}"
+                                   Appearance="{Binding IsJoinedRoom, Converter={StaticResource RoomAppearanceConverter}}"
+                                   Width="56" Height="56"
+                                   CornerRadius="28"
+                                   Margin="8">
+                            <ui:SymbolIcon Symbol="Door20" FontSize="24"/>
+                        </ui:Button>
 
                         <!-- 分隔线 -->
-                        <Border Width="1" Height="40" Background="#3D3D5C" Margin="12,0"/>
+                        <Border Width="1" Height="40" Background="{DynamicResource ControlStrokeColorDefaultBrush}" Margin="12,0"/>
                         
                         <!-- 摄像头开关按钮 -->
-                        <Button Command="{Binding ToggleCameraCommand}"
-                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"
-                                ToolTip="{Binding IsCameraEnabled, Converter={StaticResource CameraButtonTextConverter}}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource CircleButtonStyle}">
-                                    <Setter Property="IsEnabled" Value="{Binding IsJoinedRoom}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsCameraEnabled}" Value="True">
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate>
-                                                        <Grid>
-                                                            <Ellipse Fill="#28A745" Stroke="#34CE57" StrokeThickness="1"/>
-                                                            <TextBlock Text="📷" FontSize="20" 
-                                                                       HorizontalAlignment="Center" 
-                                                                       VerticalAlignment="Center"/>
-                                                        </Grid>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                            <TextBlock Text="📷" FontSize="20" Foreground="#DDDDFF"/>
-                        </Button>
+                        <ui:Button Command="{Binding ToggleCameraCommand}"
+                                   IsEnabled="{Binding CanToggleMedia}"
+                                   ToolTip="{Binding IsCameraEnabled, Converter={StaticResource CameraButtonTextConverter}}"
+                                   Appearance="{Binding IsCameraEnabled, Converter={StaticResource MediaAppearanceConverter}}"
+                                   Width="56" Height="56"
+                                   CornerRadius="28"
+                                   Margin="8">
+                            <ui:SymbolIcon Symbol="Video24" FontSize="24"/>
+                        </ui:Button>
                         
                         <!-- 麦克风开关按钮 -->
-                        <Button Command="{Binding ToggleMicrophoneCommand}"
-                                IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"
-                                ToolTip="{Binding IsMicrophoneEnabled, Converter={StaticResource MicButtonTextConverter}}">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource CircleButtonStyle}">
-                                    <Setter Property="IsEnabled" Value="{Binding IsJoinedRoom}"/>
-                                    <Style.Triggers>
-                                        <DataTrigger Binding="{Binding IsMicrophoneEnabled}" Value="True">
-                                            <Setter Property="Template">
-                                                <Setter.Value>
-                                                    <ControlTemplate>
-                                                        <Grid>
-                                                            <Ellipse Fill="#28A745" Stroke="#34CE57" StrokeThickness="1"/>
-                                                            <TextBlock Text="🎤" FontSize="20" 
-                                                                       HorizontalAlignment="Center" 
-                                                                       VerticalAlignment="Center"/>
-                                                        </Grid>
-                                                    </ControlTemplate>
-                                                </Setter.Value>
-                                            </Setter>
-                                        </DataTrigger>
-                                    </Style.Triggers>
-                                </Style>
-                            </Button.Style>
-                            <TextBlock Text="🎤" FontSize="20" Foreground="#DDDDFF"/>
-                        </Button>
+                        <ui:Button Command="{Binding ToggleMicrophoneCommand}"
+                                   IsEnabled="{Binding CanToggleMedia}"
+                                   ToolTip="{Binding IsMicrophoneEnabled, Converter={StaticResource MicButtonTextConverter}}"
+                                   Appearance="{Binding IsMicrophoneEnabled, Converter={StaticResource MediaAppearanceConverter}}"
+                                   Width="56" Height="56"
+                                   CornerRadius="28"
+                                   Margin="8">
+                            <ui:SymbolIcon Symbol="Mic24" FontSize="24"/>
+                        </ui:Button>
                         
                     </StackPanel>
                 </Border>
 
                 <!-- 加载指示器 -->
                 <Border Background="#80000000"
+                        CornerRadius="8"
                         Visibility="{Binding IsBusy, Converter={StaticResource BoolToVisConverter}}">
                     <StackPanel HorizontalAlignment="Center" 
                                 VerticalAlignment="Center">
-                        <ProgressBar IsIndeterminate="True" 
-                                     Width="100" 
-                                     Height="4"
-                                     Foreground="#7B68EE"/>
+                        <ui:ProgressRing IsIndeterminate="True" Width="48" Height="48"/>
                         <TextBlock Text="处理中..." 
                                    Foreground="White" 
                                    Margin="0,12,0,0"
@@ -585,6 +437,20 @@
                     </StackPanel>
                 </Border>
             </Grid>
+
+            <!-- 侧边栏切换按钮 -->
+            <ui:Button Grid.Column="1"
+                       HorizontalAlignment="Left"
+                       VerticalAlignment="Center"
+                       Margin="0"
+                       Padding="4,24"
+                       CornerRadius="0,7,7,0"
+                       Command="{Binding ToggleSidebarCommand}"
+                       ToolTip="切换侧边栏"
+                       Appearance="Secondary">
+                <TextBlock Text="{Binding IsSidebarVisible, Converter={StaticResource SidebarArrowConverter}}"
+                           FontSize="12" />
+            </ui:Button>
         </Grid>
     </Grid>
-</Window>
+</ui:FluentWindow>
