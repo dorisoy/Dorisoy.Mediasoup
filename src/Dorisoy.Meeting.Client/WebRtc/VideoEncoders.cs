@@ -44,6 +44,16 @@ public unsafe class Vp8Encoder : IDisposable
     /// </summary>
     public int Bitrate { get; set; } = 1500000;
 
+    /// <summary>
+    /// CPU 使用率 (0-8, 越低质量越好但 CPU 消耗更高)
+    /// </summary>
+    public int CpuUsed { get; set; } = 4;
+
+    /// <summary>
+    /// 关键帧间隔（秒）
+    /// </summary>
+    public int KeyFrameInterval { get; set; } = 1;
+
     public Vp8Encoder(ILogger logger, int width = 640, int height = 480)
     {
         _logger = logger;
@@ -95,7 +105,7 @@ public unsafe class Vp8Encoder : IDisposable
             _codecContext->framerate = new AVRational { num = FrameRate, den = 1 };
             _codecContext->pix_fmt = AVPixelFormat.AV_PIX_FMT_YUV420P;
             _codecContext->bit_rate = Bitrate;
-            _codecContext->gop_size = FrameRate; // 关键帧间隔 1 秒（缩短以便更快给新加入的消费者发送关键帧）
+            _codecContext->gop_size = FrameRate * KeyFrameInterval; // 关键帧间隔
             _codecContext->max_b_frames = 0; // VP8 不使用 B 帧
             _codecContext->thread_count = Environment.ProcessorCount;
             
@@ -103,8 +113,20 @@ public unsafe class Vp8Encoder : IDisposable
             _isFirstFrame = true;
 
             // 设置实时编码选项
+            // 对于实时视频流，始终使用 realtime 模式以避免延迟和内存问题
             ffmpeg.av_opt_set(_codecContext->priv_data, "deadline", "realtime", 0);
-            ffmpeg.av_opt_set(_codecContext->priv_data, "cpu-used", "4", 0);
+            
+            // cpu-used: 0-8, 越低质量越好 (0=最佳, 8=最快)
+            // 限制最低为 2，避免过高的 CPU 消耗导致卡顿
+            var effectiveCpuUsed = Math.Max(2, CpuUsed);
+            ffmpeg.av_opt_set(_codecContext->priv_data, "cpu-used", effectiveCpuUsed.ToString(), 0);
+            
+            // 禁用 alt-ref 和 lag-in-frames，这些在实时流中会导致问题
+            ffmpeg.av_opt_set(_codecContext->priv_data, "auto-alt-ref", "0", 0);
+            ffmpeg.av_opt_set(_codecContext->priv_data, "lag-in-frames", "0", 0);
+            
+            // 设置错误弹性 - 提高编码稳定性
+            ffmpeg.av_opt_set(_codecContext->priv_data, "error-resilient", "1", 0);
 
             // 打开编解码器
             var result = ffmpeg.avcodec_open2(_codecContext, codec, null);

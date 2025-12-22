@@ -117,10 +117,14 @@ public static class FFmpegConfig
             searchPaths.Add(customPath);
         }
 
-        // 2. 开发时：从 bin/Debug 向上查找 src/FFmpeg/bin/x64
+        // 2. 应用程序目录 - FFmpeg.AutoGen.Redist NuGet 包会将 DLL 复制到这里
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        searchPaths.Add(baseDir); // 最高优先级！
         
-        // bin\Debug\net8.0-windows10.0.17763.0 -> 向上 5 层到 src，再进入 FFmpeg/bin/x64
+        // 3. runtimes 目录 (NuGet 包的标准位置)
+        searchPaths.Add(Path.Combine(baseDir, "runtimes", "win-x64", "native"));
+
+        // 4. 开发时：从 bin/Debug 向上查找 src/FFmpeg/bin/x64
         searchPaths.Add(Path.Combine(baseDir, "..", "..", "..", "..", "..", "src", "FFmpeg", "bin", "x64"));
         searchPaths.Add(Path.Combine(baseDir, "..", "..", "..", "..", "FFmpeg", "bin", "x64"));
         searchPaths.Add(Path.Combine(baseDir, "..", "..", "..", "FFmpeg", "bin", "x64"));
@@ -129,15 +133,12 @@ public static class FFmpegConfig
         searchPaths.Add(Path.Combine(baseDir, "..", "..", "..", "..", "..", "src", "FFmpeg"));
         searchPaths.Add(Path.Combine(baseDir, "..", "..", "..", "..", "FFmpeg"));
 
-        // 3. 应用程序目录下的 FFmpeg
+        // 5. 应用程序目录下的 FFmpeg 子目录
         searchPaths.Add(Path.Combine(baseDir, "FFmpeg", "bin", "x64"));
         searchPaths.Add(Path.Combine(baseDir, "FFmpeg"));
         searchPaths.Add(Path.Combine(baseDir, "ffmpeg"));
-        
-        // 4. 应用程序目录下的 runtimes
-        searchPaths.Add(Path.Combine(baseDir, "runtimes", "win-x64", "native"));
 
-        // 5. 环境变量
+        // 6. 环境变量
         var envPath = Environment.GetEnvironmentVariable("FFMPEG_PATH");
         if (!string.IsNullOrEmpty(envPath))
         {

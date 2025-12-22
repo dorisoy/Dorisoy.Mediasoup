@@ -158,6 +158,17 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private MediaDeviceInfo? _selectedMicrophone;
 
+    /// <summary>
+    /// 可用的视频质量预设列表
+    /// </summary>
+    public VideoQualitySettings[] VideoQualityPresets { get; } = VideoQualitySettings.Presets;
+
+    /// <summary>
+    /// 选中的视频质量配置
+    /// </summary>
+    [ObservableProperty]
+    private VideoQualitySettings _selectedVideoQuality = VideoQualitySettings.GetPreset(VideoQualityPreset.High);
+
     #endregion
 
     #region 私有字段
@@ -224,6 +235,9 @@ public partial class MainViewModel : ObservableObject
 
         // 订阅 recv transport DTLS 连接完成事件 - 在这之后才能 Resume Consumer
         _webRtcService.OnRecvTransportDtlsConnected += OnRecvTransportDtlsConnected;
+
+        // 初始化视频质量配置
+        _webRtcService.VideoQuality = SelectedVideoQuality;
 
         // 初始化时加载设备列表
         _ = LoadDevicesAsync();
@@ -423,6 +437,20 @@ public partial class MainViewModel : ObservableObject
     partial void OnIsJoinedRoomChanged(bool value)
     {
         OnPropertyChanged(nameof(CanToggleMedia));
+    }
+
+    /// <summary>
+    /// 视频质量变化时应用到 WebRTC 服务
+    /// </summary>
+    partial void OnSelectedVideoQualityChanged(VideoQualitySettings value)
+    {
+        if (value != null)
+        {
+            _webRtcService.VideoQuality = value;
+            _logger.LogInformation("视频质量已更改: {Quality} - {Resolution} @ {Bitrate}", 
+                value.DisplayName, value.Resolution, value.BitrateDescription);
+            StatusMessage = $"视频质量: {value.DisplayName} ({value.Resolution})";
+        }
     }
 
     /// <summary>

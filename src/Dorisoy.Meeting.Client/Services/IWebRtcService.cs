@@ -1,4 +1,5 @@
 using System.Windows.Media.Imaging;
+using Dorisoy.Meeting.Client.Models;
 using Dorisoy.Meeting.Client.WebRtc;
 
 namespace Dorisoy.Meeting.Client.Services;
@@ -37,6 +38,11 @@ public interface IWebRtcService : IDisposable
     /// 是否正在生产音频
     /// </summary>
     bool IsProducingAudio { get; }
+
+    /// <summary>
+    /// 当前视频质量配置
+    /// </summary>
+    VideoQualitySettings? VideoQuality { get; set; }
 
     /// <summary>
     /// Mediasoup 设备

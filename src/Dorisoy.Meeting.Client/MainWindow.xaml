@@ -52,7 +52,7 @@
                     <StackPanel Margin="16">
 
                         <!-- 应用标题 -->
-                        <StackPanel Orientation="Horizontal"
+                        <!--<StackPanel Orientation="Horizontal"
                                     Margin="0,0,0,20">
                             <ui:SymbolIcon Symbol="Settings24"
                                            FontSize="20"
@@ -61,7 +61,7 @@
                                        FontSize="18"
                                        FontWeight="Bold"
                                        VerticalAlignment="Center" />
-                        </StackPanel>
+                        </StackPanel>-->
 
                         <!-- 连接设置 -->
                         <ui:Card Margin="0,0,0,12">
@@ -160,6 +160,76 @@
                                            Command="{Binding RefreshDevicesCommand}"
                                            Margin="0,12,0,0"
                                            HorizontalAlignment="Stretch" />
+                            </StackPanel>
+                        </ui:Card>
+
+                        <!-- 视频质量设置 -->
+                        <ui:Card Margin="0,0,0,12">
+                            <StackPanel>
+                                <StackPanel Orientation="Horizontal"
+                                            Margin="0,0,0,12">
+                                    <ui:SymbolIcon Symbol="VideoClip24"
+                                                   Margin="0,0,8,0" />
+                                    <TextBlock Text="视频质量"
+                                               FontWeight="SemiBold" />
+                                </StackPanel>
+                                
+                                <TextBlock Text="画质选择"
+                                           Margin="0,0,0,6"
+                                           Opacity="0.7" />
+                                <ComboBox ItemsSource="{Binding VideoQualityPresets}"
+                                          SelectedItem="{Binding SelectedVideoQuality}"
+                                          DisplayMemberPath="DisplayName"
+                                          IsEnabled="{Binding IsCameraEnabled, Converter={StaticResource InverseBoolConverter}}" />
+                                
+                                <!-- 当前质量信息 -->
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="4"
+                                        Padding="10,8"
+                                        Margin="0,12,0,0">
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        
+                                        <TextBlock Grid.Row="0" Grid.Column="0" 
+                                                   Text="分辨率:" 
+                                                   Opacity="0.6" 
+                                                   Margin="0,0,8,4"/>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" 
+                                                   Text="{Binding SelectedVideoQuality.Resolution}" 
+                                                   FontWeight="Medium"/>
+                                        
+                                        <TextBlock Grid.Row="1" Grid.Column="0" 
+                                                   Text="码率:" 
+                                                   Opacity="0.6" 
+                                                   Margin="0,0,8,4"/>
+                                        <TextBlock Grid.Row="1" Grid.Column="1" 
+                                                   Text="{Binding SelectedVideoQuality.BitrateDescription}" 
+                                                   FontWeight="Medium"/>
+                                        
+                                        <TextBlock Grid.Row="2" Grid.Column="0" 
+                                                   Text="帧率:" 
+                                                   Opacity="0.6" 
+                                                   Margin="0,0,8,0"/>
+                                        <TextBlock Grid.Row="2" Grid.Column="1" 
+                                                   FontWeight="Medium">
+                                            <Run Text="{Binding SelectedVideoQuality.FrameRate, Mode=OneWay}"/><Run Text=" fps"/>
+                                        </TextBlock>
+                                    </Grid>
+                                </Border>
+                                
+                                <TextBlock Text="{Binding SelectedVideoQuality.Description}"
+                                           Opacity="0.5"
+                                           FontSize="11"
+                                           TextWrapping="Wrap"
+                                           Margin="0,8,0,0" />
                             </StackPanel>
                         </ui:Card>
 

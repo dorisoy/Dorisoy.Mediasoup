@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Media.Imaging;
+using Dorisoy.Meeting.Client.Models;
 using Dorisoy.Meeting.Client.WebRtc;
 
 namespace Dorisoy.Meeting.Client.Services;
@@ -107,6 +108,11 @@ public class WebRtcService : IWebRtcService
     /// 是否正在生产音频
     /// </summary>
     public bool IsProducingAudio => _isAudioCaptureRunning;
+
+    /// <summary>
+    /// 当前视频质量配置
+    /// </summary>
+    public VideoQualitySettings? VideoQuality { get; set; }
 
     /// <summary>
     /// Mediasoup 设备
@@ -1067,7 +1073,21 @@ public class WebRtcService : IWebRtcService
 
         try
         {
-            _videoEncoder = new Vp8Encoder(_loggerFactory.CreateLogger<Vp8Encoder>(), width, height);
+            // 应用视频质量配置
+            var quality = VideoQuality ?? VideoQualitySettings.GetPreset(VideoQualityPreset.High);
+            
+            // 使用配置的分辨率，如果配置中没有则使用传入的值
+            var targetWidth = quality.Width > 0 ? quality.Width : width;
+            var targetHeight = quality.Height > 0 ? quality.Height : height;
+            
+            _videoEncoder = new Vp8Encoder(_loggerFactory.CreateLogger<Vp8Encoder>(), targetWidth, targetHeight)
+            {
+                Bitrate = quality.Bitrate,
+                FrameRate = quality.FrameRate,
+                CpuUsed = quality.CpuUsed,
+                KeyFrameInterval = quality.KeyFrameInterval
+            };
+            
             _videoEncoder.OnFrameEncoded += (data, isKeyFrame) =>
             {
                 OnEncodedVideoFrame?.Invoke(data, isKeyFrame);
@@ -1082,7 +1102,8 @@ public class WebRtcService : IWebRtcService
                 return false;
             }
             
-            _logger.LogInformation("VP8 encoder initialized for {Width}x{Height}", width, height);
+            _logger.LogInformation("VP8 encoder initialized: {Width}x{Height} @ {Fps}fps, {Bitrate}bps (Quality: {Quality})",
+                targetWidth, targetHeight, quality.FrameRate, quality.Bitrate, quality.DisplayName);
             return true;
         }
         catch (Exception ex)

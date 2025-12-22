@@ -26,7 +26,7 @@
         <!-- Opus 音频解码器 -->
         <PackageReference Include="Concentus"/>
 
-        <!-- FFmpeg VP8 视频解码 (需要与 FFmpeg 库版本匹配: FFmpeg 6.0) -->
+        <!-- FFmpeg VP8 视频解码 -->
         <PackageReference Include="FFmpeg.AutoGen"  />
 
         <!-- 视频捕获 - OpenCvSharp4 -->
