@@ -269,7 +269,7 @@
                                             <StackPanel HorizontalAlignment="Center" 
                                                         VerticalAlignment="Center"
                                                         Visibility="{Binding VideoFrame, 
-                                                            Converter={StaticResource NullToVisConverter}}">
+                                                            Converter={StaticResource NullToVisibleConverter}}">
                                                 <ui:SymbolIcon Symbol="Person24" FontSize="48" Opacity="0.3"/>
                                                 <TextBlock Text="{Binding DisplayName}" 
                                                            Opacity="0.5"
@@ -340,7 +340,7 @@
                         <StackPanel HorizontalAlignment="Center" 
                                     VerticalAlignment="Center"
                                     Visibility="{Binding LocalVideoFrame, 
-                                        Converter={StaticResource NullToVisConverter}}">
+                                        Converter={StaticResource NullToVisibleConverter}}">
                             <ui:SymbolIcon Symbol="Person24" FontSize="36" Opacity="0.3"/>
                             <TextBlock Text="本地预览" 
                                        Opacity="0.5"

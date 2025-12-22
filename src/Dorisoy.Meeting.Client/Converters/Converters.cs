@@ -151,6 +151,22 @@ public class NullToVisibilityConverter : IValueConverter
 }
 
 /// <summary>
+/// Null 时显示转换器（用于占位符；null 时显示，非 null 时隐藏）
+/// </summary>
+public class NullToVisibleConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value == null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
 /// 服务模式文本转换器
 /// </summary>
 public class ServeModeTextConverter : IValueConverter
