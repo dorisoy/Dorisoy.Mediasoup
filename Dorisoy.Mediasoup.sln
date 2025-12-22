@@ -31,10 +31,12 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "UI", "UI", "{FA674B5A-3394-
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "00_Solution Items", "00_Solution Items", "{375DFF1F-6467-1063-CFF5-67DA878FEE91}"
 	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
 		Delete-BIN-OBJ-Folders.bat = Delete-BIN-OBJ-Folders.bat
 		Directory.Packages.props = Directory.Packages.props
 		LICENSE = LICENSE
 		README.md = README.md
+		Settings.XamlStyler = Settings.XamlStyler
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wpf.Ui", "UI\Wpf.Ui\Wpf.Ui.csproj", "{9C140FF9-0656-05D0-716E-DD750ABC3E14}"
