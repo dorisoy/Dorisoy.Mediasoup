@@ -1,0 +1,267 @@
+using System.Globalization;
+using System.Windows;
+using System.Windows.Data;
+using System.Windows.Media;
+
+namespace Dorisoy.Meeting.Client.Converters;
+
+/// <summary>
+/// 布尔值取反转换器
+/// </summary>
+public class InverseBooleanConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool boolValue)
+        {
+            return !boolValue;
+        }
+        return value;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool boolValue)
+        {
+            return !boolValue;
+        }
+        return value;
+    }
+}
+
+/// <summary>
+/// 布尔值转可见性转换器
+/// </summary>
+public class BooleanToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool boolValue)
+        {
+            return boolValue ? Visibility.Visible : Visibility.Collapsed;
+        }
+        return Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is Visibility visibility)
+        {
+            return visibility == Visibility.Visible;
+        }
+        return false;
+    }
+}
+
+/// <summary>
+/// 连接按钮文本转换器
+/// </summary>
+public class ConnectButtonTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isConnected)
+        {
+            return isConnected ? "断开连接" : "连接服务器";
+        }
+        return "连接服务器";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 房间按钮文本转换器
+/// </summary>
+public class RoomButtonTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isJoined)
+        {
+            return isJoined ? "离开房间" : "加入房间";
+        }
+        return "加入房间";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 摄像头按钮文本转换器
+/// </summary>
+public class CameraButtonTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isEnabled)
+        {
+            return isEnabled ? "关闭摄像头" : "开启摄像头";
+        }
+        return "开启摄像头";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 麦克风按钮文本转换器
+/// </summary>
+public class MicrophoneButtonTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isEnabled)
+        {
+            return isEnabled ? "关闭麦克风" : "开启麦克风";
+        }
+        return "开启麦克风";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// Null 转可见性转换器
+/// </summary>
+public class NullToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value != null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 服务模式文本转换器
+/// </summary>
+public class ServeModeTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is string mode)
+        {
+            return mode switch
+            {
+                "Open" => "开放(Open)模式",
+                "Pull" => "拉取(Pull)模式",
+                "Invite" => "邀请(Invite)模式",
+                _ => mode
+            };
+        }
+        return value;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 视频网格列数转换器 - 根据视频数量自动调整列数
+/// </summary>
+public class VideoGridColumnsConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is int count)
+        {
+            return count switch
+            {
+                0 => 1,
+                1 => 1,
+                2 => 2,
+                3 or 4 => 2,
+                5 or 6 => 3,
+                7 or 8 or 9 => 3,
+                _ => Math.Min(4, (int)Math.Ceiling(Math.Sqrt(count)))
+            };
+        }
+        return 2;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 侧边栏箭头方向转换器 - 根据侧边栏可见性显示箭头
+/// </summary>
+public class SidebarArrowConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isVisible)
+        {
+            return isVisible ? "◀" : "▶";
+        }
+        return "▶";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 连接状态文本转换器
+/// </summary>
+public class ConnectedStatusConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isConnected)
+        {
+            return isConnected ? "已连接" : "未连接";
+        }
+        return "未连接";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 连接状态颜色转换器
+/// </summary>
+public class ConnectedColorConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isConnected)
+        {
+            return isConnected 
+                ? new SolidColorBrush(Color.FromRgb(0x4C, 0xAF, 0x50))  // 绿色
+                : new SolidColorBrush(Color.FromRgb(0xDC, 0x35, 0x45)); // 红色
+        }
+        return new SolidColorBrush(Color.FromRgb(0xDC, 0x35, 0x45));
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}

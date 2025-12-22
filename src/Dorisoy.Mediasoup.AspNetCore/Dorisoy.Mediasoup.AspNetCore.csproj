@@ -1,0 +1,37 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <PackageId>Dorisoy.Mediasoup.AspNetCore</PackageId>
+        <Version>6.2.0</Version>
+        <Authors>Alby</Authors>
+        <Company>Dorisoy</Company>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/dorisoy/Dorisoy.Mediasoup.AspNetCore</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Google.FlatBuffers"  />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"  />
+        <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" />
+        <PackageReference Include="Microsoft.AspNetCore.Http.Connections" />
+        <PackageReference Include="Microsoft.AspNetCore.Http.Features" />
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"  />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"  />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Binder"  />
+        <PackageReference Include="PinYinConverterCore"  />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Dorisoy.Utils\Dorisoy.Utils.csproj" />
+        <ProjectReference Include="..\Dorisoy.Libuv\Dorisoy.Libuv.csproj" />
+        <ProjectReference Include="..\Dorisoy.Mediasoup.Common\Dorisoy.Mediasoup.Common.csproj" />
+        <ProjectReference Include="..\Dorisoy.Mediasoup\Dorisoy.Mediasoup.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+</Project>

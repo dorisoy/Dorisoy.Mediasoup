@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <PackageId>Dorisoy.Libuv</PackageId>
+        <Version>6.2.0</Version>
+        <Authors>Alby</Authors>
+        <Company>Dorisoy</Company>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/dorisoy/Dorisoy.Libuv</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+        <NoWarn>1701;1702;CS0649</NoWarn>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    </PropertyGroup>
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+    <ItemGroup>
+        <PackageReference Include="Google.FlatBuffers"  />
+        <PackageReference Include="libuv-shared" />
+        <PackageReference Include="MessagePack" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"  />
+        <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions"  />
+        <PackageReference Include="Microsoft.Extensions.Caching.Redis"  />
+        <PackageReference Include="PinYinConverterCore"  />
+    </ItemGroup>
+</Project>

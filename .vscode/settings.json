@@ -1,0 +1,6 @@
+{
+    "dotnet.server.useOmnisharp": true,
+    "[csharp]": {
+        "editor.defaultFormatter": "ms-dotnettools.csharp"
+    }
+}

@@ -1,0 +1,42 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <PackageId>Dorisoy.Mediasoup</PackageId>
+        <Version>6.2.0</Version>
+        <Authors>Alby</Authors>
+        <Company>Dorisoy</Company>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/dorisoy/Dorisoy.Mediasoup</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+        <NoWarn>1701;1702;CS8618;VSTHRD012</NoWarn>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="MessagePack"  />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+        <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Caching.Redis"  />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"  />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"  />
+        <PackageReference Include="Microsoft.Extensions.ObjectPool"  />
+        <PackageReference Include="Microsoft.VisualStudio.Threading"  />
+        <PackageReference Include="DeepCloner" />
+        <PackageReference Include="Google.FlatBuffers"  />
+        <PackageReference Include="PinYinConverterCore"/>
+        <PackageReference Include="Dorisoy.Mediasoup.Runtimes"  />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Dorisoy.Mediasoup.Common\Dorisoy.Mediasoup.Common.csproj" />
+        <ProjectReference Include="..\Dorisoy.Utils\Dorisoy.Utils.csproj" />
+        <ProjectReference Include="..\Dorisoy.Libuv\Dorisoy.Libuv.csproj" />
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+</Project>

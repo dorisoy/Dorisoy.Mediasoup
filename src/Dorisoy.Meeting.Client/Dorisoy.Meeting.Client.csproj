@@ -1,0 +1,62 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>WinExe</OutputType>
+        <TargetFramework>net8.0-windows10.0.17763.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <UseWPF>true</UseWPF>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <ApplicationIcon></ApplicationIcon>
+        <AssemblyName>Dorisoy.Meeting.Client</AssemblyName>
+        <RootNamespace>Dorisoy.Meeting.Client</RootNamespace>
+        <Version>1.0.0</Version>
+        <Authors>Dorisoy</Authors>
+        <Description>Dorisoy Meeting WPF Desktop Client</Description>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- SignalR 客户端 -->
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client"  />
+
+        <!-- WebRTC - SIPSorcery -->
+        <PackageReference Include="SIPSorcery"  />
+        <PackageReference Include="SIPSorceryMedia.Abstractions"  />
+
+        <!-- Opus 音频解码器 -->
+        <PackageReference Include="Concentus"/>
+
+        <!-- FFmpeg VP8 视频解码 (需要与 FFmpeg 库版本匹配: FFmpeg 6.0) -->
+        <PackageReference Include="FFmpeg.AutoGen"  />
+
+        <!-- 视频捕获 - OpenCvSharp4 -->
+        <PackageReference Include="OpenCvSharp4"  />
+        <PackageReference Include="OpenCvSharp4.runtime.win" />
+        <PackageReference Include="OpenCvSharp4.WpfExtensions"  />
+
+        <!-- 音频捕获 - NAudio -->
+        <PackageReference Include="NAudio" />
+
+        <!-- MVVM 工具包 -->
+        <PackageReference Include="CommunityToolkit.Mvvm"  />
+
+        <!-- 依赖注入 -->
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection"  />
+        <PackageReference Include="Microsoft.Extensions.Logging"  />
+
+        <!-- 日志 -->
+        <PackageReference Include="Serilog"  />
+        <PackageReference Include="Serilog.Extensions.Logging"  />
+        <PackageReference Include="Serilog.Sinks.File"  />
+        <PackageReference Include="Serilog.Sinks.Console" />
+
+        <!-- 系统管理 -->
+        <PackageReference Include="System.Management"  />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- 引用共享模型库 -->
+        <ProjectReference Include="..\Dorisoy.Mediasoup.Common\Dorisoy.Mediasoup.Common.csproj" />
+    </ItemGroup>
+
+</Project>

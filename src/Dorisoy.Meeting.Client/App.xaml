@@ -1,0 +1,46 @@
+<Application x:Class="Dorisoy.Meeting.Client.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:converters="clr-namespace:Dorisoy.Meeting.Client.Converters"
+             Startup="Application_Startup"
+             Exit="Application_Exit">
+    <Application.Resources>
+        <ResourceDictionary>
+            <!-- 转换器 -->
+            <converters:InverseBooleanConverter x:Key="InverseBoolConverter"/>
+            <converters:BooleanToVisibilityConverter x:Key="BoolToVisConverter"/>
+            <converters:ConnectButtonTextConverter x:Key="ConnectButtonTextConverter"/>
+            <converters:RoomButtonTextConverter x:Key="RoomButtonTextConverter"/>
+            <converters:CameraButtonTextConverter x:Key="CameraButtonTextConverter"/>
+            <converters:MicrophoneButtonTextConverter x:Key="MicButtonTextConverter"/>
+            <converters:NullToVisibilityConverter x:Key="NullToVisConverter"/>
+            <converters:ServeModeTextConverter x:Key="ServeModeTextConverter"/>
+            <converters:VideoGridColumnsConverter x:Key="VideoGridColumnsConverter"/>
+            <converters:SidebarArrowConverter x:Key="SidebarArrowConverter"/>
+            <converters:ConnectedStatusConverter x:Key="ConnectedStatusConverter"/>
+            <converters:ConnectedColorConverter x:Key="ConnectedColorConverter"/>
+            
+            <!-- 全局样式 -->
+            <Style TargetType="Button">
+                <Setter Property="Padding" Value="12,6"/>
+                <Setter Property="MinWidth" Value="80"/>
+                <Setter Property="Margin" Value="4"/>
+            </Style>
+            
+            <Style TargetType="TextBox">
+                <Setter Property="Padding" Value="6,4"/>
+                <Setter Property="Margin" Value="4"/>
+            </Style>
+            
+            <Style TargetType="ComboBox">
+                <Setter Property="Padding" Value="6,4"/>
+                <Setter Property="Margin" Value="4"/>
+            </Style>
+            
+            <Style TargetType="GroupBox">
+                <Setter Property="Margin" Value="4"/>
+                <Setter Property="Padding" Value="8"/>
+            </Style>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

@@ -1,0 +1,36 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <PackageId>Dorisoy.Meeting.Server</PackageId>
+        <Version>6.2.0</Version>
+        <Authors>Alby</Authors>
+        <Company>Dorisoy</Company>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/dorisoy/Dorisoy.Meeting.Server</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+    </PropertyGroup>
+    <PropertyGroup>
+        <NoWarn>1701;1702;CS8618;VSTHRD200</NoWarn>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+    </PropertyGroup>
+    <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+        <WarningLevel>4</WarningLevel>
+        <NoWarn>1701;1702;CS8618;VSTHRD012;VSTHRD200</NoWarn>
+    </PropertyGroup>
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+        <PackageReference Include="Google.FlatBuffers"  />
+        <PackageReference Include="Nito.AsyncEx.Coordination"  />
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt"  />
+    </ItemGroup>
+    <ItemGroup>
+        <ProjectReference Include="..\Dorisoy.Utils\Dorisoy.Utils.csproj" />
+        <ProjectReference Include="..\Dorisoy.Libuv\Dorisoy.Libuv.csproj" />
+        <ProjectReference Include="..\Dorisoy.Mediasoup.Common\Dorisoy.Mediasoup.Common.csproj" />
+        <ProjectReference Include="..\Dorisoy.Mediasoup\Dorisoy.Mediasoup.csproj" />
+        <ProjectReference Include="..\Dorisoy.Mediasoup.AspNetCore\Dorisoy.Mediasoup.AspNetCore.csproj" />
+    </ItemGroup>
+</Project>

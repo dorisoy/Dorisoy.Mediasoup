@@ -1,0 +1,58 @@
+using Dorisoy.Meeting.Client.Models;
+
+namespace Dorisoy.Meeting.Client.Services;
+
+/// <summary>
+/// SignalR 服务接口 - 处理与服务器的信令通信
+/// </summary>
+public interface ISignalRService : IAsyncDisposable
+{
+    /// <summary>
+    /// 是否已连接
+    /// </summary>
+    bool IsConnected { get; }
+
+    /// <summary>
+    /// 收到服务器通知事件
+    /// </summary>
+    event Action<MeetingNotification>? OnNotification;
+
+    /// <summary>
+    /// 连接成功事件
+    /// </summary>
+    event Action? OnConnected;
+
+    /// <summary>
+    /// 连接断开事件
+    /// </summary>
+    event Action<Exception?>? OnDisconnected;
+
+    /// <summary>
+    /// 连接到服务器
+    /// </summary>
+    /// <param name="serverUrl">服务器地址</param>
+    /// <param name="accessToken">访问令牌</param>
+    Task ConnectAsync(string serverUrl, string accessToken);
+
+    /// <summary>
+    /// 断开连接
+    /// </summary>
+    Task DisconnectAsync();
+
+    /// <summary>
+    /// 调用 Hub 方法（带返回数据）
+    /// </summary>
+    /// <typeparam name="T">返回数据类型</typeparam>
+    /// <param name="methodName">方法名</param>
+    /// <param name="arg">参数</param>
+    /// <returns>响应消息</returns>
+    Task<MeetingMessage<T>> InvokeAsync<T>(string methodName, object? arg = null);
+
+    /// <summary>
+    /// 调用 Hub 方法（无返回数据）
+    /// </summary>
+    /// <param name="methodName">方法名</param>
+    /// <param name="arg">参数</param>
+    /// <returns>响应消息</returns>
+    Task<MeetingMessage> InvokeAsync(string methodName, object? arg = null);
+}
