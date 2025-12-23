@@ -27,8 +27,11 @@ public class RtpMediaDecoder : IDisposable
     // 视频解码器 - 支持多种编解码器类型
     private readonly ConcurrentDictionary<string, IVideoDecoder> _videoDecoders = new();
     
-    // 当前视频编解码器类型
+    // 当前视频编解码器类型（用于发送端）
     private VideoCodecType _currentVideoCodec = VideoCodecType.VP8;
+    
+    // 每个 Consumer 独立的编解码器类型（用于接收端）
+    private readonly ConcurrentDictionary<string, VideoCodecType> _consumerCodecTypes = new();
 
     // Opus 解码器 (Concentus - 纯 C# 实现)
     private readonly ConcurrentDictionary<string, OpusDecoder> _audioDecoders = new();
@@ -92,16 +95,60 @@ public class RtpMediaDecoder : IDisposable
     /// 获取当前视频编解码器类型
     /// </summary>
     public VideoCodecType CurrentVideoCodec => _currentVideoCodec;
+    
+    /// <summary>
+    /// 为指定 Consumer 设置编解码器类型（用于接收端根据远端 MimeType 设置）
+    /// </summary>
+    /// <param name="consumerId">Consumer ID</param>
+    /// <param name="codecType">编解码器类型</param>
+    public void SetConsumerVideoCodecType(string consumerId, VideoCodecType codecType)
+    {
+        _consumerCodecTypes[consumerId] = codecType;
+        _logger.LogInformation("为 Consumer {ConsumerId} 设置解码器类型: {Codec}", consumerId, codecType);
+    }
+    
+    /// <summary>
+    /// 根据 MimeType 获取编解码器类型
+    /// </summary>
+    public static VideoCodecType GetCodecTypeFromMimeType(string? mimeType)
+    {
+        if (string.IsNullOrEmpty(mimeType))
+            return VideoCodecType.VP8;
+            
+        return mimeType.ToUpperInvariant() switch
+        {
+            var m when m.Contains("VP9") => VideoCodecType.VP9,
+            var m when m.Contains("H264") => VideoCodecType.H264,
+            var m when m.Contains("VP8") => VideoCodecType.VP8,
+            _ => VideoCodecType.VP8
+        };
+    }
+    
+    /// <summary>
+    /// 获取指定 Consumer 的编解码器类型
+    /// </summary>
+    private VideoCodecType GetConsumerCodecType(string consumerId)
+    {
+        // 优先使用 Consumer 独立的编解码器类型，否则使用全局默认值
+        if (_consumerCodecTypes.TryGetValue(consumerId, out var codecType))
+        {
+            return codecType;
+        }
+        return _currentVideoCodec;
+    }
 
     /// <summary>
-    /// 处理视频 RTP 包 - 根据当前编解码器类型选择对应的解包器
+    /// 处理视频 RTP 包 - 根据每个 Consumer 的编解码器类型选择对应的解包器
     /// </summary>
     public void ProcessVideoRtpPacket(string consumerId, RTPPacket rtpPacket)
     {
         try
         {
+            // 获取该 Consumer 的编解码器类型
+            var codecType = GetConsumerCodecType(consumerId);
+            
             _logger.LogDebug("Processing video RTP: ConsumerId={ConsumerId}, Seq={Seq}, Marker={Marker}, Codec={Codec}",
-                consumerId, rtpPacket.Header.SequenceNumber, rtpPacket.Header.MarkerBit, _currentVideoCodec);
+                consumerId, rtpPacket.Header.SequenceNumber, rtpPacket.Header.MarkerBit, codecType);
             
             var payload = rtpPacket.Payload;
             var marker = rtpPacket.Header.MarkerBit == 1;
@@ -109,7 +156,7 @@ public class RtpMediaDecoder : IDisposable
             byte[]? frameData = null;
             bool isKeyFrame = false;
             
-            switch (_currentVideoCodec)
+            switch (codecType)
             {
                 case VideoCodecType.VP8:
                     (frameData, isKeyFrame) = ProcessVp8Packet(consumerId, payload, marker);
@@ -124,7 +171,7 @@ public class RtpMediaDecoder : IDisposable
             
             if (frameData != null && frameData.Length > 0)
             {
-                DecodeVideoFrame(consumerId, frameData, isKeyFrame);
+                DecodeVideoFrame(consumerId, frameData, isKeyFrame, codecType);
             }
         }
         catch (Exception ex)
@@ -209,9 +256,9 @@ public class RtpMediaDecoder : IDisposable
     }
 
     /// <summary>
-    /// 解码视频帧 - 根据当前编解码器类型使用对应解码器
+    /// 解码视频帧 - 根据指定的编解码器类型使用对应解码器
     /// </summary>
-    private void DecodeVideoFrame(string consumerId, byte[] frameData, bool isKeyFrame)
+    private void DecodeVideoFrame(string consumerId, byte[] frameData, bool isKeyFrame, VideoCodecType codecType)
     {
         try
         {
@@ -221,10 +268,10 @@ public class RtpMediaDecoder : IDisposable
             // 获取或创建解码器
             if (!_videoDecoders.TryGetValue(consumerId, out var decoder))
             {
-                decoder = CreateVideoDecoder(_currentVideoCodec);
+                decoder = CreateVideoDecoder(codecType);
                 if (decoder == null)
                 {
-                    _logger.LogWarning("创建解码器失败: {Codec}", _currentVideoCodec);
+                    _logger.LogWarning("创建解码器失败: {Codec}", codecType);
                     return;
                 }
                 
@@ -233,19 +280,19 @@ public class RtpMediaDecoder : IDisposable
                     OnDecodedVideoFrame?.Invoke(consumerId, bgrData, width, height);
                 };
                 _videoDecoders[consumerId] = decoder;
-                _logger.LogInformation("创建 {Codec} 解码器: Consumer={ConsumerId}", _currentVideoCodec, consumerId);
+                _logger.LogInformation("创建 {Codec} 解码器: Consumer={ConsumerId}", codecType, consumerId);
             }
             
             // 解码帧
             var success = decoder.Decode(frameData);
             if (success)
             {
-                _logger.LogTrace("{Codec} 帧解码成功: Consumer={ConsumerId}", _currentVideoCodec, consumerId);
+                _logger.LogTrace("{Codec} 帧解码成功: Consumer={ConsumerId}", codecType, consumerId);
             }
         }
         catch (Exception ex)
         {
-            _logger.LogTrace(ex, "视频解码失败: Consumer={ConsumerId}, Codec={Codec}", consumerId, _currentVideoCodec);
+            _logger.LogTrace(ex, "视频解码失败: Consumer={ConsumerId}, Codec={Codec}", consumerId, codecType);
         }
     }
     
