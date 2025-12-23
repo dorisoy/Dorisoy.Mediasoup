@@ -950,7 +950,9 @@ public partial class MainViewModel : ObservableObject
         {
             // 从 SendTransport 获取实际使用的 SSRC，确保与 RTP 发送一致
             var videoSsrc = _webRtcService.SendTransport?.VideoSsrc ?? 0;
-            var produceRequest = RtpParametersFactory.CreateVideoProduceRequest(videoSsrc);
+            var currentCodec = _webRtcService.CurrentVideoCodec;
+            var produceRequest = RtpParametersFactory.CreateVideoProduceRequest(videoSsrc, currentCodec);
+            _logger.LogInformation("创建视频 Producer: SSRC={Ssrc}, Codec={Codec}", videoSsrc, currentCodec);
 
             var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
             if (result.IsSuccess && result.Data != null)
