@@ -9,7 +9,7 @@ namespace Dorisoy.Meeting.Client.WebRtc.Encoder;
 /// 用于将本地采集的视频帧编码后发送到 mediasoup 服务器
 /// 支持多种 Profile (Baseline/Main/High)
 /// </summary>
-public unsafe class H264Encoder : IDisposable
+public unsafe class H264Encoder : IVideoEncoder
 {
     private readonly ILogger _logger;
     private readonly object _encodeLock = new();

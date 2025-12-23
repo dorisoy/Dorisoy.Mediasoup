@@ -43,6 +43,11 @@ public interface IWebRtcService : IDisposable
     /// 当前视频质量配置
     /// </summary>
     VideoQualitySettings? VideoQuality { get; set; }
+    
+    /// <summary>
+    /// 当前视频编解码器类型
+    /// </summary>
+    VideoCodecType CurrentVideoCodec { get; set; }
 
     /// <summary>
     /// Mediasoup 设备

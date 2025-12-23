@@ -8,7 +8,7 @@ namespace Dorisoy.Meeting.Client.WebRtc.Encoder;
 /// VP8 视频编码器 - 使用 FFmpeg 编码 VP8 帧
 /// 用于将本地采集的视频帧编码后发送到 mediasoup 服务器
 /// </summary>
-public unsafe class Vp8Encoder : IDisposable
+public unsafe class Vp8Encoder : IVideoEncoder
 {
     private readonly ILogger _logger;
     private readonly object _encodeLock = new(); // 编码锁，防止多线程竞态

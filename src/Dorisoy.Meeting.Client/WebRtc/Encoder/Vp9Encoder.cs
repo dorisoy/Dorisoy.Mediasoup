@@ -9,7 +9,7 @@ namespace Dorisoy.Meeting.Client.WebRtc.Encoder;
 /// 用于将本地采集的视频帧编码后发送到 mediasoup 服务器
 /// 支持 SVC (可伸缩视频编码)
 /// </summary>
-public unsafe class Vp9Encoder : IDisposable
+public unsafe class Vp9Encoder : IVideoEncoder
 {
     private readonly ILogger _logger;
     private readonly object _encodeLock = new();

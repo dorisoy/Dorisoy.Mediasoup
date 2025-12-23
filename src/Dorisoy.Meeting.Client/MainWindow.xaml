@@ -174,6 +174,30 @@
                                                FontWeight="SemiBold" />
                                 </StackPanel>
                                 
+                                <TextBlock Text="编解码器"
+                                           Margin="0,0,0,6"
+                                           Opacity="0.7" />
+                                <ComboBox ItemsSource="{Binding VideoCodecs}"
+                                          SelectedItem="{Binding SelectedVideoCodec}"
+                                          DisplayMemberPath="DisplayName"
+                                          IsEnabled="{Binding IsCameraEnabled, Converter={StaticResource InverseBoolConverter}}" />
+                                
+                                <!-- 编解码器信息 -->
+                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                        CornerRadius="4"
+                                        Padding="10,6"
+                                        Margin="0,8,0,12">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding SelectedVideoCodec.DisplayName}"
+                                                   FontWeight="SemiBold"
+                                                   Margin="0,0,0,4" />
+                                        <TextBlock Text="{Binding SelectedVideoCodec.Description}"
+                                                   Opacity="0.6"
+                                                   FontSize="11"
+                                                   TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Border>
+                                
                                 <TextBlock Text="画质选择"
                                            Margin="0,0,0,6"
                                            Opacity="0.7" />

@@ -168,6 +168,17 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private VideoQualitySettings _selectedVideoQuality = VideoQualitySettings.GetPreset(VideoQualityPreset.High);
+    
+    /// <summary>
+    /// 可用的视频编解码器列表
+    /// </summary>
+    public VideoCodecInfo[] VideoCodecs { get; } = VideoCodecInfo.AvailableCodecs;
+    
+    /// <summary>
+    /// 选中的视频编解码器
+    /// </summary>
+    [ObservableProperty]
+    private VideoCodecInfo _selectedVideoCodec = VideoCodecInfo.AvailableCodecs[0]; // 默认 VP8
 
     #endregion
 
@@ -450,6 +461,20 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("视频质量已更改: {Quality} - {Resolution} @ {Bitrate}", 
                 value.DisplayName, value.Resolution, value.BitrateDescription);
             StatusMessage = $"视频质量: {value.DisplayName} ({value.Resolution})";
+        }
+    }
+    
+    /// <summary>
+    /// 视频编解码器变化时应用到 WebRTC 服务
+    /// </summary>
+    partial void OnSelectedVideoCodecChanged(VideoCodecInfo value)
+    {
+        if (value != null)
+        {
+            _webRtcService.CurrentVideoCodec = value.CodecType;
+            _logger.LogInformation("视频编解码器已更改: {Codec} - {Description}", 
+                value.DisplayName, value.Description);
+            StatusMessage = $"编解码器: {value.DisplayName}";
         }
     }
 

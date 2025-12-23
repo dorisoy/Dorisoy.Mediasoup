@@ -9,6 +9,7 @@ using System.Windows.Media.Imaging;
 using Dorisoy.Meeting.Client.Models;
 using Dorisoy.Meeting.Client.WebRtc;
 using Dorisoy.Meeting.Client.WebRtc.Encoder;
+using Dorisoy.Meeting.Client.WebRtc.Decoder;
 
 namespace Dorisoy.Meeting.Client.Services;
 
@@ -28,9 +29,12 @@ public class WebRtcService : IWebRtcService
     // RTP 媒体解码器
     private RtpMediaDecoder? _rtpDecoder;
     
-    // 视频/音频编码器
-    private Vp8Encoder? _videoEncoder;
+    // 视频编码器 - 支持 VP8/VP9/H264
+    private IVideoEncoder? _videoEncoder;
     private AudioFramePacketizer? _audioPacketizer;
+    
+    // 当前视频编解码器类型
+    private VideoCodecType _currentVideoCodec = VideoCodecType.VP8;
 
     // 视频采集
     private VideoCapture? _videoCapture;
@@ -114,6 +118,33 @@ public class WebRtcService : IWebRtcService
     /// 当前视频质量配置
     /// </summary>
     public VideoQualitySettings? VideoQuality { get; set; }
+    
+    /// <summary>
+    /// 当前视频编解码器类型
+    /// </summary>
+    public VideoCodecType CurrentVideoCodec
+    {
+        get => _currentVideoCodec;
+        set
+        {
+            if (_currentVideoCodec != value)
+            {
+                _logger.LogInformation("视频编解码器切换: {OldCodec} -> {NewCodec}", _currentVideoCodec, value);
+                _currentVideoCodec = value;
+                
+                // 如果正在采集视频，需要重新初始化编码器
+                if (_isVideoCaptureRunning && _videoEncoder != null)
+                {
+                    // 释放旧编码器
+                    _videoEncoder.Dispose();
+                    _videoEncoder = null;
+                }
+                
+                // 通知 RTP 解码器切换解码器类型
+                _rtpDecoder?.SetVideoCodecType(value);
+            }
+        }
+    }
 
     /// <summary>
     /// Mediasoup 设备
@@ -1065,7 +1096,7 @@ public class WebRtcService : IWebRtcService
     #region 编码和发送
 
     /// <summary>
-    /// 初始化视频编码器
+    /// 初始化视频编码器 - 根据当前编解码器类型创建对应编码器
     /// </summary>
     private bool EnsureVideoEncoderInitialized(int width, int height)
     {
@@ -1081,13 +1112,19 @@ public class WebRtcService : IWebRtcService
             var targetWidth = quality.Width > 0 ? quality.Width : width;
             var targetHeight = quality.Height > 0 ? quality.Height : height;
             
-            _videoEncoder = new Vp8Encoder(_loggerFactory.CreateLogger<Vp8Encoder>(), targetWidth, targetHeight)
+            // 根据当前编解码器类型创建对应的编码器
+            _videoEncoder = CreateVideoEncoder(_currentVideoCodec, targetWidth, targetHeight);
+            
+            if (_videoEncoder == null)
             {
-                Bitrate = quality.Bitrate,
-                FrameRate = quality.FrameRate,
-                CpuUsed = quality.CpuUsed,
-                KeyFrameInterval = quality.KeyFrameInterval
-            };
+                _logger.LogWarning("创建视频编码器失败: {Codec}", _currentVideoCodec);
+                return false;
+            }
+            
+            // 设置编码参数
+            _videoEncoder.Bitrate = quality.Bitrate;
+            _videoEncoder.FrameRate = quality.FrameRate;
+            _videoEncoder.KeyFrameInterval = quality.KeyFrameInterval;
             
             _videoEncoder.OnFrameEncoded += (data, isKeyFrame) =>
             {
@@ -1098,20 +1135,34 @@ public class WebRtcService : IWebRtcService
             
             if (!_videoEncoder.Initialize())
             {
-                _logger.LogWarning("Failed to initialize VP8 encoder");
+                _logger.LogWarning("初始化视频编码器失败: {Codec}", _currentVideoCodec);
                 _videoEncoder = null;
                 return false;
             }
             
-            _logger.LogInformation("VP8 encoder initialized: {Width}x{Height} @ {Fps}fps, {Bitrate}bps (Quality: {Quality})",
-                targetWidth, targetHeight, quality.FrameRate, quality.Bitrate, quality.DisplayName);
+            _logger.LogInformation("{Codec} 编码器已初始化: {Width}x{Height} @ {Fps}fps, {Bitrate}bps (Quality: {Quality})",
+                _currentVideoCodec, targetWidth, targetHeight, quality.FrameRate, quality.Bitrate, quality.DisplayName);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating VP8 encoder");
+            _logger.LogError(ex, "创建视频编码器异常: {Codec}", _currentVideoCodec);
             return false;
         }
+    }
+    
+    /// <summary>
+    /// 根据编解码器类型创建对应的编码器
+    /// </summary>
+    private IVideoEncoder? CreateVideoEncoder(VideoCodecType codecType, int width, int height)
+    {
+        return codecType switch
+        {
+            VideoCodecType.VP8 => new Vp8Encoder(_loggerFactory.CreateLogger<Vp8Encoder>(), width, height),
+            VideoCodecType.VP9 => new Vp9Encoder(_loggerFactory.CreateLogger<Vp9Encoder>(), width, height),
+            VideoCodecType.H264 => new H264Encoder(_loggerFactory.CreateLogger<H264Encoder>(), width, height),
+            _ => new Vp8Encoder(_loggerFactory.CreateLogger<Vp8Encoder>(), width, height)
+        };
     }
 
     /// <summary>

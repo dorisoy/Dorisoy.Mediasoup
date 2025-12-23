@@ -8,7 +8,7 @@ namespace Dorisoy.Meeting.Client.WebRtc.Decoder;
 /// H264 视频解码器 - 使用 FFmpeg 解码 H264 帧
 /// 将从 mediasoup 接收的 H264 编码数据解码为 BGR24 图像用于显示
 /// </summary>
-public unsafe class H264Decoder : IDisposable
+public unsafe class H264Decoder : IVideoDecoder
 {
     private readonly ILogger _logger;
     private readonly object _lock = new();  // 线程安全锁
