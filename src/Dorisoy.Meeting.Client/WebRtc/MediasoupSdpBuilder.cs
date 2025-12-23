@@ -335,12 +335,25 @@ public static class MediasoupSdpBuilder
 
     /// <summary>
     /// 添加编解码器行
+    /// 注意：SIPSorcery 对 VP9/H264 支持有限，SDP 中统一使用 VP8 名称
     /// </summary>
     private static void AppendCodecLines(StringBuilder sb, ConsumerRtpCodec codec, bool isVideo)
     {
         var pt = codec.PayloadType;
         var mimeType = codec.MimeType ?? (isVideo ? "video/VP8" : "audio/opus");
-        var codecName = mimeType.Split('/').LastOrDefault() ?? "VP8";
+        
+        // SIPSorcery 对 VP9/H264 处理有问题，SDP 层统一使用 VP8 名称
+        // 但保留正确的 PayloadType，这不影响实际的 RTP 传输
+        string codecName;
+        if (isVideo)
+        {
+            codecName = "VP8";  // 统一使用 VP8 名称以兼容 SIPSorcery
+        }
+        else
+        {
+            codecName = mimeType.Split('/').LastOrDefault() ?? "opus";
+        }
+        
         var clockRate = codec.ClockRate;
 
         if (isVideo)
@@ -522,14 +535,18 @@ public static class MediasoupSdpBuilder
 
     /// <summary>
     /// 获取视频编解码器信息
+    /// 注意：SIPSorcery 对 VP9/H264 SDP 支持有限，codecName 统一使用 VP8
+    /// 但保留正确的 PayloadType，这不影响实际的 RTP 传输
     /// </summary>
     private static (int payloadType, string codecName, int rtxPayloadType) GetVideoCodecInfo(VideoCodecType codecType)
     {
+        // SIPSorcery 仅支持 VP8 SDP，所以统一使用 VP8 名称
+        // PayloadType 仍然是正确的，这样 RTP 传输不受影响
         return codecType switch
         {
             VideoCodecType.VP8 => (96, "VP8", 97),
-            VideoCodecType.VP9 => (103, "VP9", 104),
-            VideoCodecType.H264 => (105, "H264", 106),
+            VideoCodecType.VP9 => (103, "VP8", 104),   // SDP 名称用 VP8，但 PT=103
+            VideoCodecType.H264 => (105, "VP8", 106),  // SDP 名称用 VP8，但 PT=105
             _ => (96, "VP8", 97)
         };
     }
