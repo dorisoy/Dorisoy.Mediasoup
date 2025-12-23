@@ -513,7 +513,8 @@ public class MediasoupTransport : IDisposable
             var remoteSdp = MediasoupSdpBuilder.BuildSendTransportRemoteOffer(
                 IceParameters,
                 IceCandidates,
-                DtlsParameters);
+                DtlsParameters,
+                _currentVideoCodec);
 
             _logger.LogDebug("Generated remote SDP for Send Transport (length={Length}):\n{Sdp}", remoteSdp.Length, remoteSdp);
 
@@ -576,6 +577,8 @@ public class MediasoupTransport : IDisposable
 
     /// <summary>
     /// 为 Send Transport 添加本地发送 track - 这是让 Answer 方向变成 sendonly 的关键
+    /// 注意：SIPSorcery 库对 VP9/H264 的 SDP 支持不完善，因此 SDP 协商层统一使用 VP8 名称
+    /// 实际 RTP 发送时会使用正确的 Payload Type 和打包格式
     /// </summary>
     private void AddSendTracks()
     {
@@ -586,15 +589,20 @@ public class MediasoupTransport : IDisposable
             // 添加视频发送 track
             if (!_hasAddedSendVideoTrack)
             {
-                // 根据当前编解码器类型选择 Payload Type 和编解码器名称
+                // SDP 协商层统一使用 VP8 名称（SIPSorcery 原生支持）
+                // 使用实际编解码器的 Payload Type，这样 RTP 发送时会使用正确的 PT
                 var videoPayloadType = GetVideoPayloadType();
                 var videoCodecName = GetVideoCodecName();
                 
-                // 创建视频格式 - PT 必须与 Producer 注册和 RTP 发送一致
+                // SIPSorcery 对 VP9/H264 的 SDP 处理可能有问题，因此 SDP 层统一使用 VP8
+                // 但保留实际的 Payload Type、这样 SendRtpRaw 会使用正确的 PT
+                var sdpCodecName = "VP8"; // SDP 协商统一用 VP8
+                
+                // 创建视频格式 - PT 使用实际编解码器的 Payload Type
                 var videoFormat = new SDPAudioVideoMediaFormat(
                     SDPMediaTypesEnum.video,
                     videoPayloadType,
-                    videoCodecName,
+                    sdpCodecName,
                     VIDEO_CLOCK_RATE);
 
                 // 创建 SendOnly 的视频 track
@@ -606,8 +614,8 @@ public class MediasoupTransport : IDisposable
 
                 _peerConnection.addTrack(videoTrack);
                 _hasAddedSendVideoTrack = true;
-                _logger.LogInformation("Added video track for sending (SendOnly), Codec={Codec}, PT={PayloadType}", 
-                    videoCodecName, videoPayloadType);
+                _logger.LogInformation("Added video track for sending (SendOnly), ActualCodec={Codec}, SdpCodec={SdpCodec}, PT={PayloadType}", 
+                    videoCodecName, sdpCodecName, videoPayloadType);
             }
 
             // 添加音频发送 track
@@ -979,12 +987,18 @@ public class MediasoupTransport : IDisposable
                 var videoCodec = videoConsumer.RtpParameters?.Codecs?.FirstOrDefault();
                 int payloadType = videoCodec?.PayloadType ?? 101;
                 int clockRate = videoCodec?.ClockRate ?? 90000;
+                
+                // 从 MimeType 提取编解码器名称，但 SIPSorcery 对 VP9/H264 支持有限，需要使用 VP8
+                // 注意：这仅影响 SDP 协商层的名称，实际 PayloadType 仍然正确
+                var codecName = GetCodecNameFromMimeType(videoCodec?.MimeType ?? "video/VP8");
+                _logger.LogDebug("Creating video track: PT={PT}, Codec={Codec}, ClockRate={Rate}", 
+                    payloadType, codecName, clockRate);
 
                 // 创建 SDP 格式的视频 track
                 var videoFormat = new SDPAudioVideoMediaFormat(
                     SDPMediaTypesEnum.video,
                     payloadType,
-                    "VP8",
+                    codecName,  // 使用从 MimeType 提取的编解码器名称
                     clockRate);
 
                 var videoTrack = new MediaStreamTrack(
@@ -1066,14 +1080,34 @@ public class MediasoupTransport : IDisposable
     }
 
     /// <summary>
-    /// 为轨道创建 RTP 参数
+    /// 从 MimeType 提取编解码器名称（用于 SDP 协商）
+    /// SIPSorcery 对 VP9/H264 的 SDP 支持有限，统一使用 VP8 名称以确保兼容性
     /// </summary>
-    private static object CreateRtpParametersForTrack(MediaStreamTrack track, string kind)
+    private static string GetCodecNameFromMimeType(string mimeType)
+    {
+        // SIPSorcery 对 VP9/H264 处理有问题，SDP 层统一使用 VP8 名称
+        // 但实际的 PayloadType 是正确的，这不影响 RTP 传输
+        return "VP8";
+    }
+
+    /// <summary>
+    /// 为轨道创建 RTP 参数（支持多编解码器）
+    /// </summary>
+    private object CreateRtpParametersForTrack(MediaStreamTrack track, string kind)
     {
         var ssrc = (uint)Random.Shared.Next(100000000, 999999999);
 
         if (kind == "video")
         {
+            // 根据当前编解码器类型选择正确的参数
+            var (mimeType, payloadType) = _currentVideoCodec switch
+            {
+                VideoCodecType.VP8 => ("video/VP8", 96),
+                VideoCodecType.VP9 => ("video/VP9", 103),
+                VideoCodecType.H264 => ("video/H264", 105),
+                _ => ("video/VP8", 96)
+            };
+
             return new
             {
                 mid = "0",
@@ -1081,8 +1115,8 @@ public class MediasoupTransport : IDisposable
                 {
                     new
                     {
-                        mimeType = "video/VP8",
-                        payloadType = 96,
+                        mimeType = mimeType,
+                        payloadType = payloadType,
                         clockRate = 90000,
                         rtcpFeedback = new object[]
                         {
