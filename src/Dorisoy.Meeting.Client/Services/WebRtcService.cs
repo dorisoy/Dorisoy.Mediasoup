@@ -679,6 +679,14 @@ public class WebRtcService : IWebRtcService
             {
                 await _recvTransport.ConsumeAsync(consumerId, kind, rtpParameters);
                 _logger.LogInformation("Consumer {ConsumerId} added to recv transport", consumerId);
+                
+                // 对于视频 Consumer，根据远端 MimeType 设置解码器类型
+                if (kind == "video" && _rtpDecoder != null)
+                {
+                    var remoteCodecType = ExtractCodecTypeFromRtpParameters(rtpParameters);
+                    _rtpDecoder.SetConsumerVideoCodecType(consumerId, remoteCodecType);
+                    _logger.LogInformation("Consumer {ConsumerId} 远端编解码器: {Codec}", consumerId, remoteCodecType);
+                }
             }
             catch (Exception ex)
             {
@@ -689,6 +697,36 @@ public class WebRtcService : IWebRtcService
         {
             _logger.LogWarning("No recv transport available for consumer {ConsumerId}", consumerId);
         }
+    }
+    
+    /// <summary>
+    /// 从 RTP 参数中提取编解码器类型
+    /// </summary>
+    private VideoCodecType ExtractCodecTypeFromRtpParameters(object rtpParameters)
+    {
+        try
+        {
+            var json = JsonSerializer.Serialize(rtpParameters);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            
+            if (root.TryGetProperty("codecs", out var codecsElement) && 
+                codecsElement.GetArrayLength() > 0)
+            {
+                var firstCodec = codecsElement[0];
+                if (firstCodec.TryGetProperty("mimeType", out var mimeTypeElement))
+                {
+                    var mimeType = mimeTypeElement.GetString();
+                    return RtpMediaDecoder.GetCodecTypeFromMimeType(mimeType);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "解析 RTP 参数获取编解码器类型失败");
+        }
+        
+        return VideoCodecType.VP8;
     }
 
     /// <summary>
