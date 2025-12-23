@@ -4,6 +4,7 @@ using SIPSorceryMedia.Abstractions;
 using Concentus.Structs;
 using Concentus.Enums;
 using System.Collections.Concurrent;
+using Dorisoy.Meeting.Client.WebRtc.Decoder;
 
 namespace Dorisoy.Meeting.Client.WebRtc;
 

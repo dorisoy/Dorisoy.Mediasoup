@@ -8,6 +8,7 @@ using System.Windows;
 using System.Windows.Media.Imaging;
 using Dorisoy.Meeting.Client.Models;
 using Dorisoy.Meeting.Client.WebRtc;
+using Dorisoy.Meeting.Client.WebRtc.Encoder;
 
 namespace Dorisoy.Meeting.Client.Services;
 
