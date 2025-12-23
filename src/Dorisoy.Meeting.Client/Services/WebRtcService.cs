@@ -142,6 +142,9 @@ public class WebRtcService : IWebRtcService
                 
                 // 通知 RTP 解码器切换解码器类型
                 _rtpDecoder?.SetVideoCodecType(value);
+                
+                // 同步更新 SendTransport 的编解码器类型（用于 RTP 打包）
+                _sendTransport?.SetVideoCodecType(value);
             }
         }
     }
@@ -745,11 +748,14 @@ public class WebRtcService : IWebRtcService
         // 订阅关键帧请求事件 - 当服务器发送 PLI/FIR 请求时，强制编码器生成关键帧
         _sendTransport.OnKeyFrameRequested += () =>
         {
-            _logger.LogInformation("Keyframe requested by server, forcing VP8 encoder to generate keyframe");
+            _logger.LogInformation("Keyframe requested by server, forcing encoder to generate keyframe");
             _videoEncoder?.ForceKeyFrame();
         };
 
-        _logger.LogInformation("Send transport created: {TransportId}", transportId);
+        // 设置初始编解码器类型
+        _sendTransport.SetVideoCodecType(_currentVideoCodec);
+
+        _logger.LogInformation("Send transport created: {TransportId}, codec={Codec}", transportId, _currentVideoCodec);
     }
 
     /// <summary>
