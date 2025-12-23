@@ -4,7 +4,7 @@
 
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/)
 [![WPF](https://img.shields.io/badge/WPF-Windows-0078D6)](https://docs.microsoft.com/en-us/dotnet/desktop/wpf/)
-[![fo-dicom](https://img.shields.io/badge/mediasoup)](https://github.com/versatica/mediasoup)
+[![mediasoup](https://img.shields.io/badge/mediasoup)](https://github.com/versatica/mediasoup)
 [![License](https://img.shields.io/badge/License-Proprietary-red)]()
 
 </div>
