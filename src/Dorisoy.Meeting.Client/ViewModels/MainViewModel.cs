@@ -721,7 +721,7 @@ public partial class MainViewModel : ObservableObject
         {
             rtpCapabilities = _routerRtpCapabilities,
             sctpCapabilities = (object?)null,
-            displayName = $"WPF Peer {SelectedPeerIndex}",
+            displayName = $"Peer {SelectedPeerIndex}",
             sources = new[] { "audio:mic", "video:cam" },
             appData = new Dictionary<string, object>()
         };
