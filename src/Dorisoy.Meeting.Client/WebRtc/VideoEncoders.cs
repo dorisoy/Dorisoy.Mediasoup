@@ -12,6 +12,7 @@ namespace Dorisoy.Meeting.Client.WebRtc;
 public unsafe class Vp8Encoder : IDisposable
 {
     private readonly ILogger _logger;
+    private readonly object _encodeLock = new(); // 编码锁，防止多线程竞态
     private AVCodecContext* _codecContext;
     private AVFrame* _frame;
     private SwsContext* _swsContext;
@@ -189,15 +190,55 @@ public unsafe class Vp8Encoder : IDisposable
     /// <returns>是否编码成功</returns>
     public bool Encode(byte[] bgrData, int width, int height)
     {
-        if (!_initialized || _disposed)
+        if (_disposed)
             return false;
+        
+        lock (_encodeLock)
+        {
+            if (!_initialized || _disposed)
+                return false;
+            
+            // 验证输入数据
+            if (bgrData == null || bgrData.Length == 0)
+            {
+                _logger.LogWarning("Empty BGR data received");
+                return false;
+            }
+            
+            // 验证数据大小
+            int expectedSize = width * height * 3; // BGR24 = 3 bytes per pixel
+            if (bgrData.Length < expectedSize)
+            {
+                _logger.LogWarning("BGR data size mismatch: expected {Expected}, got {Actual}", expectedSize, bgrData.Length);
+                return false;
+            }
 
         try
         {
-            // 检查分辨率是否变化
+            // 检查分辨率是否变化 - 需要完全重新初始化编码器
             if (width != _width || height != _height)
             {
-                Reconfigure(width, height);
+                _logger.LogInformation("Resolution changed from {OldW}x{OldH} to {NewW}x{NewH}, reinitializing encoder",
+                    _width, _height, width, height);
+                
+                // 完全重新初始化编码器
+                CleanupResources();
+                _width = width;
+                _height = height;
+                _initialized = false;
+                
+                if (!Initialize())
+                {
+                    _logger.LogError("Failed to reinitialize encoder for new resolution");
+                    return false;
+                }
+            }
+            
+            // 关键安全检查
+            if (_codecContext == null || _frame == null || _yuvBuffer == null)
+            {
+                _logger.LogError("Encoder resources not properly initialized");
+                return false;
             }
 
             // 转换 BGR24 到 YUV420P
@@ -293,58 +334,57 @@ public unsafe class Vp8Encoder : IDisposable
                 ffmpeg.av_packet_free(&packet);
             }
         }
+        catch (AccessViolationException ex)
+        {
+            _logger.LogError(ex, "Memory access violation in VP8 encoder - reinitializing");
+            // 尝试重新初始化
+            try
+            {
+                CleanupResources();
+                _initialized = false;
+                Initialize();
+            }
+            catch { /* 忽略重新初始化错误 */ }
+            return false;
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error encoding VP8 frame");
             return false;
         }
+        } // end lock
     }
 
     /// <summary>
-    /// 重新配置编码器分辨率
+    /// 清理编码器资源（不设置 disposed 标志）
     /// </summary>
-    private void Reconfigure(int width, int height)
+    private void CleanupResources()
     {
-        _width = width;
-        _height = height;
-
-        // 释放旧的缩放上下文
         if (_swsContext != null)
         {
             ffmpeg.sws_freeContext(_swsContext);
             _swsContext = null;
         }
 
-        // 重新分配 YUV 缓冲区
         if (_yuvBuffer != null)
         {
             ffmpeg.av_free(_yuvBuffer);
+            _yuvBuffer = null;
         }
 
-        var yuvBufferSize = ffmpeg.av_image_get_buffer_size(
-            AVPixelFormat.AV_PIX_FMT_YUV420P, _width, _height, 1);
-        _yuvBuffer = (byte*)ffmpeg.av_malloc((ulong)yuvBufferSize);
+        if (_frame != null)
+        {
+            var frame = _frame;
+            ffmpeg.av_frame_free(&frame);
+            _frame = null;
+        }
 
-        // 更新帧参数
-        _frame->width = _width;
-        _frame->height = _height;
-
-        var dstData = new byte_ptrArray4();
-        var dstLinesize = new int_array4();
-        ffmpeg.av_image_fill_arrays(ref dstData, ref dstLinesize,
-            _yuvBuffer, AVPixelFormat.AV_PIX_FMT_YUV420P, _width, _height, 1);
-        
-        // 复制数据指针
-        _frame->data[0] = dstData[0];
-        _frame->data[1] = dstData[1];
-        _frame->data[2] = dstData[2];
-        _frame->data[3] = dstData[3];
-        _frame->linesize[0] = dstLinesize[0];
-        _frame->linesize[1] = dstLinesize[1];
-        _frame->linesize[2] = dstLinesize[2];
-        _frame->linesize[3] = dstLinesize[3];
-
-        _logger.LogInformation("VP8 encoder reconfigured: {Width}x{Height}", _width, _height);
+        if (_codecContext != null)
+        {
+            var ctx = _codecContext;
+            ffmpeg.avcodec_free_context(&ctx);
+            _codecContext = null;
+        }
     }
 
     /// <summary>
@@ -416,33 +456,11 @@ public unsafe class Vp8Encoder : IDisposable
     {
         if (!_disposed)
         {
-            if (_swsContext != null)
+            lock (_encodeLock)
             {
-                ffmpeg.sws_freeContext(_swsContext);
-                _swsContext = null;
+                _disposed = true; // 先设置标志，阻止新的编码请求
+                CleanupResources();
             }
-
-            if (_yuvBuffer != null)
-            {
-                ffmpeg.av_free(_yuvBuffer);
-                _yuvBuffer = null;
-            }
-
-            if (_frame != null)
-            {
-                var frame = _frame;
-                ffmpeg.av_frame_free(&frame);
-                _frame = null;
-            }
-
-            if (_codecContext != null)
-            {
-                var ctx = _codecContext;
-                ffmpeg.avcodec_free_context(&ctx);
-                _codecContext = null;
-            }
-
-            _disposed = true;
             _logger.LogInformation("VP8 encoder disposed");
         }
         GC.SuppressFinalize(this);
