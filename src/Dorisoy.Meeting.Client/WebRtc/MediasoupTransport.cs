@@ -1330,7 +1330,9 @@ public class MediasoupTransport : IDisposable
     }
 
     /// <summary>
-    /// 发送 H264 帧
+    /// 发送 H264 帧 - 正确处理 Annex B 格式
+    /// FFmpeg H264 编码器输出 Annex B 格式，包含 NAL 起始码 (00 00 00 01 或 00 00 01)
+    /// 需要分离每个 NAL 单元并分别发送
     /// </summary>
     private void SendH264Frame(byte[] h264Data, bool isKeyFrame)
     {
@@ -1341,15 +1343,175 @@ public class MediasoupTransport : IDisposable
                 _videoFrameCount, h264Data.Length, isKeyFrame);
         }
 
-        // 检查是否需要分片
-        if (h264Data.Length <= MAX_H264_PAYLOAD_SIZE)
+        // 解析 Annex B 格式，提取所有 NAL 单元
+        var nalUnits = ExtractNalUnits(h264Data);
+        
+        if (nalUnits.Count == 0)
         {
-            SendSingleH264Packet(h264Data, isKeyFrame);
+            _logger.LogWarning("H264: No NAL units found in frame data");
+            return;
         }
-        else
+        
+        _logger.LogDebug("H264: Found {Count} NAL units in frame", nalUnits.Count);
+        
+        // 发送每个 NAL 单元
+        for (int i = 0; i < nalUnits.Count; i++)
         {
-            SendFragmentedH264Frame(h264Data, isKeyFrame);
+            var nalUnit = nalUnits[i];
+            bool isLastNal = (i == nalUnits.Count - 1);
+            
+            if (nalUnit.Length == 0) continue;
+            
+            // 获取 NAL 类型用于日志
+            int nalType = nalUnit[0] & 0x1F;
+            _logger.LogDebug("H264: NAL[{Index}] type={Type}, size={Size}", i, nalType, nalUnit.Length);
+            
+            // 根据大小决定是单包发送还是分片发送
+            if (nalUnit.Length <= MAX_H264_PAYLOAD_SIZE)
+            {
+                // 单包发送 (Single NAL Unit Packet)
+                SendSingleH264NalUnit(nalUnit, isLastNal);
+            }
+            else
+            {
+                // 分片发送 (FU-A)
+                SendFragmentedH264NalUnit(nalUnit, isLastNal);
+            }
         }
+    }
+    
+    /// <summary>
+    /// 从 Annex B 格式数据中提取 NAL 单元
+    /// Annex B 格式使用起始码 00 00 00 01 或 00 00 01 分隔 NAL 单元
+    /// </summary>
+    private List<byte[]> ExtractNalUnits(byte[] h264Data)
+    {
+        var nalUnits = new List<byte[]>();
+        int offset = 0;
+        int length = h264Data.Length;
+        
+        while (offset < length)
+        {
+            // 查找起始码
+            int startCodeLength = 0;
+            int startPos = FindStartCode(h264Data, offset, out startCodeLength);
+            
+            if (startPos < 0)
+            {
+                // 没有找到起始码
+                if (offset == 0 && length > 0)
+                {
+                    // 可能是不带起始码的裸 NAL 数据
+                    nalUnits.Add(h264Data);
+                }
+                break;
+            }
+            
+            // NAL 单元开始位置（跳过起始码）
+            int nalStart = startPos + startCodeLength;
+            
+            // 查找下一个起始码或数据结束
+            int nextStartCodeLength = 0;
+            int nextStartPos = FindStartCode(h264Data, nalStart, out nextStartCodeLength);
+            
+            int nalEnd = (nextStartPos >= 0) ? nextStartPos : length;
+            int nalLength = nalEnd - nalStart;
+            
+            if (nalLength > 0)
+            {
+                var nalUnit = new byte[nalLength];
+                Array.Copy(h264Data, nalStart, nalUnit, 0, nalLength);
+                nalUnits.Add(nalUnit);
+            }
+            
+            offset = nalEnd;
+        }
+        
+        return nalUnits;
+    }
+    
+    /// <summary>
+    /// 在数据中查找 NAL 起始码 (00 00 00 01 或 00 00 01)
+    /// </summary>
+    private int FindStartCode(byte[] data, int offset, out int startCodeLength)
+    {
+        startCodeLength = 0;
+        
+        for (int i = offset; i < data.Length - 3; i++)
+        {
+            // 检查 4 字节起始码: 00 00 00 01
+            if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 0 && data[i + 3] == 1)
+            {
+                startCodeLength = 4;
+                return i;
+            }
+            // 检查 3 字节起始码: 00 00 01
+            if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 1)
+            {
+                startCodeLength = 3;
+                return i;
+            }
+        }
+        
+        return -1;
+    }
+    
+    /// <summary>
+    /// 发送单个 H264 NAL 单元 (Single NAL Unit Packet)
+    /// RFC 6184: 单包模式，NAL 数据直接作为 RTP 负载
+    /// </summary>
+    private void SendSingleH264NalUnit(byte[] nalUnit, bool isLastInFrame)
+    {
+        var seqNum = _videoSeqNum++;
+        var marker = isLastInFrame ? 1 : 0;  // 帧的最后一个 NAL 设置 marker
+        
+        // 单包模式：NAL 数据直接作为 RTP 负载（不需要额外封装）
+        SendRtpPacket(SDPMediaTypesEnum.video, H264_PAYLOAD_TYPE, seqNum, _videoTimestamp, _videoSsrc, marker, nalUnit);
+        
+        int nalType = nalUnit.Length > 0 ? (nalUnit[0] & 0x1F) : 0;
+        _logger.LogTrace("H264: Sent single NAL: type={Type}, size={Size}, marker={Marker}", 
+            nalType, nalUnit.Length, marker);
+    }
+    
+    /// <summary>
+    /// 分片发送 H264 NAL 单元 (FU-A Fragmentation Unit)
+    /// RFC 6184: 当 NAL 单元大于 MTU 时使用
+    /// </summary>
+    private void SendFragmentedH264NalUnit(byte[] nalUnit, bool isLastInFrame)
+    {
+        if (nalUnit.Length < 1) return;
+        
+        // NAL header 是第一个字节
+        byte nalHeader = nalUnit[0];
+        byte nalType = (byte)(nalHeader & 0x1F);
+        byte nalNri = (byte)(nalHeader & 0x60);  // NRI bits
+        
+        int offset = 1;  // 跳过 NAL header
+        int remaining = nalUnit.Length - 1;
+        int packetCount = 0;
+        bool isFirst = true;
+        
+        while (remaining > 0)
+        {
+            int chunkSize = Math.Min(remaining, MAX_H264_PAYLOAD_SIZE);
+            bool isLast = (offset + chunkSize >= nalUnit.Length);
+            
+            var payload = CreateH264FuAPayload(nalUnit, offset, chunkSize, nalNri, nalType, isFirst, isLast);
+            var seqNum = _videoSeqNum++;
+            
+            // 只有最后一个 NAL 的最后一个分片才设置 marker
+            var marker = (isLast && isLastInFrame) ? 1 : 0;
+            
+            SendRtpPacket(SDPMediaTypesEnum.video, H264_PAYLOAD_TYPE, seqNum, _videoTimestamp, _videoSsrc, marker, payload);
+            
+            offset += chunkSize;
+            remaining -= chunkSize;
+            packetCount++;
+            isFirst = false;
+        }
+        
+        _logger.LogTrace("H264: Sent fragmented NAL: type={Type}, size={Size}, packets={Packets}", 
+            nalType, nalUnit.Length, packetCount);
     }
 
     /// <summary>
@@ -1448,58 +1610,6 @@ public class MediasoupTransport : IDisposable
             vp9Data.Length, packetCount, isKeyFrame);
     }
 
-    /// <summary>
-    /// 发送单个 H264 RTP 包 (Single NAL Unit)
-    /// </summary>
-    private void SendSingleH264Packet(byte[] h264Data, bool isKeyFrame)
-    {
-        // H264 单个 NAL 单元直接发送，不需要额外封装
-        var seqNum = _videoSeqNum++;
-
-        SendRtpPacket(SDPMediaTypesEnum.video, H264_PAYLOAD_TYPE, seqNum, _videoTimestamp, _videoSsrc, 1, h264Data);
-
-        _logger.LogTrace("Sent H264 packet: seq={Seq}, size={Size}, keyFrame={Key}", 
-            seqNum, h264Data.Length, isKeyFrame);
-    }
-
-    /// <summary>
-    /// 分片发送 H264 帧 - 使用 FU-A 分片 (RFC 6184)
-    /// </summary>
-    private void SendFragmentedH264Frame(byte[] h264Data, bool isKeyFrame)
-    {
-        if (h264Data.Length < 1)
-            return;
-
-        // NAL header 是第一个字节
-        byte nalHeader = h264Data[0];
-        byte nalType = (byte)(nalHeader & 0x1F);
-        byte nalNri = (byte)(nalHeader & 0x60);
-
-        int offset = 1; // 跳过 NAL header
-        int remaining = h264Data.Length - 1;
-        int packetCount = 0;
-        bool isFirst = true;
-
-        while (remaining > 0)
-        {
-            int chunkSize = Math.Min(remaining, MAX_H264_PAYLOAD_SIZE);
-            bool isLast = (offset + chunkSize >= h264Data.Length);
-
-            var payload = CreateH264FuAPayload(h264Data, offset, chunkSize, nalNri, nalType, isFirst, isLast);
-            var seqNum = _videoSeqNum++;
-            var marker = isLast ? 1 : 0;
-
-            SendRtpPacket(SDPMediaTypesEnum.video, H264_PAYLOAD_TYPE, seqNum, _videoTimestamp, _videoSsrc, marker, payload);
-
-            offset += chunkSize;
-            remaining -= chunkSize;
-            packetCount++;
-            isFirst = false;
-        }
-
-        _logger.LogTrace("Sent fragmented H264 frame: size={Size}, packets={Packets}, keyFrame={Key}", 
-            h264Data.Length, packetCount, isKeyFrame);
-    }
 
     /// <summary>
     /// 发送音频 RTP 包

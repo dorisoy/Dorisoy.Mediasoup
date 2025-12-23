@@ -132,8 +132,10 @@ public unsafe class H264Encoder : IVideoEncoder
             ffmpeg.av_opt_set(_codecContext->priv_data, "level", "3.1", 0);
             ffmpeg.av_opt_set(_codecContext->priv_data, "crf", "23", 0); // 恒定质量因子
             
-            // 强制 Annex B 格式 (NAL 起始码)
-            _codecContext->flags |= ffmpeg.AV_CODEC_FLAG_GLOBAL_HEADER;
+            // 注意：不要使用 AV_CODEC_FLAG_GLOBAL_HEADER
+            // 对于 RTP 流，我们需要 SPS/PPS 包含在每个关键帧中
+            // 而不是存储在 extradata 中
+            // 编码器会输出 Annex B 格式 (NAL 起始码 00 00 00 01)
 
             var result = ffmpeg.avcodec_open2(_codecContext, codec, null);
             if (result < 0)

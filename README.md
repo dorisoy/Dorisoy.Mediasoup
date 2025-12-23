@@ -499,6 +499,7 @@ ENTRYPOINT ["dotnet", "Dorisoy.Meeting.Web.dll"]
 
 ### Q: 编解码器信息传递流程是？
 
+```
 ┌─────────────┐                    ┌─────────────────┐                    ┌─────────────┐
 │  客户端 A    │                    │  Mediasoup 服务器 │                    │  客户端 B    │
 │  (VP9 发送)  │                    │                 │                    │  (接收方)    │
@@ -516,7 +517,26 @@ ENTRYPOINT ["dotnet", "Dorisoy.Meeting.Web.dll"]
        │                                    │                                    │    提取 mimeType
        │                                    │                                    │    使用 VP9 解码器
 
+```
+
 ---
+
+
+### Q：264 RTP 打包流程（RFC 6184）?
+
+```
+H264 关键帧数据 (Annex B 格式):
+┌─────────────────────────────────────────────────────────────────┐
+│ 00 00 00 01 │ SPS │ 00 00 00 01 │ PPS │ 00 00 00 01 │ IDR slice │
+└─────────────────────────────────────────────────────────────────┘
+      ↓ ExtractNalUnits() 分离
+      
+NAL[0]: SPS (类型 7)  → Single NAL Unit Packet
+NAL[1]: PPS (类型 8)  → Single NAL Unit Packet  
+NAL[2]: IDR (类型 5)  → FU-A 分片发送（如果超过 MTU）
+
+每个 NAL 单元按 RTP 包发送，最后一个 NAL 的最后一个包设置 marker bit
+```
 
 ## 许可证
 
