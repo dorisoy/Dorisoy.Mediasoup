@@ -792,6 +792,10 @@ public class WebRtcService : IWebRtcService
 
         // 设置初始编解码器类型
         _sendTransport.SetVideoCodecType(_currentVideoCodec);
+        
+        // 设置视频比特率
+        var quality = VideoQuality ?? VideoQualitySettings.GetPreset(VideoQualityPreset.High);
+        _sendTransport.VideoBitrate = quality.Bitrate;
 
         _logger.LogInformation("Send transport created: {TransportId}, codec={Codec}", transportId, _currentVideoCodec);
     }
