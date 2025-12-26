@@ -1078,6 +1078,29 @@ public class MediasoupTransport : IDisposable
             return new Dictionary<string, RemoteConsumerInfo>(_remoteConsumers);
         }
     }
+    
+    /// <summary>
+    /// 移除指定 Consumer
+    /// 当用户离开房间或 Consumer 关闭时调用
+    /// </summary>
+    /// <param name="consumerId">Consumer ID</param>
+    public void RemoveConsumer(string consumerId)
+    {
+        lock (_consumersLock)
+        {
+            if (_consumers.TryRemove(consumerId, out _))
+            {
+                _logger.LogDebug("已移除 Consumer 信息: {ConsumerId}", consumerId);
+            }
+            
+            if (_remoteConsumers.TryRemove(consumerId, out _))
+            {
+                _logger.LogDebug("已移除远端 Consumer 信息: {ConsumerId}", consumerId);
+            }
+        }
+        
+        _logger.LogInformation("Consumer 已从 Transport 移除: {ConsumerId}", consumerId);
+    }
 
     /// <summary>
     /// 从 MimeType 提取编解码器名称（用于 SDP 协商）
@@ -1130,7 +1153,7 @@ public class MediasoupTransport : IDisposable
                 },
                 encodings = new object[]
                 {
-                    new { ssrc, maxBitrate = 1500000 }
+                    new { ssrc, maxBitrate = VideoBitrate }
                 },
                 rtcp = new
                 {
@@ -1190,6 +1213,11 @@ public class MediasoupTransport : IDisposable
 
     // 当前视频编解码器类型
     private VideoCodecType _currentVideoCodec = VideoCodecType.VP8;
+    
+    /// <summary>
+    /// 视频目标比特率 (bps)，用于 RTP 参数协商
+    /// </summary>
+    public int VideoBitrate { get; set; } = 5_000_000;
 
     /// <summary>
     /// 设置当前视频编解码器类型

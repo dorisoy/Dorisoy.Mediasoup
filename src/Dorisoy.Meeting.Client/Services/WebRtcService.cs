@@ -737,6 +737,12 @@ public class WebRtcService : IWebRtcService
         _logger.LogInformation("Removing consumer: {ConsumerId}", consumerId);
 
         _consumers.TryRemove(consumerId, out _);
+        
+        // 清理 RTP 解码器中该 Consumer 的资源
+        _rtpDecoder?.RemoveConsumer(consumerId);
+        
+        // 清理 Transport 中该 Consumer 的资源
+        _recvTransport?.RemoveConsumer(consumerId);
 
         return Task.CompletedTask;
     }

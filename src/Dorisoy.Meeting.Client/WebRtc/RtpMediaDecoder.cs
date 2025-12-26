@@ -136,6 +136,54 @@ public class RtpMediaDecoder : IDisposable
         }
         return _currentVideoCodec;
     }
+    
+    /// <summary>
+    /// 移除指定 Consumer 的所有解码器和解包器资源
+    /// 当用户离开房间或 Consumer 关闭时调用
+    /// </summary>
+    /// <param name="consumerId">Consumer ID</param>
+    public void RemoveConsumer(string consumerId)
+    {
+        _logger.LogInformation("移除 Consumer 解码器资源: {ConsumerId}", consumerId);
+        
+        // 移除视频解码器
+        if (_videoDecoders.TryRemove(consumerId, out var videoDecoder))
+        {
+            try
+            {
+                videoDecoder.Dispose();
+                _logger.LogDebug("已释放视频解码器: {ConsumerId}", consumerId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "释放视频解码器失败: {ConsumerId}", consumerId);
+            }
+        }
+        
+        // 移除解包器
+        _vp8Depacketizers.TryRemove(consumerId, out _);
+        _vp9Depacketizers.TryRemove(consumerId, out _);
+        _h264Depacketizers.TryRemove(consumerId, out _);
+        
+        // 移除编解码器类型记录
+        _consumerCodecTypes.TryRemove(consumerId, out _);
+        
+        // 移除音频解码器
+        if (_audioDecoders.TryRemove(consumerId, out var audioDecoder))
+        {
+            try
+            {
+                // OpusDecoder 没有 Dispose 方法，但我们仍然从字典中移除
+                _logger.LogDebug("已移除音频解码器: {ConsumerId}", consumerId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "移除音频解码器失败: {ConsumerId}", consumerId);
+            }
+        }
+        
+        _logger.LogDebug("Consumer 资源清理完成: {ConsumerId}", consumerId);
+    }
 
     /// <summary>
     /// 处理视频 RTP 包 - 根据每个 Consumer 的编解码器类型选择对应的解包器

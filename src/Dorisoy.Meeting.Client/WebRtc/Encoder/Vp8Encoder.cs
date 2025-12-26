@@ -105,9 +105,14 @@ public unsafe class Vp8Encoder : IVideoEncoder
             _codecContext->framerate = new AVRational { num = FrameRate, den = 1 };
             _codecContext->pix_fmt = AVPixelFormat.AV_PIX_FMT_YUV420P;
             _codecContext->bit_rate = Bitrate;
+            _codecContext->rc_min_rate = Bitrate / 2;  // 最小码率 = 50%
+            _codecContext->rc_max_rate = Bitrate * 2;  // 最大码率 = 200%
+            _codecContext->rc_buffer_size = Bitrate;   // 缓冲区大小 = 1秒
             _codecContext->gop_size = FrameRate * KeyFrameInterval; // 关键帧间隔
             _codecContext->max_b_frames = 0; // VP8 不使用 B 帧
             _codecContext->thread_count = Environment.ProcessorCount;
+            _codecContext->qmin = 4;   // 最小量化参数 (质量上限)
+            _codecContext->qmax = 48;  // 最大量化参数 (质量下限)
             
             // 强制第一帧为关键帧
             _isFirstFrame = true;
@@ -115,8 +120,8 @@ public unsafe class Vp8Encoder : IVideoEncoder
             // 设置实时编码选项
             ffmpeg.av_opt_set(_codecContext->priv_data, "deadline", "realtime", 0);
             
-            // cpu-used: 0-8, 越低质量越好
-            var effectiveCpuUsed = Math.Max(2, CpuUsed);
+            // cpu-used: 0-8, 越低质量越好，但最低限制为 1 以确保实时性
+            var effectiveCpuUsed = Math.Clamp(CpuUsed, 1, 8);
             ffmpeg.av_opt_set(_codecContext->priv_data, "cpu-used", effectiveCpuUsed.ToString(), 0);
             
             // 禁用 alt-ref 和 lag-in-frames
@@ -125,6 +130,12 @@ public unsafe class Vp8Encoder : IVideoEncoder
             
             // 设置错误弹性
             ffmpeg.av_opt_set(_codecContext->priv_data, "error-resilient", "1", 0);
+            
+            // 设置质量模式为 VBR (Variable Bitrate)
+            ffmpeg.av_opt_set(_codecContext->priv_data, "end-usage", "vbr", 0);
+            
+            // 设置 token 分割
+            ffmpeg.av_opt_set(_codecContext->priv_data, "token-parts", "3", 0);
 
             // 打开编解码器
             var result = ffmpeg.avcodec_open2(_codecContext, codec, null);
