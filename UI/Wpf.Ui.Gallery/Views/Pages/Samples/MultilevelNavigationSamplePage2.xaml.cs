@@ -1,0 +1,19 @@
+﻿
+
+using Wpf.Ui.Controls;
+using Wpf.Ui.Gallery.ViewModels.Pages.Navigation;
+
+namespace Wpf.Ui.Gallery.Views.Pages.Samples;
+
+public partial class MultilevelNavigationSamplePage2 : INavigableView<MultilevelNavigationSample>
+{
+    public MultilevelNavigationSamplePage2(MultilevelNavigationSample viewModel)
+    {
+        ViewModel = viewModel;
+        DataContext = viewModel;
+
+        InitializeComponent();
+    }
+
+    public MultilevelNavigationSample ViewModel { get; }
+}
