@@ -80,6 +80,8 @@ public partial class JoinRoomWindow
     /// </summary>
     private void RoomDigit_TextChanged(object sender, TextChangedEventArgs e)
     {
+        // 防止在初始化期间触发
+        if (_roomDigitBoxes == null) return;
         if (sender is not TextBox currentBox) return;
         
         // 如果输入了一个数字，自动跳转到下一个输入框
