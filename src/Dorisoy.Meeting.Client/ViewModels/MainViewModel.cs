@@ -200,6 +200,58 @@ public partial class MainViewModel : ObservableObject
 
     #endregion
 
+    #region 聊天相关属性
+
+    /// <summary>
+    /// 聊天用户列表
+    /// </summary>
+    public ObservableCollection<ChatUser> ChatUsers { get; } = [];
+
+    /// <summary>
+    /// 选中的聊天用户
+    /// </summary>
+    [ObservableProperty]
+    private ChatUser? _selectedChatUser;
+
+    /// <summary>
+    /// 当前消息列表
+    /// </summary>
+    public ObservableCollection<ChatMessage> CurrentMessages { get; } = [];
+
+    /// <summary>
+    /// 群聊消息列表
+    /// </summary>
+    private readonly ObservableCollection<ChatMessage> _groupMessages = [];
+
+    /// <summary>
+    /// 私聊消息字典
+    /// </summary>
+    private readonly Dictionary<string, ObservableCollection<ChatMessage>> _privateMessages = [];
+
+    /// <summary>
+    /// 聊天面板是否可见
+    /// </summary>
+    [ObservableProperty]
+    private bool _isChatPanelVisible;
+
+    /// <summary>
+    /// 是否在群聊模式
+    /// </summary>
+    [ObservableProperty]
+    private bool _isGroupChatMode = true;
+
+    /// <summary>
+    /// 当前显示的表情反应
+    /// </summary>
+    [ObservableProperty]
+    private EmojiReaction? _currentEmojiReaction;
+
+    /// <summary>
+    /// 表情反应是否可见
+    /// </summary>
+    [ObservableProperty]
+    private bool _isEmojiReactionVisible;
+
     #region 私有字段
 
     /// <summary>
@@ -548,25 +600,36 @@ public partial class MainViewModel : ObservableObject
     #region 底部控制栏命令
 
     /// <summary>
-    /// 举手
-    /// </summary>
-    [RelayCommand]
-    private void RaiseHand()
-    {
-        IsHandRaised = !IsHandRaised;
-        _logger.LogInformation("举手状态: {IsHandRaised}", IsHandRaised);
-        StatusMessage = IsHandRaised ? "已举手" : "已放下手";
-    }
-
-    /// <summary>
     /// 聊天
     /// </summary>
     [RelayCommand]
     private void Chat()
     {
-        _logger.LogInformation("聊天");
-        StatusMessage = "聊天功能待实现";
+        IsChatPanelVisible = !IsChatPanelVisible;
+        _logger.LogInformation("聊天面板: {Visible}", IsChatPanelVisible);
+        StatusMessage = IsChatPanelVisible ? "打开聊天" : "关闭聊天";
+        
+        // 切换到群聊
+        if (IsChatPanelVisible)
+        {
+            SwitchToGroupChat();
+        }
     }
+
+    /// <summary>
+    /// 举手/发送表情
+    /// </summary>
+    [RelayCommand]
+    private void RaiseHand()
+    {
+        // 打开表情选择窗口
+        OpenEmojiPickerRequested?.Invoke();
+    }
+
+    /// <summary>
+    /// 请求打开表情选择器事件
+    /// </summary>
+    public event Action? OpenEmojiPickerRequested;
 
     /// <summary>
     /// 打开设置
@@ -583,6 +646,366 @@ public partial class MainViewModel : ObservableObject
     /// 请求打开设置窗口事件
     /// </summary>
     public event Action? OpenSettingsRequested;
+
+    #endregion
+
+    #region 聊天和表情方法
+
+    /// <summary>
+    /// 发送表情广播
+    /// </summary>
+    public async Task SendEmojiReactionAsync(string emoji)
+    {
+        if (!IsJoinedRoom) return;
+
+        try
+        {
+            var reaction = new
+            {
+                emoji,
+                senderName = CurrentUserName,
+                senderId = SelectedPeerIndex.ToString()
+            };
+
+            await _signalRService.InvokeAsync("BroadcastMessage", new
+            {
+                type = "emojiReaction",
+                data = reaction
+            });
+
+            _logger.LogInformation("发送表情反应: {Emoji}", emoji);
+            StatusMessage = $"发送表情: {emoji}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送表情失败");
+        }
+    }
+
+    /// <summary>
+    /// 显示表情反应
+    /// </summary>
+    public void ShowEmojiReaction(EmojiReaction reaction)
+    {
+        Application.Current?.Dispatcher.Invoke(async () =>
+        {
+            CurrentEmojiReaction = reaction;
+            IsEmojiReactionVisible = true;
+
+            // 3秒后隐藏
+            await Task.Delay(3000);
+            IsEmojiReactionVisible = false;
+        });
+    }
+
+    /// <summary>
+    /// 切换到群聊
+    /// </summary>
+    public void SwitchToGroupChat()
+    {
+        IsGroupChatMode = true;
+        SelectedChatUser = null;
+        
+        CurrentMessages.Clear();
+        foreach (var msg in _groupMessages)
+        {
+            CurrentMessages.Add(msg);
+        }
+    }
+
+    /// <summary>
+    /// 选中聊天用户变化
+    /// </summary>
+    partial void OnSelectedChatUserChanged(ChatUser? value)
+    {
+        if (value == null) return;
+
+        IsGroupChatMode = false;
+        
+        // 切换到私聊消息
+        if (!_privateMessages.TryGetValue(value.PeerId, out var messages))
+        {
+            messages = [];
+            _privateMessages[value.PeerId] = messages;
+        }
+
+        CurrentMessages.Clear();
+        foreach (var msg in messages)
+        {
+            CurrentMessages.Add(msg);
+        }
+
+        // 清除未读数
+        value.UnreadCount = 0;
+    }
+
+    /// <summary>
+    /// 发送文本消息
+    /// </summary>
+    public async void SendTextMessage(string content, string? receiverId)
+    {
+        if (!IsJoinedRoom) return;
+
+        var message = new ChatMessage
+        {
+            SenderId = SelectedPeerIndex.ToString(),
+            SenderName = CurrentUserName,
+            ReceiverId = receiverId ?? "",
+            Content = content,
+            MessageType = ChatMessageType.Text,
+            IsFromSelf = true
+        };
+
+        AddMessageToCollection(message);
+
+        try
+        {
+            await _signalRService.InvokeAsync("BroadcastMessage", new
+            {
+                type = "chatMessage",
+                data = new
+                {
+                    id = message.Id,
+                    senderId = message.SenderId,
+                    senderName = message.SenderName,
+                    receiverId = message.ReceiverId,
+                    content = message.Content,
+                    messageType = (int)message.MessageType,
+                    timestamp = message.Timestamp
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送消息失败");
+        }
+    }
+
+    /// <summary>
+    /// 发送图片消息
+    /// </summary>
+    public async void SendImageMessage(string filePath, string? receiverId)
+    {
+        if (!IsJoinedRoom) return;
+
+        try
+        {
+            var fileInfo = new System.IO.FileInfo(filePath);
+            var message = new ChatMessage
+            {
+                SenderId = SelectedPeerIndex.ToString(),
+                SenderName = CurrentUserName,
+                ReceiverId = receiverId ?? "",
+                Content = $"[图片] {fileInfo.Name}",
+                MessageType = ChatMessageType.Image,
+                FileName = fileInfo.Name,
+                FilePath = filePath,
+                FileSize = fileInfo.Length,
+                IsFromSelf = true
+            };
+
+            // 加载图片
+            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+            bitmap.BeginInit();
+            bitmap.UriSource = new Uri(filePath);
+            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            bitmap.EndInit();
+            message.ImageSource = bitmap;
+
+            AddMessageToCollection(message);
+
+            // 发送消息通知（实际文件传输需要额外实现）
+            await _signalRService.InvokeAsync("BroadcastMessage", new
+            {
+                type = "chatMessage",
+                data = new
+                {
+                    id = message.Id,
+                    senderId = message.SenderId,
+                    senderName = message.SenderName,
+                    receiverId = message.ReceiverId,
+                    content = message.Content,
+                    messageType = (int)message.MessageType,
+                    fileName = message.FileName,
+                    fileSize = message.FileSize,
+                    timestamp = message.Timestamp
+                }
+            });
+
+            StatusMessage = "图片已发送";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送图片失败");
+            StatusMessage = $"发送图片失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 发送文件消息
+    /// </summary>
+    public async void SendFileMessage(string filePath, string? receiverId)
+    {
+        if (!IsJoinedRoom) return;
+
+        try
+        {
+            var fileInfo = new System.IO.FileInfo(filePath);
+            var message = new ChatMessage
+            {
+                SenderId = SelectedPeerIndex.ToString(),
+                SenderName = CurrentUserName,
+                ReceiverId = receiverId ?? "",
+                Content = $"[文件] {fileInfo.Name}",
+                MessageType = ChatMessageType.File,
+                FileName = fileInfo.Name,
+                FilePath = filePath,
+                FileSize = fileInfo.Length,
+                IsFromSelf = true
+            };
+
+            AddMessageToCollection(message);
+
+            // 发送消息通知（实际文件传输需要额外实现）
+            await _signalRService.InvokeAsync("BroadcastMessage", new
+            {
+                type = "chatMessage",
+                data = new
+                {
+                    id = message.Id,
+                    senderId = message.SenderId,
+                    senderName = message.SenderName,
+                    receiverId = message.ReceiverId,
+                    content = message.Content,
+                    messageType = (int)message.MessageType,
+                    fileName = message.FileName,
+                    fileSize = message.FileSize,
+                    timestamp = message.Timestamp
+                }
+            });
+
+            StatusMessage = "文件已发送";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送文件失败");
+            StatusMessage = $"发送文件失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 添加消息到集合
+    /// </summary>
+    private void AddMessageToCollection(ChatMessage message)
+    {
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            if (string.IsNullOrEmpty(message.ReceiverId))
+            {
+                // 群聊消息
+                _groupMessages.Add(message);
+                if (IsGroupChatMode)
+                {
+                    CurrentMessages.Add(message);
+                }
+            }
+            else
+            {
+                // 私聊消息
+                if (!_privateMessages.TryGetValue(message.ReceiverId, out var messages))
+                {
+                    messages = [];
+                    _privateMessages[message.ReceiverId] = messages;
+                }
+                messages.Add(message);
+
+                if (!IsGroupChatMode && SelectedChatUser?.PeerId == message.ReceiverId)
+                {
+                    CurrentMessages.Add(message);
+                }
+            }
+        });
+    }
+
+    /// <summary>
+    /// 处理接收到的消息
+    /// </summary>
+    private void HandleChatMessage(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var msgData = JsonSerializer.Deserialize<ChatMessageData>(json, JsonOptions);
+            if (msgData == null) return;
+
+            // 忽略自己发送的消息
+            if (msgData.SenderId == SelectedPeerIndex.ToString()) return;
+
+            var message = new ChatMessage
+            {
+                Id = msgData.Id ?? Guid.NewGuid().ToString(),
+                SenderId = msgData.SenderId ?? "",
+                SenderName = msgData.SenderName ?? "Unknown",
+                ReceiverId = msgData.ReceiverId ?? "",
+                Content = msgData.Content ?? "",
+                MessageType = (ChatMessageType)(msgData.MessageType ?? 0),
+                FileName = msgData.FileName,
+                FileSize = msgData.FileSize ?? 0,
+                Timestamp = msgData.Timestamp ?? DateTime.Now,
+                IsFromSelf = false
+            };
+
+            AddMessageToCollection(message);
+
+            // 如果不在当前聊天，增加未读数
+            if (!IsChatPanelVisible || (!IsGroupChatMode && SelectedChatUser?.PeerId != message.SenderId))
+            {
+                var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
+                if (user != null)
+                {
+                    user.UnreadCount++;
+                    user.LastMessage = message;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理消息失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理接收到的表情反应
+    /// </summary>
+    private void HandleEmojiReaction(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var reactionData = JsonSerializer.Deserialize<EmojiReactionData>(json, JsonOptions);
+            if (reactionData == null) return;
+
+            // 忽略自己发送的
+            if (reactionData.SenderId == SelectedPeerIndex.ToString()) return;
+
+            var reaction = new EmojiReaction
+            {
+                SenderId = reactionData.SenderId ?? "",
+                SenderName = reactionData.SenderName ?? "Unknown",
+                Emoji = reactionData.Emoji ?? "👍"
+            };
+
+            ShowEmojiReaction(reaction);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理表情反应失败");
+        }
+    }
 
     #endregion
 
