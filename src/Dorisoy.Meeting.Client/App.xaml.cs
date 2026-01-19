@@ -74,13 +74,19 @@ public partial class App : Application
                 // 应用加入房间信息到主视图模型
                 mainViewModel.ServerUrl = joinInfo.ServerUrl;
                 mainViewModel.CurrentUserName = joinInfo.UserName;
+                mainViewModel.RoomId = joinInfo.RoomId;
                 
-                Log.Information("正在显示主窗口: UserName={UserName}, ServerUrl={ServerUrl}", 
-                    joinInfo.UserName, joinInfo.ServerUrl);
+                Log.Information("正在显示主窗口: UserName={UserName}, ServerUrl={ServerUrl}, RoomId={RoomId}", 
+                    joinInfo.UserName, joinInfo.ServerUrl, joinInfo.RoomId);
                 
-                // 显示主窗口
+                // 显示主窗口并最大化
                 var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+                mainWindow.WindowState = System.Windows.WindowState.Maximized;
                 mainWindow.Show();
+                
+                // 自动加入房间
+                Log.Information("开始自动加入房间...");
+                _ = mainViewModel.AutoJoinAsync(joinInfo);
             }
             else
             {

@@ -56,6 +56,7 @@
                                         Cursor="Hand">
                                     <Button.Style>
                                         <Style TargetType="Button">
+                                            <Setter Property="Foreground" Value="#FFB800"/>
                                             <Style.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
@@ -97,6 +98,7 @@
                                         Cursor="Hand">
                                     <Button.Style>
                                         <Style TargetType="Button">
+                                            <Setter Property="Foreground" Value="#FFB800"/>
                                             <Style.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
@@ -138,6 +140,7 @@
                                         Cursor="Hand">
                                     <Button.Style>
                                         <Style TargetType="Button">
+                                            <Setter Property="Foreground" Value="#FFB800"/>
                                             <Style.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
@@ -179,6 +182,7 @@
                                         Cursor="Hand">
                                     <Button.Style>
                                         <Style TargetType="Button">
+                                            <Setter Property="Foreground" Value="#FFB800"/>
                                             <Style.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>

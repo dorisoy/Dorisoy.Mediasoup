@@ -116,7 +116,7 @@
     <Grid>
         <Grid.ColumnDefinitions>
             <!-- 用户列表 -->
-            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="150"/>
             <!-- 聊天区域 -->
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>

@@ -34,13 +34,8 @@
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 
-        <!-- 主布局：视频区 + 浮动工具栏 + 聊天面板 -->
+        <!-- 主布局：视频区 + 浮动工具栏 -->
         <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <!-- 聊天面板列 -->
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
             
             <!-- 主视频区域（占据全部空间） -->
             <Grid Background="{DynamicResource ApplicationBackgroundBrush}">
@@ -173,7 +168,7 @@
                 <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
                         VerticalAlignment="Bottom"
                         Height="90"
-                        CornerRadius="16,16,0,0">
+                        CornerRadius="0,0,0,0">
                     <Grid>
                         <StackPanel Orientation="Horizontal" 
                                     HorizontalAlignment="Center"
@@ -182,35 +177,29 @@
                             <!-- 静音（麦克风开关） -->
                             <StackPanel Margin="12,0">
                                 <ui:Button Command="{Binding ToggleMicrophoneCommand}"
-                                           IsEnabled="{Binding CanToggleMedia}"
                                            ToolTip="{Binding IsMicrophoneEnabled, Converter={StaticResource MicButtonTextConverter}}"
                                            Appearance="{Binding IsMicrophoneEnabled, Converter={StaticResource MediaAppearanceConverter}}"
                                            Width="56" Height="56"
                                            CornerRadius="28">
                                     <ui:SymbolIcon Symbol="{Binding IsMicrophoneEnabled, Converter={StaticResource MicrophoneIconConverter}}" FontSize="24"/>
                                 </ui:Button>
-                                <TextBlock Text="静音" 
+                                <!--<TextBlock Text="静音" 
                                            HorizontalAlignment="Center" 
                                            FontSize="11" 
                                            Opacity="0.7"
-                                           Margin="0,4,0,0"/>
+                                           Margin="0,4,0,0"/>-->
                             </StackPanel>
                             
                             <!-- 视频（摄像头开关） -->
                             <StackPanel Margin="12,0">
                                 <ui:Button Command="{Binding ToggleCameraCommand}"
-                                           IsEnabled="{Binding CanToggleMedia}"
                                            ToolTip="{Binding IsCameraEnabled, Converter={StaticResource CameraButtonTextConverter}}"
                                            Appearance="{Binding IsCameraEnabled, Converter={StaticResource MediaAppearanceConverter}}"
                                            Width="56" Height="56"
                                            CornerRadius="28">
                                     <ui:SymbolIcon Symbol="{Binding IsCameraEnabled, Converter={StaticResource VideoIconConverter}}" FontSize="24"/>
                                 </ui:Button>
-                                <TextBlock Text="视频" 
-                                           HorizontalAlignment="Center" 
-                                           FontSize="11" 
-                                           Opacity="0.7"
-                                           Margin="0,4,0,0"/>
+
                             </StackPanel>
 
                             <!-- 分隔线 -->
@@ -225,11 +214,7 @@
                                            CornerRadius="28">
                                     <ui:SymbolIcon Symbol="ShareScreenStart24" FontSize="24"/>
                                 </ui:Button>
-                                <TextBlock Text="共享" 
-                                           HorizontalAlignment="Center" 
-                                           FontSize="11" 
-                                           Opacity="0.7"
-                                           Margin="0,4,0,0"/>
+
                             </StackPanel>
 
                             <!-- 举手 -->
@@ -241,11 +226,7 @@
                                            CornerRadius="28">
                                     <ui:SymbolIcon Symbol="HandRight24" FontSize="24"/>
                                 </ui:Button>
-                                <TextBlock Text="举手" 
-                                           HorizontalAlignment="Center" 
-                                           FontSize="11" 
-                                           Opacity="0.7"
-                                           Margin="0,4,0,0"/>
+                              
                             </StackPanel>
 
                             <!-- 聊天 -->
@@ -257,11 +238,7 @@
                                            CornerRadius="28">
                                     <ui:SymbolIcon Symbol="Chat24" FontSize="24"/>
                                 </ui:Button>
-                                <TextBlock Text="聊天" 
-                                           HorizontalAlignment="Center" 
-                                           FontSize="11" 
-                                           Opacity="0.7"
-                                           Margin="0,4,0,0"/>
+                               
                             </StackPanel>
 
                             <!-- 分隔线 -->
@@ -276,11 +253,7 @@
                                            CornerRadius="28">
                                     <ui:SymbolIcon Symbol="Settings24" FontSize="24"/>
                                 </ui:Button>
-                                <TextBlock Text="设置" 
-                                           HorizontalAlignment="Center" 
-                                           FontSize="11" 
-                                           Opacity="0.7"
-                                           Margin="0,4,0,0"/>
+                              
                             </StackPanel>
 
                             <!-- 离开/加入 -->
@@ -293,11 +266,7 @@
                                            CornerRadius="28">
                                     <ui:SymbolIcon Symbol="CallEnd24" FontSize="24"/>
                                 </ui:Button>
-                                <TextBlock Text="{Binding IsJoinedRoom, Converter={StaticResource LeaveTextConverter}}" 
-                                           HorizontalAlignment="Center" 
-                                           FontSize="11" 
-                                           Opacity="0.7"
-                                           Margin="0,4,0,0"/>
+                             
                             </StackPanel>
                             
                         </StackPanel>
@@ -534,15 +503,19 @@
                         </StackPanel>
                     </StackPanel>
                 </Border>
-            
-            <!-- 右侧聊天面板 -->
-            <Border Grid.Column="1"
-                    Width="380"
-                    Visibility="{Binding IsChatPanelVisible, Converter={StaticResource BoolToVisConverter}}"
-                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
-                    BorderThickness="1,0,0,0">
-                <views:ChatPanel DataContext="{Binding}"/>
-            </Border>
+
+                <!-- 右侧浮动聊天面板 - 覆盖在视频上层 -->
+                <Border HorizontalAlignment="Right"
+                        VerticalAlignment="Stretch"
+                        Width="580"
+                        Margin="0,0,0,91"
+                        Background="{DynamicResource ApplicationBackgroundBrush}"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1,0,0,0"
+                        Panel.ZIndex="180"
+                        Visibility="{Binding IsChatPanelVisible, Converter={StaticResource BoolToVisConverter}}">
+                    <views:ChatPanel DataContext="{Binding}"/>
+                </Border>
         </Grid>
     </Grid>
 </ui:FluentWindow>

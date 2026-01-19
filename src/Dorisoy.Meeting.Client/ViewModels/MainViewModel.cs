@@ -59,6 +59,12 @@ public partial class MainViewModel : ObservableObject
     private int _selectedRoomIndex;
 
     /// <summary>
+    /// 房间号码（用于加入房间）
+    /// </summary>
+    [ObservableProperty]
+    private string _roomId = "0";
+
+    /// <summary>
     /// 服务模式
     /// </summary>
     [ObservableProperty]
@@ -610,22 +616,33 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ShareScreenAsync()
     {
-        if (!IsJoinedRoom) return;
+        _logger.LogInformation("屏幕共享按钮点击, IsJoinedRoom={IsJoinedRoom}, IsScreenSharing={IsScreenSharing}", IsJoinedRoom, IsScreenSharing);
+        
+        if (!IsJoinedRoom)
+        {
+            StatusMessage = "请先加入房间";
+            _logger.LogWarning("尝试共享屏幕但未加入房间");
+            return;
+        }
 
         try
         {
             if (IsScreenSharing)
             {
                 // 停止共享
+                _logger.LogInformation("停止屏幕共享...");
                 await _webRtcService.StopScreenShareAsync();
                 IsScreenSharing = false;
                 StatusMessage = "已停止屏幕共享";
-                _logger.LogInformation("停止屏幕共享");
+                _logger.LogInformation("屏幕共享已停止");
             }
             else
             {
                 // 开始共享 - 向所有用户发送共享请求
+                _logger.LogInformation("开始屏幕共享...");
                 var sessionId = Guid.NewGuid().ToString();
+                
+                // 通过SignalR广播屏幕共享请求
                 await _signalRService.InvokeAsync("BroadcastMessage", new
                 {
                     type = "screenShareRequest",
@@ -636,12 +653,13 @@ public partial class MainViewModel : ObservableObject
                         sessionId
                     }
                 });
+                _logger.LogInformation("已发送屏幕共享请求, sessionId={SessionId}", sessionId);
 
                 // 开始屏幕捕获
                 await _webRtcService.StartScreenShareAsync();
                 IsScreenSharing = true;
                 StatusMessage = "屏幕共享中...";
-                _logger.LogInformation("开始屏幕共享");
+                _logger.LogInformation("屏幕共享已开始");
             }
         }
         catch (Exception ex)
@@ -777,6 +795,79 @@ public partial class MainViewModel : ObservableObject
     /// 请求打开设置窗口事件
     /// </summary>
     public event Action? OpenSettingsRequested;
+
+    /// <summary>
+    /// 自动加入房间（用于启动时自动连接并加入）
+    /// </summary>
+    /// <param name="joinInfo">加入信息</param>
+    public async Task AutoJoinAsync(Models.JoinRoomInfo joinInfo)
+    {
+        if (IsBusy) return;
+
+        IsBusy = true;
+        try
+        {
+            // 应用加入信息
+            ServerUrl = joinInfo.ServerUrl;
+            CurrentUserName = joinInfo.UserName;
+            RoomId = joinInfo.RoomId;
+
+            // 设置选中的设备
+            if (!string.IsNullOrEmpty(joinInfo.CameraDeviceId))
+            {
+                SelectedCamera = Cameras.FirstOrDefault(c => c.DeviceId == joinInfo.CameraDeviceId) ?? Cameras.FirstOrDefault();
+            }
+            if (!string.IsNullOrEmpty(joinInfo.MicrophoneDeviceId))
+            {
+                SelectedMicrophone = Microphones.FirstOrDefault(m => m.DeviceId == joinInfo.MicrophoneDeviceId) ?? Microphones.FirstOrDefault();
+            }
+
+            _logger.LogInformation("自动加入: ServerUrl={ServerUrl}, UserName={UserName}, RoomId={RoomId}", 
+                ServerUrl, CurrentUserName, RoomId);
+
+            // 连接服务器
+            StatusMessage = "正在连接服务器...";
+            await ConnectAsync();
+
+            if (!IsConnected)
+            {
+                StatusMessage = "连接服务器失败";
+                return;
+            }
+
+            // 加入房间
+            StatusMessage = "正在加入房间...";
+            await JoinRoomAsync();
+
+            if (!IsJoinedRoom)
+            {
+                StatusMessage = "加入房间失败";
+                return;
+            }
+
+            // 根据设置控制摄像头和麦克风
+            if (!joinInfo.MuteCameraOnJoin && !IsCameraEnabled)
+            {
+                await ToggleCameraAsync();
+            }
+            if (!joinInfo.MuteMicrophoneOnJoin && !IsMicrophoneEnabled)
+            {
+                await ToggleMicrophoneAsync();
+            }
+
+            StatusMessage = $"已加入房间 {RoomId}";
+            _logger.LogInformation("自动加入成功: RoomId={RoomId}", RoomId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "自动加入失败");
+            StatusMessage = $"加入失败: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
 
     #endregion
 
@@ -1273,9 +1364,6 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ToggleCameraAsync()
     {
-        if (IsBusy) return;
-
-        IsBusy = true;
         try
         {
             if (IsCameraEnabled)
@@ -1293,6 +1381,7 @@ public partial class MainViewModel : ObservableObject
                 IsCameraEnabled = false;
                 LocalVideoFrame = null;
                 StatusMessage = "摄像头已关闭";
+                _logger.LogInformation("摄像头已关闭");
             }
             else
             {
@@ -1301,6 +1390,7 @@ public partial class MainViewModel : ObservableObject
                 await _webRtcService.StartCameraAsync(deviceId);
                 IsCameraEnabled = true;
                 StatusMessage = "摄像头采集中...";
+                _logger.LogInformation("摄像头已开启");
 
                 // 如果已加入房间，调用 Produce 推送视频
                 if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
@@ -1314,10 +1404,6 @@ public partial class MainViewModel : ObservableObject
             _logger.LogError(ex, "Failed to toggle camera");
             StatusMessage = $"摄像头操作失败: {ex.Message}";
         }
-        finally
-        {
-            IsBusy = false;
-        }
     }
 
     /// <summary>
@@ -1326,9 +1412,6 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ToggleMicrophoneAsync()
     {
-        if (IsBusy) return;
-
-        IsBusy = true;
         try
         {
             if (IsMicrophoneEnabled)
@@ -1345,6 +1428,7 @@ public partial class MainViewModel : ObservableObject
 
                 IsMicrophoneEnabled = false;
                 StatusMessage = "麦克风已关闭";
+                _logger.LogInformation("麦克风已关闭");
             }
             else
             {
@@ -1353,6 +1437,7 @@ public partial class MainViewModel : ObservableObject
                 await _webRtcService.StartMicrophoneAsync(deviceId);
                 IsMicrophoneEnabled = true;
                 StatusMessage = "麦克风已开启";
+                _logger.LogInformation("麦克风已开启");
 
                 // 如果已加入房间，调用 Produce 推送音频
                 if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
@@ -1365,10 +1450,6 @@ public partial class MainViewModel : ObservableObject
         {
             _logger.LogError(ex, "Failed to toggle microphone");
             StatusMessage = $"麦克风操作失败: {ex.Message}";
-        }
-        finally
-        {
-            IsBusy = false;
         }
     }
 
@@ -1479,9 +1560,10 @@ public partial class MainViewModel : ObservableObject
     private async Task JoinRoomAsync()
     {
         var isAdmin = SelectedPeerIndex >= 8;
+        var roomIdToJoin = !string.IsNullOrEmpty(RoomId) ? RoomId : Rooms[SelectedRoomIndex];
         var joinRoomRequest = new
         {
-            roomId = Rooms[SelectedRoomIndex],
+            roomId = roomIdToJoin,
             role = isAdmin ? "admin" : "normal"
         };
 
@@ -1522,7 +1604,7 @@ public partial class MainViewModel : ObservableObject
             await _signalRService.InvokeAsync("Ready");
         }
 
-        StatusMessage = $"已加入房间 {Rooms[SelectedRoomIndex]}";
+        StatusMessage = $"已加入房间 {roomIdToJoin}";
     }
 
     /// <summary>
