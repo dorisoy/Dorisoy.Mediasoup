@@ -432,14 +432,23 @@ public partial class MainViewModel : ObservableObject
         IsBusy = true;
         try
         {
+            _logger.LogInformation("切换房间状态: 当前IsJoinedRoom={IsJoinedRoom}", IsJoinedRoom);
+            
             if (IsJoinedRoom)
             {
+                _logger.LogInformation("开始离开房间...");
                 await LeaveRoomAsync();
             }
             else
             {
+                _logger.LogInformation("开始加入房间...");
                 await JoinRoomAsync();
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "切换房间状态失败");
+            StatusMessage = $"操作失败: {ex.Message}";
         }
         finally
         {
@@ -1568,11 +1577,22 @@ public partial class MainViewModel : ObservableObject
         };
 
         StatusMessage = "正在加入房间...";
+        _logger.LogInformation("调用JoinRoom: RoomId={RoomId}, IsAdmin={IsAdmin}", roomIdToJoin, isAdmin);
 
         var result = await _signalRService.InvokeAsync<JoinRoomResponse>("JoinRoom", joinRoomRequest);
         if (!result.IsSuccess)
         {
             _logger.LogError("JoinRoom failed: {Message}", result.Message);
+            
+            // 检查是否是"已在房间中"的错误
+            if (result.Message?.Contains("already") == true || result.Message?.Contains("已在") == true)
+            {
+                _logger.LogWarning("检测到已在房间中，同步状态为已加入");
+                IsJoinedRoom = true;
+                StatusMessage = $"已在房间 {roomIdToJoin} 中";
+                return;
+            }
+            
             StatusMessage = $"加入房间失败: {result.Message}";
             return;
         }
@@ -1588,6 +1608,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         IsJoinedRoom = true;
+        _logger.LogInformation("加入房间成功: RoomId={RoomId}, PeerCount={PeerCount}", roomIdToJoin, Peers.Count);
 
         // 创建 WebRTC Transport
         await CreateTransportsAsync();
@@ -1612,19 +1633,36 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private async Task LeaveRoomAsync()
     {
+        _logger.LogInformation("开始离开房间...");
+        
         await _webRtcService.CloseAsync();
 
         var result = await _signalRService.InvokeAsync("LeaveRoom");
+        
+        // 无论服务器返回成功还是失败，都重置客户端状态
+        IsJoinedRoom = false;
+        IsCameraEnabled = false;
+        IsMicrophoneEnabled = false;
+        Peers.Clear();
+        RemoteVideos.Clear();
+        HasNoRemoteVideos = true;
+        LocalVideoFrame = null;
+        
+        // 清理 Transport ID
+        _sendTransportId = null;
+        _recvTransportId = null;
+        _videoProducerId = null;
+        _audioProducerId = null;
+        
         if (result.IsSuccess)
         {
-            IsJoinedRoom = false;
-            IsCameraEnabled = false;
-            IsMicrophoneEnabled = false;
-            Peers.Clear();
-            RemoteVideos.Clear();
-            HasNoRemoteVideos = true;
-            LocalVideoFrame = null;
             StatusMessage = "已离开房间";
+            _logger.LogInformation("离开房间成功");
+        }
+        else
+        {
+            StatusMessage = "已离开房间（本地）";
+            _logger.LogWarning("服务器LeaveRoom返回失败，但已重置客户端状态: {Message}", result.Message);
         }
     }
 

@@ -1066,23 +1066,30 @@ namespace Dorisoy.Meeting.Server
         }
 
         /// <summary>
-        /// 进入房间
+        /// 加入房间
         /// </summary>
         public async Task<JoinRoomResult> JoinRoomAsync(Room room)
         {
             await using (await _joinedLock.ReadLockAsync())
             {
                 CheckJoined("JoinRoomAsync()");
-
+        
                 await using (await _roomLock.WriteLockAsync())
                 {
+                    // 如果已经在同一个房间中，返回当前房间的信息（幂等操作）
                     if (_room != null)
                     {
+                        if (_room.RoomId == room.RoomId)
+                        {
+                            // 已在同一个房间，返回当前状态（幂等）
+                            return await _room.GetJoinRoomResultAsync(this);
+                        }
+                        // 在不同的房间中，抛出异常
                         throw new PeerInRoomException("JoinRoomAsync()", PeerId, room.RoomId);
                     }
-
+        
                     _room = room;
-
+        
                     return await _room.PeerJoinAsync(this);
                 }
             }

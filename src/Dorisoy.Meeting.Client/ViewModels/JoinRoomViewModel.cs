@@ -35,7 +35,7 @@ public partial class JoinRoomViewModel : ObservableObject
     /// 服务器地址
     /// </summary>
     [ObservableProperty]
-    private string _serverUrl = "http://192.168.30.8:9000";
+    private string _serverUrl = "http://192.168.0.3:9000";
 
     /// <summary>
     /// 摄像头预览帧
