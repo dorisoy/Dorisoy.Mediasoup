@@ -185,14 +185,35 @@ namespace Dorisoy.Meeting.Server
                     var transport = await _room!.Router.CreateWebRtcTransportAsync(webRtcTransportOptions);
                     await using (await _transportsLock.WriteLockAsync())
                     {
+                        // 幂等操作：如果已存在则返回现有的 transport
                         if (!isSend && HasConsumingTransport())
                         {
-                            throw new Exception("CreateWebRtcTransportAsync() | Consuming transport exists");
+                            // 关闭新创建的 transport
+                            await transport.CloseAsync();
+                            // 返回现有的 consuming transport
+                            var existingTransport = _transports.Values.FirstOrDefault(t => 
+                                t.AppData.TryGetValue("Consuming", out var consuming) && consuming is true);
+                            if (existingTransport is WebRtcTransport webRtcTransport)
+                            {
+                                _logger.LogWarning("CreateWebRtcTransportAsync() | 返回现有的 Consuming transport: {TransportId}", webRtcTransport.TransportId);
+                                return webRtcTransport;
+                            }
+                            throw new Exception("CreateWebRtcTransportAsync() | Consuming transport exists but not found");
                         }
 
                         if (isSend && HasProducingTransport())
                         {
-                            throw new Exception("CreateWebRtcTransportAsync() | Producing transport exists");
+                            // 关闭新创建的 transport
+                            await transport.CloseAsync();
+                            // 返回现有的 producing transport
+                            var existingTransport = _transports.Values.FirstOrDefault(t => 
+                                t.AppData.TryGetValue("Producing", out var producing) && producing is true);
+                            if (existingTransport is WebRtcTransport webRtcTransport)
+                            {
+                                _logger.LogWarning("CreateWebRtcTransportAsync() | 返回现有的 Producing transport: {TransportId}", webRtcTransport.TransportId);
+                                return webRtcTransport;
+                            }
+                            throw new Exception("CreateWebRtcTransportAsync() | Producing transport exists but not found");
                         }
 
                         // Store the WebRtcTransport into the Peer data Object.
