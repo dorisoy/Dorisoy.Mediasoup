@@ -137,6 +137,24 @@ public partial class MainViewModel : ObservableObject
     private bool _isSidebarVisible = true;
 
     /// <summary>
+    /// 自我视图是否可见
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSelfViewVisible = true;
+
+    /// <summary>
+    /// 是否已举手
+    /// </summary>
+    [ObservableProperty]
+    private bool _isHandRaised;
+
+    /// <summary>
+    /// 当前用户名
+    /// </summary>
+    [ObservableProperty]
+    private string _currentUserName = "我";
+
+    /// <summary>
     /// 可用摄像头列表
     /// </summary>
     public ObservableCollection<MediaDeviceInfo> Cameras { get; } = [];
@@ -402,6 +420,171 @@ public partial class MainViewModel : ObservableObject
     {
         IsSidebarVisible = !IsSidebarVisible;
     }
+
+    #region 左侧工具栏命令
+
+    /// <summary>
+    /// 分享教室
+    /// </summary>
+    [RelayCommand]
+    private void ShareRoom()
+    {
+        _logger.LogInformation("分享教室");
+        StatusMessage = "分享教室功能待实现";
+    }
+
+    /// <summary>
+    /// 切换自我视图可见性
+    /// </summary>
+    [RelayCommand]
+    private void ToggleSelfView()
+    {
+        IsSelfViewVisible = !IsSelfViewVisible;
+        StatusMessage = IsSelfViewVisible ? "已显示自我视图" : "已隐藏自我视图";
+    }
+
+    /// <summary>
+    /// 录制
+    /// </summary>
+    [RelayCommand]
+    private void Record()
+    {
+        _logger.LogInformation("录制");
+        StatusMessage = "录制功能待实现";
+    }
+
+    /// <summary>
+    /// 全屏
+    /// </summary>
+    [RelayCommand]
+    private void FullScreen()
+    {
+        _logger.LogInformation("全屏");
+        StatusMessage = "全屏功能待实现";
+    }
+
+    /// <summary>
+    /// 表情
+    /// </summary>
+    [RelayCommand]
+    private void Emoji()
+    {
+        _logger.LogInformation("表情");
+        StatusMessage = "表情功能待实现";
+    }
+
+    /// <summary>
+    /// 同步转译
+    /// </summary>
+    [RelayCommand]
+    private void Translate()
+    {
+        _logger.LogInformation("同步转译");
+        StatusMessage = "同步转译功能待实现";
+    }
+
+    /// <summary>
+    /// 投票
+    /// </summary>
+    [RelayCommand]
+    private void Poll()
+    {
+        _logger.LogInformation("投票");
+        StatusMessage = "投票功能待实现";
+    }
+
+    /// <summary>
+    /// 文本编辑器
+    /// </summary>
+    [RelayCommand]
+    private void Editor()
+    {
+        _logger.LogInformation("文本编辑器");
+        StatusMessage = "文本编辑器功能待实现";
+    }
+
+    /// <summary>
+    /// 白板
+    /// </summary>
+    [RelayCommand]
+    private void Whiteboard()
+    {
+        _logger.LogInformation("白板");
+        StatusMessage = "白板功能待实现";
+    }
+
+    /// <summary>
+    /// 画中画
+    /// </summary>
+    [RelayCommand]
+    private void Pip()
+    {
+        _logger.LogInformation("画中画");
+        StatusMessage = "画中画功能待实现";
+    }
+
+    /// <summary>
+    /// 共享屏幕
+    /// </summary>
+    [RelayCommand]
+    private void ShareScreen()
+    {
+        _logger.LogInformation("共享屏幕");
+        StatusMessage = "共享屏幕功能待实现";
+    }
+
+    /// <summary>
+    /// 屏幕截图
+    /// </summary>
+    [RelayCommand]
+    private void Screenshot()
+    {
+        _logger.LogInformation("屏幕截图");
+        StatusMessage = "屏幕截图功能待实现";
+    }
+
+    #endregion
+
+    #region 底部控制栏命令
+
+    /// <summary>
+    /// 举手
+    /// </summary>
+    [RelayCommand]
+    private void RaiseHand()
+    {
+        IsHandRaised = !IsHandRaised;
+        _logger.LogInformation("举手状态: {IsHandRaised}", IsHandRaised);
+        StatusMessage = IsHandRaised ? "已举手" : "已放下手";
+    }
+
+    /// <summary>
+    /// 聊天
+    /// </summary>
+    [RelayCommand]
+    private void Chat()
+    {
+        _logger.LogInformation("聊天");
+        StatusMessage = "聊天功能待实现";
+    }
+
+    /// <summary>
+    /// 打开设置
+    /// </summary>
+    [RelayCommand]
+    private void OpenSettings()
+    {
+        _logger.LogInformation("打开设置");
+        // 通过事件通知视图打开设置窗口
+        OpenSettingsRequested?.Invoke();
+    }
+
+    /// <summary>
+    /// 请求打开设置窗口事件
+    /// </summary>
+    public event Action? OpenSettingsRequested;
+
+    #endregion
 
     /// <summary>
     /// 切换摄像头设备

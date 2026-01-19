@@ -4,6 +4,7 @@ using Serilog;
 using System.Windows;
 using Dorisoy.Meeting.Client.Services;
 using Dorisoy.Meeting.Client.ViewModels;
+using Dorisoy.Meeting.Client.Views;
 using Dorisoy.Meeting.Client.WebRtc;
 
 namespace Dorisoy.Meeting.Client;
@@ -47,9 +48,53 @@ public partial class App : Application
             logger.LogWarning("FFmpeg initialization failed. Video encoding/decoding may not work.");
         }
 
-        // 显示主窗口
-        var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
-        mainWindow.Show();
+        try
+        {
+            // 显示加入房间窗口
+            Log.Information("正在创建 JoinRoomViewModel...");
+            var joinRoomViewModel = _serviceProvider.GetRequiredService<JoinRoomViewModel>();
+            
+            Log.Information("正在创建 JoinRoomWindow...");
+            var joinRoomWindow = new JoinRoomWindow(joinRoomViewModel);
+            
+            Log.Information("正在显示 JoinRoomWindow...");
+            joinRoomWindow.ShowDialog();
+            
+            Log.Information("加入窗口关闭: IsConfirmed={IsConfirmed}, JoinRoomInfo={JoinRoomInfo}", 
+                joinRoomWindow.IsConfirmed, 
+                joinRoomWindow.JoinRoomInfo != null ? "not null" : "null");
+            
+            if (joinRoomWindow.IsConfirmed && joinRoomWindow.JoinRoomInfo != null)
+            {
+                // 用户确认加入，显示主窗口
+                Log.Information("正在创建 MainViewModel...");
+                var mainViewModel = _serviceProvider.GetRequiredService<MainViewModel>();
+                var joinInfo = joinRoomWindow.JoinRoomInfo;
+                
+                // 应用加入房间信息到主视图模型
+                mainViewModel.ServerUrl = joinInfo.ServerUrl;
+                mainViewModel.CurrentUserName = joinInfo.UserName;
+                
+                Log.Information("正在显示主窗口: UserName={UserName}, ServerUrl={ServerUrl}", 
+                    joinInfo.UserName, joinInfo.ServerUrl);
+                
+                // 显示主窗口
+                var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
+                mainWindow.Show();
+            }
+            else
+            {
+                // 用户取消，退出应用
+                Log.Information("用户取消加入，退出应用");
+                Shutdown();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "启动过程中发生异常");
+            MessageBox.Show($"启动失败: {ex.Message}\n\n详细信息: {ex}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            Shutdown();
+        }
     }
 
     /// <summary>
@@ -70,6 +115,7 @@ public partial class App : Application
 
         // ViewModels
         services.AddTransient<MainViewModel>();
+        services.AddTransient<JoinRoomViewModel>();
 
         // Views
         services.AddTransient<MainWindow>();
@@ -115,8 +161,11 @@ public partial class App : Application
         {
             try
             {
-                // 最后释放 ServiceProvider
-                _serviceProvider?.Dispose();
+                // 使用异步方式释放 ServiceProvider（因为 SignalRService 只实现了 IAsyncDisposable）
+                if (_serviceProvider != null)
+                {
+                    Task.Run(async () => await _serviceProvider.DisposeAsync()).Wait(TimeSpan.FromSeconds(3));
+                }
             }
             catch (Exception ex)
             {

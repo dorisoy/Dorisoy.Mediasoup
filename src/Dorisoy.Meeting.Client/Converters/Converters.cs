@@ -342,3 +342,123 @@ public class MediaAppearanceConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
+
+/// <summary>
+/// 预览图标转换器 - 根据是否正在预览显示不同图标
+/// </summary>
+public class PreviewIconConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isPreviewing)
+        {
+            return isPreviewing ? SymbolRegular.VideoOff24 : SymbolRegular.Video24;
+        }
+        return SymbolRegular.Video24;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 预览文本转换器 - 根据是否正在预览显示不同文本
+/// </summary>
+public class PreviewTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isPreviewing)
+        {
+            return isPreviewing ? "停止预览" : "开始预览";
+        }
+        return "开始预览";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 麦克风状态图标转换器
+/// </summary>
+public class MicrophoneIconConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isEnabled)
+        {
+            return isEnabled ? SymbolRegular.Mic24 : SymbolRegular.MicOff24;
+        }
+        return SymbolRegular.MicOff24;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 视频状态图标转换器
+/// </summary>
+public class VideoIconConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isEnabled)
+        {
+            return isEnabled ? SymbolRegular.Video24 : SymbolRegular.VideoOff24;
+        }
+        return SymbolRegular.VideoOff24;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 离开按钮外观转换器
+/// </summary>
+public class LeaveAppearanceConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isJoinedRoom)
+        {
+            return isJoinedRoom ? ControlAppearance.Danger : ControlAppearance.Primary;
+        }
+        return ControlAppearance.Primary;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 离开按钮文本转换器
+/// </summary>
+public class LeaveTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isJoinedRoom)
+        {
+            return isJoinedRoom ? "离开" : "加入";
+        }
+        return "加入";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}

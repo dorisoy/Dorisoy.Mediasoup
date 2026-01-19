@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using Dorisoy.Meeting.Client.ViewModels;
+using Dorisoy.Meeting.Client.Views;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
@@ -21,6 +22,22 @@ public partial class MainWindow : FluentWindow
         InitializeComponent();
         _viewModel = viewModel;
         DataContext = viewModel;
+
+        // 订阅打开设置请求事件
+        _viewModel.OpenSettingsRequested += OnOpenSettingsRequested;
+        
+        // 订阅窗口关闭事件
+        Closed += OnWindowClosed;
+    }
+
+    /// <summary>
+    /// 打开设置窗口
+    /// </summary>
+    private void OnOpenSettingsRequested()
+    {
+        var settingPage = new SettingPage(_viewModel);
+        settingPage.Owner = this;
+        settingPage.ShowDialog();
     }
 
     /// <summary>
@@ -30,6 +47,9 @@ public partial class MainWindow : FluentWindow
     {
         try
         {
+            // 取消事件订阅
+            _viewModel.OpenSettingsRequested -= OnOpenSettingsRequested;
+            
             // 异步清理资源
             await _viewModel.CleanupAsync();
         }
@@ -37,5 +57,14 @@ public partial class MainWindow : FluentWindow
         {
             // 忽略关闭时的异常，确保窗口能正常关闭
         }
+    }
+    
+    /// <summary>
+    /// 窗口已关闭事件处理 - 退出应用
+    /// </summary>
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        // 主窗口关闭时退出应用
+        Application.Current.Shutdown();
     }
 }
