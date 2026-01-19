@@ -102,6 +102,16 @@ public interface IWebRtcService : IDisposable
     Task StopMicrophoneAsync();
 
     /// <summary>
+    /// 开始屏幕共享
+    /// </summary>
+    Task StartScreenShareAsync();
+
+    /// <summary>
+    /// 停止屏幕共享
+    /// </summary>
+    Task StopScreenShareAsync();
+
+    /// <summary>
     /// 加载设备能力
     /// </summary>
     void LoadDevice(object routerRtpCapabilities);

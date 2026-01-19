@@ -34,8 +34,13 @@
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 
-        <!-- 主布局：视频区 + 浮动工具栏 -->
+        <!-- 主布局：视频区 + 浮动工具栏 + 聊天面板 -->
         <Grid Grid.Row="1">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <!-- 聊天面板列 -->
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
             
             <!-- 主视频区域（占据全部空间） -->
             <Grid Background="{DynamicResource ApplicationBackgroundBrush}">
@@ -471,6 +476,72 @@
                         <ui:SymbolIcon Symbol="Screenshot24" FontSize="18"/>
                     </ui:Button>
                 </StackPanel>
+            </Border>
+                    
+                <!-- 表情反应显示区域 - 左下角 -->
+                <Border HorizontalAlignment="Left"
+                        VerticalAlignment="Bottom"
+                        Margin="80,0,0,110"
+                        Padding="16,12"
+                        CornerRadius="12"
+                        Background="#E0333333"
+                        Panel.ZIndex="150"
+                        Visibility="{Binding IsEmojiReactionVisible, Converter={StaticResource BoolToVisConverter}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding CurrentEmojiReaction.Emoji}"
+                                   FontSize="32"
+                                   Margin="0,0,10,0"/>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CurrentEmojiReaction.SenderName}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <TextBlock Text="发送了一个表情"
+                                       FontSize="11"
+                                       Opacity="0.7"
+                                       Foreground="White"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+                    
+                <!-- 屏幕共享请求弹窗 -->
+                <Border HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Padding="24"
+                        CornerRadius="12"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        Panel.ZIndex="200"
+                        Visibility="{Binding HasPendingScreenShareRequest, Converter={StaticResource BoolToVisConverter}}">
+                    <StackPanel MinWidth="280">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <ui:SymbolIcon Symbol="ShareScreenStart24" FontSize="24" Margin="0,0,10,0"/>
+                            <TextBlock Text="屏幕共享请求" FontSize="16" FontWeight="SemiBold"/>
+                        </StackPanel>
+                        <TextBlock Margin="0,0,0,20" TextWrapping="Wrap">
+                            <Run Text="{Binding PendingScreenShareRequesterName}"/>
+                            <Run Text=" 请求向您共享屏幕"/>
+                        </TextBlock>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <ui:Button Content="拒绝"
+                                       Appearance="Secondary"
+                                       Command="{Binding RejectScreenShareCommand}"
+                                       Margin="0,0,10,0"
+                                       Padding="20,8"/>
+                            <ui:Button Content="接受"
+                                       Appearance="Primary"
+                                       Command="{Binding AcceptScreenShareCommand}"
+                                       Padding="20,8"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            
+            <!-- 右侧聊天面板 -->
+            <Border Grid.Column="1"
+                    Width="380"
+                    Visibility="{Binding IsChatPanelVisible, Converter={StaticResource BoolToVisConverter}}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="1,0,0,0">
+                <views:ChatPanel DataContext="{Binding}"/>
             </Border>
         </Grid>
     </Grid>

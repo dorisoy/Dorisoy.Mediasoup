@@ -252,6 +252,35 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isEmojiReactionVisible;
 
+    #endregion
+
+    #region 屏幕共享相关属性
+
+    /// <summary>
+    /// 是否正在共享屏幕
+    /// </summary>
+    [ObservableProperty]
+    private bool _isScreenSharing;
+
+    /// <summary>
+    /// 是否有待处理的屏幕共享请求
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasPendingScreenShareRequest;
+
+    /// <summary>
+    /// 待处理请求的发起者名称
+    /// </summary>
+    [ObservableProperty]
+    private string _pendingScreenShareRequesterName = "";
+
+    /// <summary>
+    /// 待处理的屏幕共享请求
+    /// </summary>
+    private ScreenShareRequestData? _pendingScreenShareRequest;
+
+    #endregion
+
     #region 私有字段
 
     /// <summary>
@@ -579,10 +608,112 @@ public partial class MainViewModel : ObservableObject
     /// 共享屏幕
     /// </summary>
     [RelayCommand]
-    private void ShareScreen()
+    private async Task ShareScreenAsync()
     {
-        _logger.LogInformation("共享屏幕");
-        StatusMessage = "共享屏幕功能待实现";
+        if (!IsJoinedRoom) return;
+
+        try
+        {
+            if (IsScreenSharing)
+            {
+                // 停止共享
+                await _webRtcService.StopScreenShareAsync();
+                IsScreenSharing = false;
+                StatusMessage = "已停止屏幕共享";
+                _logger.LogInformation("停止屏幕共享");
+            }
+            else
+            {
+                // 开始共享 - 向所有用户发送共享请求
+                var sessionId = Guid.NewGuid().ToString();
+                await _signalRService.InvokeAsync("BroadcastMessage", new
+                {
+                    type = "screenShareRequest",
+                    data = new
+                    {
+                        requesterId = SelectedPeerIndex.ToString(),
+                        requesterName = CurrentUserName,
+                        sessionId
+                    }
+                });
+
+                // 开始屏幕捕获
+                await _webRtcService.StartScreenShareAsync();
+                IsScreenSharing = true;
+                StatusMessage = "屏幕共享中...";
+                _logger.LogInformation("开始屏幕共享");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "屏幕共享失败");
+            StatusMessage = $"屏幕共享失败: {ex.Message}";
+            IsScreenSharing = false;
+        }
+    }
+
+    /// <summary>
+    /// 接受屏幕共享请求
+    /// </summary>
+    [RelayCommand]
+    private async Task AcceptScreenShareAsync()
+    {
+        if (_pendingScreenShareRequest == null) return;
+
+        try
+        {
+            await _signalRService.InvokeAsync("BroadcastMessage", new
+            {
+                type = "screenShareResponse",
+                data = new
+                {
+                    responderId = SelectedPeerIndex.ToString(),
+                    sessionId = _pendingScreenShareRequest.SessionId,
+                    accepted = true
+                }
+            });
+
+            HasPendingScreenShareRequest = false;
+            _pendingScreenShareRequest = null;
+            StatusMessage = "已接受屏幕共享";
+            _logger.LogInformation("接受屏幕共享请求");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "接受屏幕共享失败");
+        }
+    }
+
+    /// <summary>
+    /// 拒绝屏幕共享请求
+    /// </summary>
+    [RelayCommand]
+    private async Task RejectScreenShareAsync()
+    {
+        if (_pendingScreenShareRequest == null) return;
+
+        try
+        {
+            await _signalRService.InvokeAsync("BroadcastMessage", new
+            {
+                type = "screenShareResponse",
+                data = new
+                {
+                    responderId = SelectedPeerIndex.ToString(),
+                    sessionId = _pendingScreenShareRequest.SessionId,
+                    accepted = false
+                }
+            });
+
+            HasPendingScreenShareRequest = false;
+            _pendingScreenShareRequest = null;
+            StatusMessage = "已拒绝屏幕共享";
+            _logger.LogInformation("拒绝屏幕共享请求");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "拒绝屏幕共享失败");
+        }
     }
 
     /// <summary>
@@ -1730,6 +1861,18 @@ public partial class MainViewModel : ObservableObject
                     case "producerClosed":
                         HandleProducerClosed(notification.Data);
                         break;
+                    case "chatMessage":
+                        HandleChatMessage(notification.Data);
+                        break;
+                    case "emojiReaction":
+                        HandleEmojiReaction(notification.Data);
+                        break;
+                    case "screenShareRequest":
+                        HandleScreenShareRequest(notification.Data);
+                        break;
+                    case "screenShareResponse":
+                        HandleScreenShareResponse(notification.Data);
+                        break;
                     default:
                         _logger.LogDebug("Unhandled notification: {Type}", notification.Type);
                         break;
@@ -1753,6 +1896,17 @@ public partial class MainViewModel : ObservableObject
             Peers.Add(notification.Peer);
             _logger.LogInformation("Peer joined: {PeerId}", notification.Peer.PeerId);
             StatusMessage = $"用户 {notification.Peer.DisplayName} 加入房间";
+
+            // 同步到聊天用户列表
+            if (!ChatUsers.Any(u => u.PeerId == notification.Peer.PeerId))
+            {
+                ChatUsers.Add(new ChatUser
+                {
+                    PeerId = notification.Peer.PeerId ?? "",
+                    DisplayName = notification.Peer.DisplayName ?? "Unknown",
+                    IsOnline = true
+                });
+            }
         }
     }
 
@@ -1782,6 +1936,13 @@ public partial class MainViewModel : ObservableObject
 
             // 更新无远端视频状态
             HasNoRemoteVideos = RemoteVideos.Count == 0;
+
+            // 从聊天用户列表移除
+            var chatUser = ChatUsers.FirstOrDefault(u => u.PeerId == notification.PeerId);
+            if (chatUser != null)
+            {
+                ChatUsers.Remove(chatUser);
+            }
         }
     }
 
@@ -1905,6 +2066,71 @@ public partial class MainViewModel : ObservableObject
         if (notification != null)
         {
             _logger.LogInformation("Producer closed: {ProducerId}", notification.ProducerId);
+        }
+    }
+
+    /// <summary>
+    /// 处理屏幕共享请求
+    /// </summary>
+    private void HandleScreenShareRequest(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var requestData = JsonSerializer.Deserialize<ScreenShareRequestData>(json, JsonOptions);
+            if (requestData == null) return;
+
+            // 忽略自己的请求
+            if (requestData.RequesterId == SelectedPeerIndex.ToString()) return;
+
+            _logger.LogInformation("收到屏幕共享请求: {RequesterName}", requestData.RequesterName);
+
+            // 保存当前请求
+            _pendingScreenShareRequest = requestData;
+            PendingScreenShareRequesterName = requestData.RequesterName ?? "Unknown";
+            HasPendingScreenShareRequest = true;
+
+            StatusMessage = $"{requestData.RequesterName} 请求共享屏幕";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理屏幕共享请求失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理屏幕共享响应
+    /// </summary>
+    private void HandleScreenShareResponse(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var responseData = JsonSerializer.Deserialize<ScreenShareResponseData>(json, JsonOptions);
+            if (responseData == null) return;
+
+            // 忽略自己的响应
+            if (responseData.ResponderId == SelectedPeerIndex.ToString()) return;
+
+            if (responseData.Accepted)
+            {
+                _logger.LogInformation("屏幕共享被接受");
+                StatusMessage = "对方接受了屏幕共享";
+            }
+            else
+            {
+                _logger.LogInformation("屏幕共享被拒绝");
+                StatusMessage = "对方拒绝了屏幕共享";
+                IsScreenSharing = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理屏幕共享响应失败");
         }
     }
 

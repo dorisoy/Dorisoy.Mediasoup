@@ -26,6 +26,9 @@ public partial class MainWindow : FluentWindow
         // 订阅打开设置请求事件
         _viewModel.OpenSettingsRequested += OnOpenSettingsRequested;
         
+        // 订阅打开表情选择器事件
+        _viewModel.OpenEmojiPickerRequested += OnOpenEmojiPickerRequested;
+        
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
     }
@@ -41,6 +44,19 @@ public partial class MainWindow : FluentWindow
     }
 
     /// <summary>
+    /// 打开表情选择窗口
+    /// </summary>
+    private async void OnOpenEmojiPickerRequested()
+    {
+        var picker = new EmojiPickerWindow { Owner = this };
+        if (picker.ShowDialog() == true && !string.IsNullOrEmpty(picker.SelectedEmoji))
+        {
+            // 发送表情广播
+            await _viewModel.SendEmojiReactionAsync(picker.SelectedEmoji);
+        }
+    }
+
+    /// <summary>
     /// 窗口关闭事件处理 - 清理资源
     /// </summary>
     private async void Window_Closing(object sender, CancelEventArgs e)
@@ -49,6 +65,7 @@ public partial class MainWindow : FluentWindow
         {
             // 取消事件订阅
             _viewModel.OpenSettingsRequested -= OnOpenSettingsRequested;
+            _viewModel.OpenEmojiPickerRequested -= OnOpenEmojiPickerRequested;
             
             // 异步清理资源
             await _viewModel.CleanupAsync();

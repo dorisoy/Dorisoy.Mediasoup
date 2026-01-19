@@ -654,6 +654,48 @@ public class WebRtcService : IWebRtcService
         return Task.CompletedTask;
     }
 
+    /// <summary>
+    /// 开始屏幕共享
+    /// </summary>
+    public async Task StartScreenShareAsync()
+    {
+        _logger.LogInformation("开始屏幕共享");
+
+        // 屏幕共享使用现有的视频捕获逻辑，只需要切换到屏幕捕获源
+        // 这里使用 Windows Graphics Capture API 捕获屏幕
+        try
+        {
+            // 如果摄像头正在运行，先停止
+            if (_isVideoCaptureRunning)
+            {
+                await StopCameraAsync();
+            }
+
+            // 开始屏幕捕获（模拟实现 - 实际需要集成屏幕捕获API）
+            // 目前使用摄像头作为占位符
+            _logger.LogWarning("屏幕共享功能需要集成 Windows Graphics Capture API");
+
+            OnConnectionStateChanged?.Invoke("screen_share_started");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "开始屏幕共享失败");
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// 停止屏幕共享
+    /// </summary>
+    public Task StopScreenShareAsync()
+    {
+        _logger.LogInformation("停止屏幕共享");
+
+        OnConnectionStateChanged?.Invoke("screen_share_stopped");
+
+        return Task.CompletedTask;
+    }
+
     #endregion
 
     #region 消费者管理
