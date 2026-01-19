@@ -37,12 +37,12 @@
 
         <!-- 主内容 -->
         <Grid Grid.Row="1"
-              Margin="0" Width="800" Height="620">
+              Margin="0" Width="900" Height="650">
             <Grid.ColumnDefinitions>
                 <!-- 左侧：摄像头预览 -->
                 <ColumnDefinition Width="*" />
                 <!-- 右侧：设置面板 -->
-                <ColumnDefinition Width="320" />
+                <ColumnDefinition Width="350" />
             </Grid.ColumnDefinitions>
 
             <!-- 左侧：摄像头预览区域 -->
@@ -165,6 +165,8 @@
                                             FontSize="20"
                                             TextAlignment="Center"
                                             Margin="0,0,6,0"
+                                            ClearButtonEnabled="False"
+                                            GotFocus="RoomDigit_GotFocus"
                                             PreviewTextInput="RoomDigit_PreviewTextInput"
                                             TextChanged="RoomDigit_TextChanged" />
                                 <ui:TextBox x:Name="RoomDigit2"
@@ -174,6 +176,8 @@
                                             FontSize="20"
                                             TextAlignment="Center"
                                             Margin="0,0,6,0"
+                                            ClearButtonEnabled="False"
+                                            GotFocus="RoomDigit_GotFocus"
                                             PreviewTextInput="RoomDigit_PreviewTextInput"
                                             TextChanged="RoomDigit_TextChanged" />
                                 <ui:TextBox x:Name="RoomDigit3"
@@ -183,6 +187,8 @@
                                             FontSize="20"
                                             TextAlignment="Center"
                                             Margin="0,0,6,0"
+                                            ClearButtonEnabled="False"
+                                            GotFocus="RoomDigit_GotFocus"
                                             PreviewTextInput="RoomDigit_PreviewTextInput"
                                             TextChanged="RoomDigit_TextChanged" />
                                 <ui:TextBox x:Name="RoomDigit4"
@@ -192,6 +198,8 @@
                                             FontSize="20"
                                             TextAlignment="Center"
                                             Margin="0,0,6,0"
+                                            ClearButtonEnabled="False"
+                                            GotFocus="RoomDigit_GotFocus"
                                             PreviewTextInput="RoomDigit_PreviewTextInput"
                                             TextChanged="RoomDigit_TextChanged" />
                                 <ui:TextBox x:Name="RoomDigit5"
@@ -200,6 +208,8 @@
                                             Width="48" Height="48"
                                             FontSize="20"
                                             TextAlignment="Center"
+                                            ClearButtonEnabled="False"
+                                            GotFocus="RoomDigit_GotFocus"
                                             PreviewTextInput="RoomDigit_PreviewTextInput"
                                             TextChanged="RoomDigit_TextChanged" />
                             </StackPanel>

@@ -76,6 +76,18 @@ public partial class JoinRoomWindow
     }
     
     /// <summary>
+    /// 房间号输入框获得焦点 - 自动选择文本
+    /// </summary>
+    private void RoomDigit_GotFocus(object sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            // 选择所有文本，方便直接输入覆盖
+            textBox.SelectAll();
+        }
+    }
+    
+    /// <summary>
     /// 房间号输入框文本变化 - 自动跳转到下一个
     /// </summary>
     private void RoomDigit_TextChanged(object sender, TextChangedEventArgs e)
