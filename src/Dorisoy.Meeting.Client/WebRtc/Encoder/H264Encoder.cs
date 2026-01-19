@@ -9,7 +9,7 @@ namespace Dorisoy.Meeting.Client.WebRtc.Encoder;
 /// 用于将本地采集的视频帧编码后发送到 mediasoup 服务器
 /// 支持多种 Profile (Baseline/Main/High)
 /// </summary>
-public unsafe class H264Encoder : IDisposable
+public unsafe class H264Encoder : IVideoEncoder
 {
     private readonly ILogger _logger;
     private readonly object _encodeLock = new();
@@ -44,13 +44,15 @@ public unsafe class H264Encoder : IDisposable
 
     /// <summary>
     /// H264 Profile (baseline, main, high)
+    /// 高质量场景建议使用 high
     /// </summary>
-    public string Profile { get; set; } = "baseline";
+    public string Profile { get; set; } = "high";
 
     /// <summary>
     /// 编码预设 (ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow)
+    /// veryfast 提供良好的质量/速度平衡
     /// </summary>
-    public string Preset { get; set; } = "ultrafast";
+    public string Preset { get; set; } = "veryfast";
 
     /// <summary>
     /// 关键帧间隔（秒）
@@ -117,9 +119,14 @@ public unsafe class H264Encoder : IDisposable
             _codecContext->framerate = new AVRational { num = FrameRate, den = 1 };
             _codecContext->pix_fmt = AVPixelFormat.AV_PIX_FMT_YUV420P;
             _codecContext->bit_rate = Bitrate;
+            _codecContext->rc_min_rate = Bitrate / 2;  // 最小码率 = 50%
+            _codecContext->rc_max_rate = Bitrate * 2;  // 最大码率 = 200%
+            _codecContext->rc_buffer_size = Bitrate;   // 缓冲区大小 = 1秒
             _codecContext->gop_size = FrameRate * KeyFrameInterval;
             _codecContext->max_b_frames = 0; // 实时流不使用 B 帧
             _codecContext->thread_count = Environment.ProcessorCount;
+            _codecContext->qmin = 10;  // 最小量化参数 (质量上限)
+            _codecContext->qmax = 40;  // 最大量化参数 (质量下限)
             
             _isFirstFrame = true;
 
@@ -128,12 +135,25 @@ public unsafe class H264Encoder : IDisposable
             ffmpeg.av_opt_set(_codecContext->priv_data, "tune", Tune, 0);
             ffmpeg.av_opt_set(_codecContext->priv_data, "profile", Profile, 0);
             
-            // WebRTC 兼容性设置
-            ffmpeg.av_opt_set(_codecContext->priv_data, "level", "3.1", 0);
-            ffmpeg.av_opt_set(_codecContext->priv_data, "crf", "23", 0); // 恒定质量因子
+            // WebRTC 兼容性设置 - Level 4.0 支持 1080p @ 30fps
+            ffmpeg.av_opt_set(_codecContext->priv_data, "level", "4.0", 0);
             
-            // 强制 Annex B 格式 (NAL 起始码)
-            _codecContext->flags |= ffmpeg.AV_CODEC_FLAG_GLOBAL_HEADER;
+            // 使用 ABR (Average Bitrate) 模式而不是 CRF
+            // CRF 模式会忽略 bitrate 设置，不适合需要码率控制的场景
+            
+            // 设置 lookahead 为 0 以减少延迟
+            ffmpeg.av_opt_set(_codecContext->priv_data, "rc-lookahead", "0", 0);
+            
+            // 启用 CABAC 熔码 (比 CAVLC 更高效，high profile 默认)
+            ffmpeg.av_opt_set(_codecContext->priv_data, "coder", "1", 0);
+            
+            // AQ 模式 - 自适应量化
+            ffmpeg.av_opt_set(_codecContext->priv_data, "aq-mode", "2", 0);
+            
+            // 注意：不要使用 AV_CODEC_FLAG_GLOBAL_HEADER
+            // 对于 RTP 流，我们需要 SPS/PPS 包含在每个关键帧中
+            // 而不是存储在 extradata 中
+            // 编码器会输出 Annex B 格式 (NAL 起始码 00 00 00 01)
 
             var result = ffmpeg.avcodec_open2(_codecContext, codec, null);
             if (result < 0)

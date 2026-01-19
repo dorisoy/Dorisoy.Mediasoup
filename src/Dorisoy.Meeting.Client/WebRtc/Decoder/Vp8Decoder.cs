@@ -8,7 +8,7 @@ namespace Dorisoy.Meeting.Client.WebRtc.Decoder;
 /// VP8 视频解码器 - 使用 FFmpeg 解码 VP8 帧
 /// 将从 mediasoup 接收的 VP8 编码数据解码为 BGR24 图像用于显示
 /// </summary>
-public unsafe class Vp8Decoder : IDisposable
+public unsafe class Vp8Decoder : IVideoDecoder
 {
     private readonly ILogger _logger;
     private readonly object _lock = new();  // 线程安全锁

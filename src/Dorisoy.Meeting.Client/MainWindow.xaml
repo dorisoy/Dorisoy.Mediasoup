@@ -34,283 +34,11 @@
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 
-        <!-- 主布局：左侧边栏 + 右侧主内容区 -->
+        <!-- 主布局：视频区 + 浮动工具栏 -->
         <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <!-- 左侧边栏 - 可隐藏 -->
-                <ColumnDefinition Width="Auto"/>
-                <!-- 主内容区 -->
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- 左侧控制面板 -->
-            <Border Grid.Column="0"
-                    Width="320"
-                    Background="{DynamicResource ControlFillColorDefaultBrush}"
-                    Visibility="{Binding IsSidebarVisible, Converter={StaticResource BoolToVisConverter}}">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="16">
-
-                        <!-- 应用标题 -->
-                        <!--<StackPanel Orientation="Horizontal"
-                                    Margin="0,0,0,20">
-                            <ui:SymbolIcon Symbol="Settings24"
-                                           FontSize="20"
-                                           Margin="0,0,10,0" />
-                            <TextBlock Text="系统设置"
-                                       FontSize="18"
-                                       FontWeight="Bold"
-                                       VerticalAlignment="Center" />
-                        </StackPanel>-->
-
-                        <!-- 连接设置 -->
-                        <ui:Card Margin="0,0,0,12">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal"
-                                            Margin="0,0,0,12">
-                                    <ui:SymbolIcon Symbol="Globe24"
-                                                   Margin="0,0,8,0" />
-                                    <TextBlock Text="连接设置"
-                                               FontWeight="SemiBold" />
-                                </StackPanel>
-                                <TextBlock Text="服务器地址"
-                                           Margin="0,0,0,6"
-                                           Opacity="0.7" />
-                                <ui:TextBox Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}"
-                                            PlaceholderText="输入服务器地址..."
-                                            IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBoolConverter}}" />
-
-                                <TextBlock Text="选择用户"
-                                           Margin="0,12,0,6"
-                                           Opacity="0.7" />
-                                <ComboBox SelectedIndex="{Binding SelectedPeerIndex}"
-                                          IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBoolConverter}}">
-                                    <ComboBoxItem>Peer 0</ComboBoxItem>
-                                    <ComboBoxItem>Peer 1</ComboBoxItem>
-                                    <ComboBoxItem>Peer 2</ComboBoxItem>
-                                    <ComboBoxItem>Peer 3</ComboBoxItem>
-                                    <ComboBoxItem>Peer 4</ComboBoxItem>
-                                    <ComboBoxItem>Peer 5</ComboBoxItem>
-                                    <ComboBoxItem>Peer 6</ComboBoxItem>
-                                    <ComboBoxItem>Peer 7</ComboBoxItem>
-                                    <ComboBoxItem>Peer 8 (管理员)</ComboBoxItem>
-                                    <ComboBoxItem>Peer 9 (管理员)</ComboBoxItem>
-                                </ComboBox>
-                            </StackPanel>
-                        </ui:Card>
-
-                        <!-- 房间设置 -->
-                        <ui:Card Margin="0,0,0,12"
-                                 IsEnabled="{Binding IsConnected}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal"
-                                            Margin="0,0,0,12">
-                                    <ui:SymbolIcon Symbol="Door20"
-                                                   Margin="0,0,8,0" />
-                                    <TextBlock Text="房间设置"
-                                               FontWeight="SemiBold" />
-                                </StackPanel>
-                                <TextBlock Text="选择房间"
-                                           Margin="0,0,0,6"
-                                           Opacity="0.7" />
-                                <ComboBox SelectedIndex="{Binding SelectedRoomIndex}"
-                                          IsEnabled="{Binding IsJoinedRoom, Converter={StaticResource InverseBoolConverter}}">
-                                    <ComboBoxItem>Room 0</ComboBoxItem>
-                                    <ComboBoxItem>Room 1</ComboBoxItem>
-                                    <ComboBoxItem>Room 2</ComboBoxItem>
-                                    <ComboBoxItem>Room 3</ComboBoxItem>
-                                    <ComboBoxItem>Room 4</ComboBoxItem>
-                                    <ComboBoxItem>Room 5</ComboBoxItem>
-                                    <ComboBoxItem>Room 6</ComboBoxItem>
-                                    <ComboBoxItem>Room 7</ComboBoxItem>
-                                    <ComboBoxItem>Room 8</ComboBoxItem>
-                                    <ComboBoxItem>Room 9</ComboBoxItem>
-                                </ComboBox>
-                            </StackPanel>
-                        </ui:Card>
-
-                        <!-- 媒体设备选择 -->
-                        <ui:Card Margin="0,0,0,12">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal"
-                                            Margin="0,0,0,12">
-                                    <ui:SymbolIcon Symbol="Speaker224"
-                                                   Margin="0,0,8,0" />
-                                    <TextBlock Text="设备选择"
-                                               FontWeight="SemiBold" />
-                                </StackPanel>
-                                <TextBlock Text="摄像头"
-                                           Margin="0,0,0,6"
-                                           Opacity="0.7" />
-                                <ComboBox ItemsSource="{Binding Cameras}"
-                                          SelectedItem="{Binding SelectedCamera}"
-                                          DisplayMemberPath="Label"
-                                          IsEnabled="{Binding IsCameraEnabled, Converter={StaticResource InverseBoolConverter}}" />
-
-                                <TextBlock Text="麦克风"
-                                           Margin="0,12,0,6"
-                                           Opacity="0.7" />
-                                <ComboBox ItemsSource="{Binding Microphones}"
-                                          SelectedItem="{Binding SelectedMicrophone}"
-                                          DisplayMemberPath="Label"
-                                          IsEnabled="{Binding IsMicrophoneEnabled, Converter={StaticResource InverseBoolConverter}}" />
-
-                                <ui:Button Content="刷新设备"
-                                           Icon="{ui:SymbolIcon ArrowSync24}"
-                                           Command="{Binding RefreshDevicesCommand}"
-                                           Margin="0,12,0,0"
-                                           HorizontalAlignment="Stretch" />
-                            </StackPanel>
-                        </ui:Card>
-
-                        <!-- 视频质量设置 -->
-                        <ui:Card Margin="0,0,0,12">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal"
-                                            Margin="0,0,0,12">
-                                    <ui:SymbolIcon Symbol="VideoClip24"
-                                                   Margin="0,0,8,0" />
-                                    <TextBlock Text="视频质量"
-                                               FontWeight="SemiBold" />
-                                </StackPanel>
-                                
-                                <TextBlock Text="画质选择"
-                                           Margin="0,0,0,6"
-                                           Opacity="0.7" />
-                                <ComboBox ItemsSource="{Binding VideoQualityPresets}"
-                                          SelectedItem="{Binding SelectedVideoQuality}"
-                                          DisplayMemberPath="DisplayName"
-                                          IsEnabled="{Binding IsCameraEnabled, Converter={StaticResource InverseBoolConverter}}" />
-                                
-                                <!-- 当前质量信息 -->
-                                <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                                        CornerRadius="4"
-                                        Padding="10,8"
-                                        Margin="0,12,0,0">
-                                    <Grid>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                            <RowDefinition Height="Auto"/>
-                                        </Grid.RowDefinitions>
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="Auto"/>
-                                            <ColumnDefinition Width="*"/>
-                                        </Grid.ColumnDefinitions>
-                                        
-                                        <TextBlock Grid.Row="0" Grid.Column="0" 
-                                                   Text="分辨率:" 
-                                                   Opacity="0.6" 
-                                                   Margin="0,0,8,4"/>
-                                        <TextBlock Grid.Row="0" Grid.Column="1" 
-                                                   Text="{Binding SelectedVideoQuality.Resolution}" 
-                                                   FontWeight="Medium"/>
-                                        
-                                        <TextBlock Grid.Row="1" Grid.Column="0" 
-                                                   Text="码率:" 
-                                                   Opacity="0.6" 
-                                                   Margin="0,0,8,4"/>
-                                        <TextBlock Grid.Row="1" Grid.Column="1" 
-                                                   Text="{Binding SelectedVideoQuality.BitrateDescription}" 
-                                                   FontWeight="Medium"/>
-                                        
-                                        <TextBlock Grid.Row="2" Grid.Column="0" 
-                                                   Text="帧率:" 
-                                                   Opacity="0.6" 
-                                                   Margin="0,0,8,0"/>
-                                        <TextBlock Grid.Row="2" Grid.Column="1" 
-                                                   FontWeight="Medium">
-                                            <Run Text="{Binding SelectedVideoQuality.FrameRate, Mode=OneWay}"/><Run Text=" fps"/>
-                                        </TextBlock>
-                                    </Grid>
-                                </Border>
-                                
-                                <TextBlock Text="{Binding SelectedVideoQuality.Description}"
-                                           Opacity="0.5"
-                                           FontSize="11"
-                                           TextWrapping="Wrap"
-                                           Margin="0,8,0,0" />
-                            </StackPanel>
-                        </ui:Card>
-
-                        <!-- 房间成员列表 -->
-                        <ui:Card Margin="0,0,0,12"
-                                 IsEnabled="{Binding IsJoinedRoom}">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal"
-                                            Margin="0,0,0,12">
-                                    <ui:SymbolIcon Symbol="People24"
-                                                   Margin="0,0,8,0" />
-                                    <TextBlock Text="房间成员"
-                                               FontWeight="SemiBold" />
-                                </StackPanel>
-                                <ListBox ItemsSource="{Binding Peers}"
-                                         MinHeight="80"
-                                         MaxHeight="180"
-                                         Background="Transparent"
-                                         BorderThickness="0">
-                                    <ListBox.ItemTemplate>
-                                        <DataTemplate>
-                                            <StackPanel Orientation="Horizontal"
-                                                        Margin="4,6">
-                                                <Ellipse Width="10"
-                                                         Height="10"
-                                                         Fill="#4CAF50"
-                                                         VerticalAlignment="Center"
-                                                         Margin="0,0,10,0" />
-                                                <StackPanel>
-                                                    <TextBlock Text="{Binding DisplayName}"
-                                                               FontWeight="Medium" />
-                                                    <TextBlock Text="{Binding PeerId}"
-                                                               Opacity="0.5"
-                                                               FontSize="11" />
-                                                </StackPanel>
-                                            </StackPanel>
-                                        </DataTemplate>
-                                    </ListBox.ItemTemplate>
-                                </ListBox>
-                            </StackPanel>
-                        </ui:Card>
-
-                        <!-- 状态信息 -->
-                        <ui:Card Margin="0,0,0,12">
-                            <StackPanel>
-                                <StackPanel Orientation="Horizontal"
-                                            Margin="0,0,0,12">
-                                    <ui:SymbolIcon Symbol="Info24"
-                                                   Margin="0,0,8,0" />
-                                    <TextBlock Text="状态"
-                                               FontWeight="SemiBold" />
-                                </StackPanel>
-                                <TextBlock Text="{Binding StatusMessage}"
-                                           TextWrapping="Wrap"
-                                           Opacity="0.8"
-                                           Margin="0,0,0,8" />
-                                <StackPanel Orientation="Horizontal"
-                                            Margin="0,4,0,0">
-                                    <TextBlock Text="服务模式: "
-                                               Opacity="0.6" />
-                                    <TextBlock Text="{Binding ServeMode, Converter={StaticResource ServeModeTextConverter}}"
-                                               Foreground="{DynamicResource SystemAccentColorPrimaryBrush}"
-                                               FontWeight="Medium" />
-                                </StackPanel>
-                                <StackPanel Orientation="Horizontal"
-                                            Margin="0,4,0,0">
-                                    <TextBlock Text="连接状态: "
-                                               Opacity="0.6" />
-                                    <TextBlock Text="{Binding IsConnected, Converter={StaticResource ConnectedStatusConverter}}"
-                                               Foreground="{Binding IsConnected, Converter={StaticResource ConnectedColorConverter}}"
-                                               FontWeight="Medium" />
-                                </StackPanel>
-                            </StackPanel>
-                        </ui:Card>
-
-                    </StackPanel>
-                </ScrollViewer>
-            </Border>
-
-            <!-- 右侧主视频区域 -->
-            <Grid Grid.Column="1" Background="{DynamicResource ApplicationBackgroundBrush}" Margin="0,0,0,0">
+            
+            <!-- 主视频区域（占据全部空间） -->
+            <Grid Background="{DynamicResource ApplicationBackgroundBrush}">
                 
                 <!-- 远端视频网格区域 -->
                 <Border Margin="12,12,12,100" CornerRadius="8">
@@ -400,7 +128,8 @@
                         VerticalAlignment="Bottom"
                         Width="220"
                         Height="150"
-                        ClipToBounds="True">
+                        ClipToBounds="True"
+                        Visibility="{Binding IsSelfViewVisible, Converter={StaticResource BoolToVisConverter}}">
                     <Grid ClipToBounds="True">
                         <Image Source="{Binding LocalVideoFrame}" 
                                Stretch="UniformToFill"
@@ -428,7 +157,8 @@
                                 CornerRadius="4">
                             <StackPanel Orientation="Horizontal">
                                 <ui:SymbolIcon Symbol="Video24" FontSize="12" Foreground="White" Margin="0,0,4,0"/>
-                                <TextBlock Text="我" Foreground="White" FontSize="11"/>
+                                <TextBlock Text="{Binding CurrentUserName, FallbackValue='我'}" 
+                                           Foreground="White" FontSize="11"/>
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -438,59 +168,125 @@
                 <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
                         VerticalAlignment="Bottom"
                         Height="90"
-                        CornerRadius="16,16,0,0">
-                    <StackPanel Orientation="Horizontal" 
-                                HorizontalAlignment="Center"
-                                VerticalAlignment="Center">
-                        
-                        <!-- 连接/断开服务器按钮 -->
-                        <ui:Button Command="{Binding ToggleConnectionCommand}"
-                                   IsEnabled="{Binding IsBusy, Converter={StaticResource InverseBoolConverter}}"
-                                   ToolTip="{Binding IsConnected, Converter={StaticResource ConnectButtonTextConverter}}"
-                                   Appearance="{Binding IsConnected, Converter={StaticResource ConnectedAppearanceConverter}}"
-                                   Width="56" Height="56"
-                                   CornerRadius="28"
-                                   Margin="8">
-                            <ui:SymbolIcon Symbol="PlugConnected24" FontSize="24"/>
-                        </ui:Button>
-                        
-                        <!-- 加入/离开房间按钮 -->
-                        <ui:Button Command="{Binding ToggleRoomCommand}"
-                                   IsEnabled="{Binding CanJoinRoom}"
-                                   ToolTip="{Binding IsJoinedRoom, Converter={StaticResource RoomButtonTextConverter}}"
-                                   Appearance="{Binding IsJoinedRoom, Converter={StaticResource RoomAppearanceConverter}}"
-                                   Width="56" Height="56"
-                                   CornerRadius="28"
-                                   Margin="8">
-                            <ui:SymbolIcon Symbol="Door20" FontSize="24"/>
-                        </ui:Button>
+                        CornerRadius="0,0,0,0">
+                    <Grid>
+                        <StackPanel Orientation="Horizontal" 
+                                    HorizontalAlignment="Center"
+                                    VerticalAlignment="Center">
+                            
+                            <!-- 静音（麦克风开关） -->
+                            <StackPanel Margin="12,0">
+                                <ui:Button Command="{Binding ToggleMicrophoneCommand}"
+                                           ToolTip="{Binding IsMicrophoneEnabled, Converter={StaticResource MicButtonTextConverter}}"
+                                           Appearance="{Binding IsMicrophoneEnabled, Converter={StaticResource MediaAppearanceConverter}}"
+                                           Width="56" Height="56"
+                                           CornerRadius="28">
+                                    <ui:SymbolIcon Symbol="{Binding IsMicrophoneEnabled, Converter={StaticResource MicrophoneIconConverter}}" FontSize="24"/>
+                                </ui:Button>
+                                <!--<TextBlock Text="静音" 
+                                           HorizontalAlignment="Center" 
+                                           FontSize="11" 
+                                           Opacity="0.7"
+                                           Margin="0,4,0,0"/>-->
+                            </StackPanel>
+                            
+                            <!-- 视频（摄像头开关） -->
+                            <StackPanel Margin="12,0">
+                                <ui:Button Command="{Binding ToggleCameraCommand}"
+                                           ToolTip="{Binding IsCameraEnabled, Converter={StaticResource CameraButtonTextConverter}}"
+                                           Appearance="{Binding IsCameraEnabled, Converter={StaticResource MediaAppearanceConverter}}"
+                                           Width="56" Height="56"
+                                           CornerRadius="28">
+                                    <ui:SymbolIcon Symbol="{Binding IsCameraEnabled, Converter={StaticResource VideoIconConverter}}" FontSize="24"/>
+                                </ui:Button>
 
-                        <!-- 分隔线 -->
-                        <Border Width="1" Height="40" Background="{DynamicResource ControlStrokeColorDefaultBrush}" Margin="12,0"/>
-                        
-                        <!-- 摄像头开关按钮 -->
-                        <ui:Button Command="{Binding ToggleCameraCommand}"
-                                   IsEnabled="{Binding CanToggleMedia}"
-                                   ToolTip="{Binding IsCameraEnabled, Converter={StaticResource CameraButtonTextConverter}}"
-                                   Appearance="{Binding IsCameraEnabled, Converter={StaticResource MediaAppearanceConverter}}"
-                                   Width="56" Height="56"
-                                   CornerRadius="28"
-                                   Margin="8">
-                            <ui:SymbolIcon Symbol="Video24" FontSize="24"/>
-                        </ui:Button>
-                        
-                        <!-- 麦克风开关按钮 -->
-                        <ui:Button Command="{Binding ToggleMicrophoneCommand}"
-                                   IsEnabled="{Binding CanToggleMedia}"
-                                   ToolTip="{Binding IsMicrophoneEnabled, Converter={StaticResource MicButtonTextConverter}}"
-                                   Appearance="{Binding IsMicrophoneEnabled, Converter={StaticResource MediaAppearanceConverter}}"
-                                   Width="56" Height="56"
-                                   CornerRadius="28"
-                                   Margin="8">
-                            <ui:SymbolIcon Symbol="Mic24" FontSize="24"/>
-                        </ui:Button>
-                        
-                    </StackPanel>
+                            </StackPanel>
+
+                            <!-- 分隔线 -->
+                            <Border Width="1" Height="40" Background="{DynamicResource ControlStrokeColorDefaultBrush}" Margin="8,0"/>
+
+                            <!-- 共享屏幕 -->
+                            <StackPanel Margin="12,0">
+                                <ui:Button Command="{Binding ShareScreenCommand}"
+                                           ToolTip="共享屏幕"
+                                           Appearance="Transparent"
+                                           Width="56" Height="56"
+                                           CornerRadius="28">
+                                    <ui:SymbolIcon Symbol="ShareScreenStart24" FontSize="24"/>
+                                </ui:Button>
+
+                            </StackPanel>
+
+                            <!-- 举手 -->
+                            <StackPanel Margin="12,0">
+                                <ui:Button Command="{Binding RaiseHandCommand}"
+                                           ToolTip="举手发言"
+                                           Appearance="{Binding IsHandRaised, Converter={StaticResource MediaAppearanceConverter}}"
+                                           Width="56" Height="56"
+                                           CornerRadius="28">
+                                    <ui:SymbolIcon Symbol="HandRight24" FontSize="24"/>
+                                </ui:Button>
+                              
+                            </StackPanel>
+
+                            <!-- 聊天 -->
+                            <StackPanel Margin="12,0">
+                                <ui:Button Command="{Binding ChatCommand}"
+                                           ToolTip="聊天"
+                                           Appearance="Transparent"
+                                           Width="56" Height="56"
+                                           CornerRadius="28">
+                                    <ui:SymbolIcon Symbol="Chat24" FontSize="24"/>
+                                </ui:Button>
+                               
+                            </StackPanel>
+
+                            <!-- 分隔线 -->
+                            <Border Width="1" Height="40" Background="{DynamicResource ControlStrokeColorDefaultBrush}" Margin="8,0"/>
+
+                            <!-- 系统设置 -->
+                            <StackPanel Margin="12,0">
+                                <ui:Button Command="{Binding OpenSettingsCommand}"
+                                           ToolTip="系统设置"
+                                           Appearance="Transparent"
+                                           Width="56" Height="56"
+                                           CornerRadius="28">
+                                    <ui:SymbolIcon Symbol="Settings24" FontSize="24"/>
+                                </ui:Button>
+                              
+                            </StackPanel>
+
+                            <!-- 离开/加入 -->
+                            <StackPanel Margin="12,0">
+                                <ui:Button Command="{Binding ToggleRoomCommand}"
+                                           IsEnabled="{Binding CanJoinRoom}"
+                                           ToolTip="{Binding IsJoinedRoom, Converter={StaticResource RoomButtonTextConverter}}"
+                                           Appearance="{Binding IsJoinedRoom, Converter={StaticResource LeaveAppearanceConverter}}"
+                                           Width="56" Height="56"
+                                           CornerRadius="28">
+                                    <ui:SymbolIcon Symbol="CallEnd24" FontSize="24"/>
+                                </ui:Button>
+                             
+                            </StackPanel>
+                            
+                        </StackPanel>
+
+                        <!-- 右侧：房间信息和成员数 -->
+                        <StackPanel HorizontalAlignment="Right" 
+                                    VerticalAlignment="Center"
+                                    Margin="0,0,20,0"
+                                    Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="People24" FontSize="16" Opacity="0.6" Margin="0,0,6,0"/>
+                            <TextBlock Text="{Binding Peers.Count}" 
+                                       FontSize="14" 
+                                       Opacity="0.6"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock Text=" 人" 
+                                       FontSize="14" 
+                                       Opacity="0.6"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Grid>
                 </Border>
 
                 <!-- 加载指示器 -->
@@ -507,20 +303,219 @@
                     </StackPanel>
                 </Border>
             </Grid>
+            
+            <!-- 左侧浮动工具栏 - 透明背景，垂直居中，在视频上层 -->
+            <Border HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Margin="12,0,0,0"
+                    Background="#40000000"
+                    CornerRadius="12"
+                    Padding="6,12"
+                    Panel.ZIndex="100">
+                <StackPanel>
+                    <!-- 分享教室 -->
+                    <ui:Button Width="44" Height="44"
+                               CornerRadius="8"
+                               Margin="0,3"
+                               ToolTip="分享教室"
+                               Appearance="Transparent"
+                               Command="{Binding ShareRoomCommand}">
+                        <ui:SymbolIcon Symbol="Share24" FontSize="18"/>
+                    </ui:Button>
 
-            <!-- 侧边栏切换按钮 -->
-            <ui:Button Grid.Column="1"
-                       HorizontalAlignment="Left"
-                       VerticalAlignment="Center"
-                       Margin="0"
-                       Padding="4,24"
-                       CornerRadius="0,7,7,0"
-                       Command="{Binding ToggleSidebarCommand}"
-                       ToolTip="切换侧边栏"
-                       Appearance="Secondary">
-                <TextBlock Text="{Binding IsSidebarVisible, Converter={StaticResource SidebarArrowConverter}}"
-                           FontSize="12" />
-            </ui:Button>
+                    <!-- 隐藏自我视图 -->
+                    <ui:Button Width="44" Height="44"
+                               CornerRadius="8"
+                               Margin="0,3"
+                               ToolTip="隐藏自我视图"
+                               Appearance="Transparent"
+                               Command="{Binding ToggleSelfViewCommand}">
+                        <ui:SymbolIcon Symbol="EyeOff24" FontSize="18"/>
+                    </ui:Button>
+
+                    <!-- 录制 -->
+                    <ui:Button Width="44" Height="44"
+                               CornerRadius="8"
+                               Margin="0,3"
+                               ToolTip="录制"
+                               Appearance="Transparent"
+                               Command="{Binding RecordCommand}">
+                        <ui:SymbolIcon Symbol="Record24" FontSize="18"/>
+                    </ui:Button>
+
+                    <!-- 全屏 -->
+                    <ui:Button Width="44" Height="44"
+                               CornerRadius="8"
+                               Margin="0,3"
+                               ToolTip="全屏"
+                               Appearance="Transparent"
+                               Command="{Binding FullScreenCommand}">
+                        <ui:SymbolIcon Symbol="FullScreenMaximize24" FontSize="18"/>
+                    </ui:Button>
+
+                    <!-- 分隔线 -->
+                    <Border Height="1" 
+                            Background="{DynamicResource ControlStrokeColorDefaultBrush}" 
+                            Margin="6,8" 
+                            Opacity="0.5"/>
+
+                    <!-- 表情 -->
+                    <ui:Button Width="44" Height="44"
+                               CornerRadius="8"
+                               Margin="0,3"
+                               ToolTip="表情"
+                               Appearance="Transparent"
+                               Command="{Binding EmojiCommand}">
+                        <ui:SymbolIcon Symbol="Emoji24" FontSize="18"/>
+                    </ui:Button>
+
+                    <!-- 同步转译 -->
+                    <ui:Button Width="44" Height="44"
+                               CornerRadius="8"
+                               Margin="0,3"
+                               ToolTip="同步转译"
+                               Appearance="Transparent"
+                               Command="{Binding TranslateCommand}">
+                        <ui:SymbolIcon Symbol="Translate24" FontSize="18"/>
+                    </ui:Button>
+
+                    <!-- 投票 -->
+                    <ui:Button Width="44" Height="44"
+                               CornerRadius="8"
+                               Margin="0,3"
+                               ToolTip="投票"
+                               Appearance="Transparent"
+                               Command="{Binding PollCommand}">
+                        <ui:SymbolIcon Symbol="Poll24" FontSize="18"/>
+                    </ui:Button>
+
+                    <!-- 编辑器 -->
+                    <ui:Button Width="44" Height="44"
+                               CornerRadius="8"
+                               Margin="0,3"
+                               ToolTip="文本编辑器"
+                               Appearance="Transparent"
+                               Command="{Binding EditorCommand}">
+                        <ui:SymbolIcon Symbol="Document24" FontSize="18"/>
+                    </ui:Button>
+
+                    <!-- 分隔线 -->
+                    <Border Height="1" 
+                            Background="{DynamicResource ControlStrokeColorDefaultBrush}" 
+                            Margin="6,8" 
+                            Opacity="0.5"/>
+
+                    <!-- 白板 -->
+                    <ui:Button Width="44" Height="44"
+                               CornerRadius="8"
+                               Margin="0,3"
+                               ToolTip="白板"
+                               Appearance="Transparent"
+                               Command="{Binding WhiteboardCommand}">
+                        <ui:SymbolIcon Symbol="Whiteboard24" FontSize="18"/>
+                    </ui:Button>
+
+                    <!-- 画中画 -->
+                    <ui:Button Width="44" Height="44"
+                               CornerRadius="8"
+                               Margin="0,3"
+                               ToolTip="画中画"
+                               Appearance="Transparent"
+                               Command="{Binding PipCommand}">
+                        <ui:SymbolIcon Symbol="PictureInPicture24" FontSize="18"/>
+                    </ui:Button>
+
+                    <!-- 共享屏幕 -->
+                    <ui:Button Width="44" Height="44"
+                               CornerRadius="8"
+                               Margin="0,3"
+                               ToolTip="共享屏幕"
+                               Appearance="Transparent"
+                               Command="{Binding ShareScreenCommand}">
+                        <ui:SymbolIcon Symbol="ShareScreenStart24" FontSize="18"/>
+                    </ui:Button>
+
+                    <!-- 屏幕截图 -->
+                    <ui:Button Width="44" Height="44"
+                               CornerRadius="8"
+                               Margin="0,3"
+                               ToolTip="屏幕截图"
+                               Appearance="Transparent"
+                               Command="{Binding ScreenshotCommand}">
+                        <ui:SymbolIcon Symbol="Screenshot24" FontSize="18"/>
+                    </ui:Button>
+                </StackPanel>
+            </Border>
+                    
+                <!-- 表情反应显示区域 - 左下角 -->
+                <Border HorizontalAlignment="Left"
+                        VerticalAlignment="Bottom"
+                        Margin="80,0,0,110"
+                        Padding="16,12"
+                        CornerRadius="12"
+                        Background="#E0333333"
+                        Panel.ZIndex="150"
+                        Visibility="{Binding IsEmojiReactionVisible, Converter={StaticResource BoolToVisConverter}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding CurrentEmojiReaction.Emoji}"
+                                   FontSize="32"
+                                   Margin="0,0,10,0"/>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Text="{Binding CurrentEmojiReaction.SenderName}"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="White"/>
+                            <TextBlock Text="发送了一个表情"
+                                       FontSize="11"
+                                       Opacity="0.7"
+                                       Foreground="White"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+                    
+                <!-- 屏幕共享请求弹窗 -->
+                <Border HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Padding="24"
+                        CornerRadius="12"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        Panel.ZIndex="200"
+                        Visibility="{Binding HasPendingScreenShareRequest, Converter={StaticResource BoolToVisConverter}}">
+                    <StackPanel MinWidth="280">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                            <ui:SymbolIcon Symbol="ShareScreenStart24" FontSize="24" Margin="0,0,10,0"/>
+                            <TextBlock Text="屏幕共享请求" FontSize="16" FontWeight="SemiBold"/>
+                        </StackPanel>
+                        <TextBlock Margin="0,0,0,20" TextWrapping="Wrap">
+                            <Run Text="{Binding PendingScreenShareRequesterName}"/>
+                            <Run Text=" 请求向您共享屏幕"/>
+                        </TextBlock>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                            <ui:Button Content="拒绝"
+                                       Appearance="Secondary"
+                                       Command="{Binding RejectScreenShareCommand}"
+                                       Margin="0,0,10,0"
+                                       Padding="20,8"/>
+                            <ui:Button Content="接受"
+                                       Appearance="Primary"
+                                       Command="{Binding AcceptScreenShareCommand}"
+                                       Padding="20,8"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- 右侧浮动聊天面板 - 覆盖在视频上层 -->
+                <Border HorizontalAlignment="Right"
+                        VerticalAlignment="Stretch"
+                        Width="580"
+                        Margin="0,0,0,91"
+                        Background="{DynamicResource ApplicationBackgroundBrush}"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1,0,0,0"
+                        Panel.ZIndex="180"
+                        Visibility="{Binding IsChatPanelVisible, Converter={StaticResource BoolToVisConverter}}">
+                    <views:ChatPanel DataContext="{Binding}"/>
+                </Border>
         </Grid>
     </Grid>
 </ui:FluentWindow>

@@ -4,7 +4,8 @@
              xmlns:converters="clr-namespace:Dorisoy.Meeting.Client.Converters"
              xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
              Startup="Application_Startup"
-             Exit="Application_Exit">
+             Exit="Application_Exit"
+             ShutdownMode="OnExplicitShutdown">
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
@@ -32,6 +33,17 @@
             <converters:ConnectedAppearanceConverter x:Key="ConnectedAppearanceConverter"/>
             <converters:RoomAppearanceConverter x:Key="RoomAppearanceConverter"/>
             <converters:MediaAppearanceConverter x:Key="MediaAppearanceConverter"/>
+            
+            <!-- 新增转换器 -->
+            <converters:PreviewIconConverter x:Key="PreviewIconConverter"/>
+            <converters:PreviewTextConverter x:Key="PreviewTextConverter"/>
+            <converters:MicrophoneIconConverter x:Key="MicrophoneIconConverter"/>
+            <converters:VideoIconConverter x:Key="VideoIconConverter"/>
+            <converters:LeaveAppearanceConverter x:Key="LeaveAppearanceConverter"/>
+            <converters:LeaveTextConverter x:Key="LeaveTextConverter"/>
+            <converters:TextMessageVisibilityConverter x:Key="TextMessageVisibilityConverter"/>
+            <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter"/>
+            <converters:InverseBoolToVisConverter x:Key="InverseBoolToVisConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

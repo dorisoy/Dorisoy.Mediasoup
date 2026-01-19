@@ -59,6 +59,12 @@ public partial class MainViewModel : ObservableObject
     private int _selectedRoomIndex;
 
     /// <summary>
+    /// 房间号码（用于加入房间）
+    /// </summary>
+    [ObservableProperty]
+    private string _roomId = "0";
+
+    /// <summary>
     /// 服务模式
     /// </summary>
     [ObservableProperty]
@@ -137,6 +143,24 @@ public partial class MainViewModel : ObservableObject
     private bool _isSidebarVisible = true;
 
     /// <summary>
+    /// 自我视图是否可见
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSelfViewVisible = true;
+
+    /// <summary>
+    /// 是否已举手
+    /// </summary>
+    [ObservableProperty]
+    private bool _isHandRaised;
+
+    /// <summary>
+    /// 当前用户名
+    /// </summary>
+    [ObservableProperty]
+    private string _currentUserName = "我";
+
+    /// <summary>
     /// 可用摄像头列表
     /// </summary>
     public ObservableCollection<MediaDeviceInfo> Cameras { get; } = [];
@@ -168,6 +192,98 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private VideoQualitySettings _selectedVideoQuality = VideoQualitySettings.GetPreset(VideoQualityPreset.High);
+    
+    /// <summary>
+    /// 可用的视频编解码器列表
+    /// </summary>
+    public VideoCodecInfo[] VideoCodecs { get; } = VideoCodecInfo.AvailableCodecs;
+    
+    /// <summary>
+    /// 选中的视频编解码器
+    /// </summary>
+    [ObservableProperty]
+    private VideoCodecInfo _selectedVideoCodec = VideoCodecInfo.AvailableCodecs[0]; // 默认 VP8
+
+    #endregion
+
+    #region 聊天相关属性
+
+    /// <summary>
+    /// 聊天用户列表
+    /// </summary>
+    public ObservableCollection<ChatUser> ChatUsers { get; } = [];
+
+    /// <summary>
+    /// 选中的聊天用户
+    /// </summary>
+    [ObservableProperty]
+    private ChatUser? _selectedChatUser;
+
+    /// <summary>
+    /// 当前消息列表
+    /// </summary>
+    public ObservableCollection<ChatMessage> CurrentMessages { get; } = [];
+
+    /// <summary>
+    /// 群聊消息列表
+    /// </summary>
+    private readonly ObservableCollection<ChatMessage> _groupMessages = [];
+
+    /// <summary>
+    /// 私聊消息字典
+    /// </summary>
+    private readonly Dictionary<string, ObservableCollection<ChatMessage>> _privateMessages = [];
+
+    /// <summary>
+    /// 聊天面板是否可见
+    /// </summary>
+    [ObservableProperty]
+    private bool _isChatPanelVisible;
+
+    /// <summary>
+    /// 是否在群聊模式
+    /// </summary>
+    [ObservableProperty]
+    private bool _isGroupChatMode = true;
+
+    /// <summary>
+    /// 当前显示的表情反应
+    /// </summary>
+    [ObservableProperty]
+    private EmojiReaction? _currentEmojiReaction;
+
+    /// <summary>
+    /// 表情反应是否可见
+    /// </summary>
+    [ObservableProperty]
+    private bool _isEmojiReactionVisible;
+
+    #endregion
+
+    #region 屏幕共享相关属性
+
+    /// <summary>
+    /// 是否正在共享屏幕
+    /// </summary>
+    [ObservableProperty]
+    private bool _isScreenSharing;
+
+    /// <summary>
+    /// 是否有待处理的屏幕共享请求
+    /// </summary>
+    [ObservableProperty]
+    private bool _hasPendingScreenShareRequest;
+
+    /// <summary>
+    /// 待处理请求的发起者名称
+    /// </summary>
+    [ObservableProperty]
+    private string _pendingScreenShareRequesterName = "";
+
+    /// <summary>
+    /// 待处理的屏幕共享请求
+    /// </summary>
+    private ScreenShareRequestData? _pendingScreenShareRequest;
 
     #endregion
 
@@ -316,14 +432,23 @@ public partial class MainViewModel : ObservableObject
         IsBusy = true;
         try
         {
+            _logger.LogInformation("切换房间状态: 当前IsJoinedRoom={IsJoinedRoom}", IsJoinedRoom);
+            
             if (IsJoinedRoom)
             {
+                _logger.LogInformation("开始离开房间...");
                 await LeaveRoomAsync();
             }
             else
             {
+                _logger.LogInformation("开始加入房间...");
                 await JoinRoomAsync();
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "切换房间状态失败");
+            StatusMessage = $"操作失败: {ex.Message}";
         }
         finally
         {
@@ -392,6 +517,729 @@ public partial class MainViewModel : ObservableObject
         IsSidebarVisible = !IsSidebarVisible;
     }
 
+    #region 左侧工具栏命令
+
+    /// <summary>
+    /// 分享教室
+    /// </summary>
+    [RelayCommand]
+    private void ShareRoom()
+    {
+        _logger.LogInformation("分享教室");
+        StatusMessage = "分享教室功能待实现";
+    }
+
+    /// <summary>
+    /// 切换自我视图可见性
+    /// </summary>
+    [RelayCommand]
+    private void ToggleSelfView()
+    {
+        IsSelfViewVisible = !IsSelfViewVisible;
+        StatusMessage = IsSelfViewVisible ? "已显示自我视图" : "已隐藏自我视图";
+    }
+
+    /// <summary>
+    /// 录制
+    /// </summary>
+    [RelayCommand]
+    private void Record()
+    {
+        _logger.LogInformation("录制");
+        StatusMessage = "录制功能待实现";
+    }
+
+    /// <summary>
+    /// 全屏
+    /// </summary>
+    [RelayCommand]
+    private void FullScreen()
+    {
+        _logger.LogInformation("全屏");
+        StatusMessage = "全屏功能待实现";
+    }
+
+    /// <summary>
+    /// 表情
+    /// </summary>
+    [RelayCommand]
+    private void Emoji()
+    {
+        _logger.LogInformation("表情");
+        StatusMessage = "表情功能待实现";
+    }
+
+    /// <summary>
+    /// 同步转译
+    /// </summary>
+    [RelayCommand]
+    private void Translate()
+    {
+        _logger.LogInformation("同步转译");
+        StatusMessage = "同步转译功能待实现";
+    }
+
+    /// <summary>
+    /// 投票
+    /// </summary>
+    [RelayCommand]
+    private void Poll()
+    {
+        _logger.LogInformation("投票");
+        StatusMessage = "投票功能待实现";
+    }
+
+    /// <summary>
+    /// 文本编辑器
+    /// </summary>
+    [RelayCommand]
+    private void Editor()
+    {
+        _logger.LogInformation("文本编辑器");
+        StatusMessage = "文本编辑器功能待实现";
+    }
+
+    /// <summary>
+    /// 白板
+    /// </summary>
+    [RelayCommand]
+    private void Whiteboard()
+    {
+        _logger.LogInformation("白板");
+        StatusMessage = "白板功能待实现";
+    }
+
+    /// <summary>
+    /// 画中画
+    /// </summary>
+    [RelayCommand]
+    private void Pip()
+    {
+        _logger.LogInformation("画中画");
+        StatusMessage = "画中画功能待实现";
+    }
+
+    /// <summary>
+    /// 共享屏幕
+    /// </summary>
+    [RelayCommand]
+    private async Task ShareScreenAsync()
+    {
+        _logger.LogInformation("屏幕共享按钮点击, IsJoinedRoom={IsJoinedRoom}, IsScreenSharing={IsScreenSharing}", IsJoinedRoom, IsScreenSharing);
+        
+        if (!IsJoinedRoom)
+        {
+            StatusMessage = "请先加入房间";
+            _logger.LogWarning("尝试共享屏幕但未加入房间");
+            return;
+        }
+
+        try
+        {
+            if (IsScreenSharing)
+            {
+                // 停止共享
+                _logger.LogInformation("停止屏幕共享...");
+                await _webRtcService.StopScreenShareAsync();
+                IsScreenSharing = false;
+                StatusMessage = "已停止屏幕共享";
+                _logger.LogInformation("屏幕共享已停止");
+            }
+            else
+            {
+                // 开始共享 - 向所有用户发送共享请求
+                _logger.LogInformation("开始屏幕共享...");
+                var sessionId = Guid.NewGuid().ToString();
+                
+                // 通过SignalR广播屏幕共享请求
+                await _signalRService.InvokeAsync("BroadcastMessage", new
+                {
+                    type = "screenShareRequest",
+                    data = new
+                    {
+                        requesterId = SelectedPeerIndex.ToString(),
+                        requesterName = CurrentUserName,
+                        sessionId
+                    }
+                });
+                _logger.LogInformation("已发送屏幕共享请求, sessionId={SessionId}", sessionId);
+
+                // 开始屏幕捕获
+                await _webRtcService.StartScreenShareAsync();
+                IsScreenSharing = true;
+                StatusMessage = "屏幕共享中...";
+                _logger.LogInformation("屏幕共享已开始");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "屏幕共享失败");
+            StatusMessage = $"屏幕共享失败: {ex.Message}";
+            IsScreenSharing = false;
+        }
+    }
+
+    /// <summary>
+    /// 接受屏幕共享请求
+    /// </summary>
+    [RelayCommand]
+    private async Task AcceptScreenShareAsync()
+    {
+        if (_pendingScreenShareRequest == null) return;
+
+        try
+        {
+            await _signalRService.InvokeAsync("BroadcastMessage", new
+            {
+                type = "screenShareResponse",
+                data = new
+                {
+                    responderId = SelectedPeerIndex.ToString(),
+                    sessionId = _pendingScreenShareRequest.SessionId,
+                    accepted = true
+                }
+            });
+
+            HasPendingScreenShareRequest = false;
+            _pendingScreenShareRequest = null;
+            StatusMessage = "已接受屏幕共享";
+            _logger.LogInformation("接受屏幕共享请求");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "接受屏幕共享失败");
+        }
+    }
+
+    /// <summary>
+    /// 拒绝屏幕共享请求
+    /// </summary>
+    [RelayCommand]
+    private async Task RejectScreenShareAsync()
+    {
+        if (_pendingScreenShareRequest == null) return;
+
+        try
+        {
+            await _signalRService.InvokeAsync("BroadcastMessage", new
+            {
+                type = "screenShareResponse",
+                data = new
+                {
+                    responderId = SelectedPeerIndex.ToString(),
+                    sessionId = _pendingScreenShareRequest.SessionId,
+                    accepted = false
+                }
+            });
+
+            HasPendingScreenShareRequest = false;
+            _pendingScreenShareRequest = null;
+            StatusMessage = "已拒绝屏幕共享";
+            _logger.LogInformation("拒绝屏幕共享请求");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "拒绝屏幕共享失败");
+        }
+    }
+
+    /// <summary>
+    /// 屏幕截图
+    /// </summary>
+    [RelayCommand]
+    private void Screenshot()
+    {
+        _logger.LogInformation("屏幕截图");
+        StatusMessage = "屏幕截图功能待实现";
+    }
+
+    #endregion
+
+    #region 底部控制栏命令
+
+    /// <summary>
+    /// 聊天
+    /// </summary>
+    [RelayCommand]
+    private void Chat()
+    {
+        IsChatPanelVisible = !IsChatPanelVisible;
+        _logger.LogInformation("聊天面板: {Visible}", IsChatPanelVisible);
+        StatusMessage = IsChatPanelVisible ? "打开聊天" : "关闭聊天";
+        
+        // 切换到群聊
+        if (IsChatPanelVisible)
+        {
+            SwitchToGroupChat();
+        }
+    }
+
+    /// <summary>
+    /// 举手/发送表情
+    /// </summary>
+    [RelayCommand]
+    private void RaiseHand()
+    {
+        // 打开表情选择窗口
+        OpenEmojiPickerRequested?.Invoke();
+    }
+
+    /// <summary>
+    /// 请求打开表情选择器事件
+    /// </summary>
+    public event Action? OpenEmojiPickerRequested;
+
+    /// <summary>
+    /// 打开设置
+    /// </summary>
+    [RelayCommand]
+    private void OpenSettings()
+    {
+        _logger.LogInformation("打开设置");
+        // 通过事件通知视图打开设置窗口
+        OpenSettingsRequested?.Invoke();
+    }
+
+    /// <summary>
+    /// 请求打开设置窗口事件
+    /// </summary>
+    public event Action? OpenSettingsRequested;
+
+    /// <summary>
+    /// 自动加入房间（用于启动时自动连接并加入）
+    /// </summary>
+    /// <param name="joinInfo">加入信息</param>
+    public async Task AutoJoinAsync(Models.JoinRoomInfo joinInfo)
+    {
+        if (IsBusy) return;
+
+        IsBusy = true;
+        try
+        {
+            // 应用加入信息
+            ServerUrl = joinInfo.ServerUrl;
+            CurrentUserName = joinInfo.UserName;
+            RoomId = joinInfo.RoomId;
+
+            // 设置选中的设备
+            if (!string.IsNullOrEmpty(joinInfo.CameraDeviceId))
+            {
+                SelectedCamera = Cameras.FirstOrDefault(c => c.DeviceId == joinInfo.CameraDeviceId) ?? Cameras.FirstOrDefault();
+            }
+            if (!string.IsNullOrEmpty(joinInfo.MicrophoneDeviceId))
+            {
+                SelectedMicrophone = Microphones.FirstOrDefault(m => m.DeviceId == joinInfo.MicrophoneDeviceId) ?? Microphones.FirstOrDefault();
+            }
+
+            _logger.LogInformation("自动加入: ServerUrl={ServerUrl}, UserName={UserName}, RoomId={RoomId}", 
+                ServerUrl, CurrentUserName, RoomId);
+
+            // 连接服务器
+            StatusMessage = "正在连接服务器...";
+            await ConnectAsync();
+
+            if (!IsConnected)
+            {
+                StatusMessage = "连接服务器失败";
+                return;
+            }
+
+            // 加入房间
+            StatusMessage = "正在加入房间...";
+            await JoinRoomAsync();
+
+            if (!IsJoinedRoom)
+            {
+                StatusMessage = "加入房间失败";
+                return;
+            }
+
+            // 根据设置控制摄像头和麦克风
+            if (!joinInfo.MuteCameraOnJoin && !IsCameraEnabled)
+            {
+                await ToggleCameraAsync();
+            }
+            if (!joinInfo.MuteMicrophoneOnJoin && !IsMicrophoneEnabled)
+            {
+                await ToggleMicrophoneAsync();
+            }
+
+            StatusMessage = $"已加入房间 {RoomId}";
+            _logger.LogInformation("自动加入成功: RoomId={RoomId}", RoomId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "自动加入失败");
+            StatusMessage = $"加入失败: {ex.Message}";
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    #endregion
+
+    #region 聊天和表情方法
+
+    /// <summary>
+    /// 发送表情广播
+    /// </summary>
+    public async Task SendEmojiReactionAsync(string emoji)
+    {
+        if (!IsJoinedRoom) return;
+
+        try
+        {
+            var reaction = new
+            {
+                emoji,
+                senderName = CurrentUserName,
+                senderId = SelectedPeerIndex.ToString()
+            };
+
+            await _signalRService.InvokeAsync("BroadcastMessage", new
+            {
+                type = "emojiReaction",
+                data = reaction
+            });
+
+            _logger.LogInformation("发送表情反应: {Emoji}", emoji);
+            StatusMessage = $"发送表情: {emoji}";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送表情失败");
+        }
+    }
+
+    /// <summary>
+    /// 显示表情反应
+    /// </summary>
+    public void ShowEmojiReaction(EmojiReaction reaction)
+    {
+        Application.Current?.Dispatcher.Invoke(async () =>
+        {
+            CurrentEmojiReaction = reaction;
+            IsEmojiReactionVisible = true;
+
+            // 3秒后隐藏
+            await Task.Delay(3000);
+            IsEmojiReactionVisible = false;
+        });
+    }
+
+    /// <summary>
+    /// 切换到群聊
+    /// </summary>
+    public void SwitchToGroupChat()
+    {
+        IsGroupChatMode = true;
+        SelectedChatUser = null;
+        
+        CurrentMessages.Clear();
+        foreach (var msg in _groupMessages)
+        {
+            CurrentMessages.Add(msg);
+        }
+    }
+
+    /// <summary>
+    /// 选中聊天用户变化
+    /// </summary>
+    partial void OnSelectedChatUserChanged(ChatUser? value)
+    {
+        if (value == null) return;
+
+        IsGroupChatMode = false;
+        
+        // 切换到私聊消息
+        if (!_privateMessages.TryGetValue(value.PeerId, out var messages))
+        {
+            messages = [];
+            _privateMessages[value.PeerId] = messages;
+        }
+
+        CurrentMessages.Clear();
+        foreach (var msg in messages)
+        {
+            CurrentMessages.Add(msg);
+        }
+
+        // 清除未读数
+        value.UnreadCount = 0;
+    }
+
+    /// <summary>
+    /// 发送文本消息
+    /// </summary>
+    public async void SendTextMessage(string content, string? receiverId)
+    {
+        if (!IsJoinedRoom) return;
+
+        var message = new ChatMessage
+        {
+            SenderId = SelectedPeerIndex.ToString(),
+            SenderName = CurrentUserName,
+            ReceiverId = receiverId ?? "",
+            Content = content,
+            MessageType = ChatMessageType.Text,
+            IsFromSelf = true
+        };
+
+        AddMessageToCollection(message);
+
+        try
+        {
+            await _signalRService.InvokeAsync("BroadcastMessage", new
+            {
+                type = "chatMessage",
+                data = new
+                {
+                    id = message.Id,
+                    senderId = message.SenderId,
+                    senderName = message.SenderName,
+                    receiverId = message.ReceiverId,
+                    content = message.Content,
+                    messageType = (int)message.MessageType,
+                    timestamp = message.Timestamp
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送消息失败");
+        }
+    }
+
+    /// <summary>
+    /// 发送图片消息
+    /// </summary>
+    public async void SendImageMessage(string filePath, string? receiverId)
+    {
+        if (!IsJoinedRoom) return;
+
+        try
+        {
+            var fileInfo = new System.IO.FileInfo(filePath);
+            var message = new ChatMessage
+            {
+                SenderId = SelectedPeerIndex.ToString(),
+                SenderName = CurrentUserName,
+                ReceiverId = receiverId ?? "",
+                Content = $"[图片] {fileInfo.Name}",
+                MessageType = ChatMessageType.Image,
+                FileName = fileInfo.Name,
+                FilePath = filePath,
+                FileSize = fileInfo.Length,
+                IsFromSelf = true
+            };
+
+            // 加载图片
+            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+            bitmap.BeginInit();
+            bitmap.UriSource = new Uri(filePath);
+            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+            bitmap.EndInit();
+            message.ImageSource = bitmap;
+
+            AddMessageToCollection(message);
+
+            // 发送消息通知（实际文件传输需要额外实现）
+            await _signalRService.InvokeAsync("BroadcastMessage", new
+            {
+                type = "chatMessage",
+                data = new
+                {
+                    id = message.Id,
+                    senderId = message.SenderId,
+                    senderName = message.SenderName,
+                    receiverId = message.ReceiverId,
+                    content = message.Content,
+                    messageType = (int)message.MessageType,
+                    fileName = message.FileName,
+                    fileSize = message.FileSize,
+                    timestamp = message.Timestamp
+                }
+            });
+
+            StatusMessage = "图片已发送";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送图片失败");
+            StatusMessage = $"发送图片失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 发送文件消息
+    /// </summary>
+    public async void SendFileMessage(string filePath, string? receiverId)
+    {
+        if (!IsJoinedRoom) return;
+
+        try
+        {
+            var fileInfo = new System.IO.FileInfo(filePath);
+            var message = new ChatMessage
+            {
+                SenderId = SelectedPeerIndex.ToString(),
+                SenderName = CurrentUserName,
+                ReceiverId = receiverId ?? "",
+                Content = $"[文件] {fileInfo.Name}",
+                MessageType = ChatMessageType.File,
+                FileName = fileInfo.Name,
+                FilePath = filePath,
+                FileSize = fileInfo.Length,
+                IsFromSelf = true
+            };
+
+            AddMessageToCollection(message);
+
+            // 发送消息通知（实际文件传输需要额外实现）
+            await _signalRService.InvokeAsync("BroadcastMessage", new
+            {
+                type = "chatMessage",
+                data = new
+                {
+                    id = message.Id,
+                    senderId = message.SenderId,
+                    senderName = message.SenderName,
+                    receiverId = message.ReceiverId,
+                    content = message.Content,
+                    messageType = (int)message.MessageType,
+                    fileName = message.FileName,
+                    fileSize = message.FileSize,
+                    timestamp = message.Timestamp
+                }
+            });
+
+            StatusMessage = "文件已发送";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "发送文件失败");
+            StatusMessage = $"发送文件失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 添加消息到集合
+    /// </summary>
+    private void AddMessageToCollection(ChatMessage message)
+    {
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            if (string.IsNullOrEmpty(message.ReceiverId))
+            {
+                // 群聊消息
+                _groupMessages.Add(message);
+                if (IsGroupChatMode)
+                {
+                    CurrentMessages.Add(message);
+                }
+            }
+            else
+            {
+                // 私聊消息
+                if (!_privateMessages.TryGetValue(message.ReceiverId, out var messages))
+                {
+                    messages = [];
+                    _privateMessages[message.ReceiverId] = messages;
+                }
+                messages.Add(message);
+
+                if (!IsGroupChatMode && SelectedChatUser?.PeerId == message.ReceiverId)
+                {
+                    CurrentMessages.Add(message);
+                }
+            }
+        });
+    }
+
+    /// <summary>
+    /// 处理接收到的消息
+    /// </summary>
+    private void HandleChatMessage(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var msgData = JsonSerializer.Deserialize<ChatMessageData>(json, JsonOptions);
+            if (msgData == null) return;
+
+            // 忽略自己发送的消息
+            if (msgData.SenderId == SelectedPeerIndex.ToString()) return;
+
+            var message = new ChatMessage
+            {
+                Id = msgData.Id ?? Guid.NewGuid().ToString(),
+                SenderId = msgData.SenderId ?? "",
+                SenderName = msgData.SenderName ?? "Unknown",
+                ReceiverId = msgData.ReceiverId ?? "",
+                Content = msgData.Content ?? "",
+                MessageType = (ChatMessageType)(msgData.MessageType ?? 0),
+                FileName = msgData.FileName,
+                FileSize = msgData.FileSize ?? 0,
+                Timestamp = msgData.Timestamp ?? DateTime.Now,
+                IsFromSelf = false
+            };
+
+            AddMessageToCollection(message);
+
+            // 如果不在当前聊天，增加未读数
+            if (!IsChatPanelVisible || (!IsGroupChatMode && SelectedChatUser?.PeerId != message.SenderId))
+            {
+                var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
+                if (user != null)
+                {
+                    user.UnreadCount++;
+                    user.LastMessage = message;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理消息失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理接收到的表情反应
+    /// </summary>
+    private void HandleEmojiReaction(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var reactionData = JsonSerializer.Deserialize<EmojiReactionData>(json, JsonOptions);
+            if (reactionData == null) return;
+
+            // 忽略自己发送的
+            if (reactionData.SenderId == SelectedPeerIndex.ToString()) return;
+
+            var reaction = new EmojiReaction
+            {
+                SenderId = reactionData.SenderId ?? "",
+                SenderName = reactionData.SenderName ?? "Unknown",
+                Emoji = reactionData.Emoji ?? "👍"
+            };
+
+            ShowEmojiReaction(reaction);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理表情反应失败");
+        }
+    }
+
+    #endregion
+
     /// <summary>
     /// 切换摄像头设备
     /// </summary>
@@ -450,6 +1298,20 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("视频质量已更改: {Quality} - {Resolution} @ {Bitrate}", 
                 value.DisplayName, value.Resolution, value.BitrateDescription);
             StatusMessage = $"视频质量: {value.DisplayName} ({value.Resolution})";
+        }
+    }
+    
+    /// <summary>
+    /// 视频编解码器变化时应用到 WebRTC 服务
+    /// </summary>
+    partial void OnSelectedVideoCodecChanged(VideoCodecInfo value)
+    {
+        if (value != null)
+        {
+            _webRtcService.CurrentVideoCodec = value.CodecType;
+            _logger.LogInformation("视频编解码器已更改: {Codec} - {Description}", 
+                value.DisplayName, value.Description);
+            StatusMessage = $"编解码器: {value.DisplayName}";
         }
     }
 
@@ -511,9 +1373,6 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ToggleCameraAsync()
     {
-        if (IsBusy) return;
-
-        IsBusy = true;
         try
         {
             if (IsCameraEnabled)
@@ -531,6 +1390,7 @@ public partial class MainViewModel : ObservableObject
                 IsCameraEnabled = false;
                 LocalVideoFrame = null;
                 StatusMessage = "摄像头已关闭";
+                _logger.LogInformation("摄像头已关闭");
             }
             else
             {
@@ -539,6 +1399,7 @@ public partial class MainViewModel : ObservableObject
                 await _webRtcService.StartCameraAsync(deviceId);
                 IsCameraEnabled = true;
                 StatusMessage = "摄像头采集中...";
+                _logger.LogInformation("摄像头已开启");
 
                 // 如果已加入房间，调用 Produce 推送视频
                 if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
@@ -552,10 +1413,6 @@ public partial class MainViewModel : ObservableObject
             _logger.LogError(ex, "Failed to toggle camera");
             StatusMessage = $"摄像头操作失败: {ex.Message}";
         }
-        finally
-        {
-            IsBusy = false;
-        }
     }
 
     /// <summary>
@@ -564,9 +1421,6 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ToggleMicrophoneAsync()
     {
-        if (IsBusy) return;
-
-        IsBusy = true;
         try
         {
             if (IsMicrophoneEnabled)
@@ -583,6 +1437,7 @@ public partial class MainViewModel : ObservableObject
 
                 IsMicrophoneEnabled = false;
                 StatusMessage = "麦克风已关闭";
+                _logger.LogInformation("麦克风已关闭");
             }
             else
             {
@@ -591,6 +1446,7 @@ public partial class MainViewModel : ObservableObject
                 await _webRtcService.StartMicrophoneAsync(deviceId);
                 IsMicrophoneEnabled = true;
                 StatusMessage = "麦克风已开启";
+                _logger.LogInformation("麦克风已开启");
 
                 // 如果已加入房间，调用 Produce 推送音频
                 if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
@@ -603,10 +1459,6 @@ public partial class MainViewModel : ObservableObject
         {
             _logger.LogError(ex, "Failed to toggle microphone");
             StatusMessage = $"麦克风操作失败: {ex.Message}";
-        }
-        finally
-        {
-            IsBusy = false;
         }
     }
 
@@ -696,7 +1548,7 @@ public partial class MainViewModel : ObservableObject
         {
             rtpCapabilities = _routerRtpCapabilities,
             sctpCapabilities = (object?)null,
-            displayName = $"WPF Peer {SelectedPeerIndex}",
+            displayName = $"Peer {SelectedPeerIndex}",
             sources = new[] { "audio:mic", "video:cam" },
             appData = new Dictionary<string, object>()
         };
@@ -717,18 +1569,30 @@ public partial class MainViewModel : ObservableObject
     private async Task JoinRoomAsync()
     {
         var isAdmin = SelectedPeerIndex >= 8;
+        var roomIdToJoin = !string.IsNullOrEmpty(RoomId) ? RoomId : Rooms[SelectedRoomIndex];
         var joinRoomRequest = new
         {
-            roomId = Rooms[SelectedRoomIndex],
+            roomId = roomIdToJoin,
             role = isAdmin ? "admin" : "normal"
         };
 
         StatusMessage = "正在加入房间...";
+        _logger.LogInformation("调用JoinRoom: RoomId={RoomId}, IsAdmin={IsAdmin}", roomIdToJoin, isAdmin);
 
         var result = await _signalRService.InvokeAsync<JoinRoomResponse>("JoinRoom", joinRoomRequest);
         if (!result.IsSuccess)
         {
             _logger.LogError("JoinRoom failed: {Message}", result.Message);
+            
+            // 检查是否是"已在房间中"的错误
+            if (result.Message?.Contains("already") == true || result.Message?.Contains("已在") == true)
+            {
+                _logger.LogWarning("检测到已在房间中，同步状态为已加入");
+                IsJoinedRoom = true;
+                StatusMessage = $"已在房间 {roomIdToJoin} 中";
+                return;
+            }
+            
             StatusMessage = $"加入房间失败: {result.Message}";
             return;
         }
@@ -744,6 +1608,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         IsJoinedRoom = true;
+        _logger.LogInformation("加入房间成功: RoomId={RoomId}, PeerCount={PeerCount}", roomIdToJoin, Peers.Count);
 
         // 创建 WebRTC Transport
         await CreateTransportsAsync();
@@ -760,7 +1625,7 @@ public partial class MainViewModel : ObservableObject
             await _signalRService.InvokeAsync("Ready");
         }
 
-        StatusMessage = $"已加入房间 {Rooms[SelectedRoomIndex]}";
+        StatusMessage = $"已加入房间 {roomIdToJoin}";
     }
 
     /// <summary>
@@ -768,19 +1633,36 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private async Task LeaveRoomAsync()
     {
+        _logger.LogInformation("开始离开房间...");
+        
         await _webRtcService.CloseAsync();
 
         var result = await _signalRService.InvokeAsync("LeaveRoom");
+        
+        // 无论服务器返回成功还是失败，都重置客户端状态
+        IsJoinedRoom = false;
+        IsCameraEnabled = false;
+        IsMicrophoneEnabled = false;
+        Peers.Clear();
+        RemoteVideos.Clear();
+        HasNoRemoteVideos = true;
+        LocalVideoFrame = null;
+        
+        // 清理 Transport ID
+        _sendTransportId = null;
+        _recvTransportId = null;
+        _videoProducerId = null;
+        _audioProducerId = null;
+        
         if (result.IsSuccess)
         {
-            IsJoinedRoom = false;
-            IsCameraEnabled = false;
-            IsMicrophoneEnabled = false;
-            Peers.Clear();
-            RemoteVideos.Clear();
-            HasNoRemoteVideos = true;
-            LocalVideoFrame = null;
             StatusMessage = "已离开房间";
+            _logger.LogInformation("离开房间成功");
+        }
+        else
+        {
+            StatusMessage = "已离开房间（本地）";
+            _logger.LogWarning("服务器LeaveRoom返回失败，但已重置客户端状态: {Message}", result.Message);
         }
     }
 
@@ -925,7 +1807,9 @@ public partial class MainViewModel : ObservableObject
         {
             // 从 SendTransport 获取实际使用的 SSRC，确保与 RTP 发送一致
             var videoSsrc = _webRtcService.SendTransport?.VideoSsrc ?? 0;
-            var produceRequest = RtpParametersFactory.CreateVideoProduceRequest(videoSsrc);
+            var currentCodec = _webRtcService.CurrentVideoCodec;
+            var produceRequest = RtpParametersFactory.CreateVideoProduceRequest(videoSsrc, currentCodec);
+            _logger.LogInformation("创建视频 Producer: SSRC={Ssrc}, Codec={Codec}", videoSsrc, currentCodec);
 
             var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
             if (result.IsSuccess && result.Data != null)
@@ -1097,6 +1981,18 @@ public partial class MainViewModel : ObservableObject
                     case "producerClosed":
                         HandleProducerClosed(notification.Data);
                         break;
+                    case "chatMessage":
+                        HandleChatMessage(notification.Data);
+                        break;
+                    case "emojiReaction":
+                        HandleEmojiReaction(notification.Data);
+                        break;
+                    case "screenShareRequest":
+                        HandleScreenShareRequest(notification.Data);
+                        break;
+                    case "screenShareResponse":
+                        HandleScreenShareResponse(notification.Data);
+                        break;
                     default:
                         _logger.LogDebug("Unhandled notification: {Type}", notification.Type);
                         break;
@@ -1120,6 +2016,17 @@ public partial class MainViewModel : ObservableObject
             Peers.Add(notification.Peer);
             _logger.LogInformation("Peer joined: {PeerId}", notification.Peer.PeerId);
             StatusMessage = $"用户 {notification.Peer.DisplayName} 加入房间";
+
+            // 同步到聊天用户列表
+            if (!ChatUsers.Any(u => u.PeerId == notification.Peer.PeerId))
+            {
+                ChatUsers.Add(new ChatUser
+                {
+                    PeerId = notification.Peer.PeerId ?? "",
+                    DisplayName = notification.Peer.DisplayName ?? "Unknown",
+                    IsOnline = true
+                });
+            }
         }
     }
 
@@ -1149,6 +2056,13 @@ public partial class MainViewModel : ObservableObject
 
             // 更新无远端视频状态
             HasNoRemoteVideos = RemoteVideos.Count == 0;
+
+            // 从聊天用户列表移除
+            var chatUser = ChatUsers.FirstOrDefault(u => u.PeerId == notification.PeerId);
+            if (chatUser != null)
+            {
+                ChatUsers.Remove(chatUser);
+            }
         }
     }
 
@@ -1272,6 +2186,71 @@ public partial class MainViewModel : ObservableObject
         if (notification != null)
         {
             _logger.LogInformation("Producer closed: {ProducerId}", notification.ProducerId);
+        }
+    }
+
+    /// <summary>
+    /// 处理屏幕共享请求
+    /// </summary>
+    private void HandleScreenShareRequest(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var requestData = JsonSerializer.Deserialize<ScreenShareRequestData>(json, JsonOptions);
+            if (requestData == null) return;
+
+            // 忽略自己的请求
+            if (requestData.RequesterId == SelectedPeerIndex.ToString()) return;
+
+            _logger.LogInformation("收到屏幕共享请求: {RequesterName}", requestData.RequesterName);
+
+            // 保存当前请求
+            _pendingScreenShareRequest = requestData;
+            PendingScreenShareRequesterName = requestData.RequesterName ?? "Unknown";
+            HasPendingScreenShareRequest = true;
+
+            StatusMessage = $"{requestData.RequesterName} 请求共享屏幕";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理屏幕共享请求失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理屏幕共享响应
+    /// </summary>
+    private void HandleScreenShareResponse(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var responseData = JsonSerializer.Deserialize<ScreenShareResponseData>(json, JsonOptions);
+            if (responseData == null) return;
+
+            // 忽略自己的响应
+            if (responseData.ResponderId == SelectedPeerIndex.ToString()) return;
+
+            if (responseData.Accepted)
+            {
+                _logger.LogInformation("屏幕共享被接受");
+                StatusMessage = "对方接受了屏幕共享";
+            }
+            else
+            {
+                _logger.LogInformation("屏幕共享被拒绝");
+                StatusMessage = "对方拒绝了屏幕共享";
+                IsScreenSharing = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理屏幕共享响应失败");
         }
     }
 

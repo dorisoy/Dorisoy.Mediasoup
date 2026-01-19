@@ -1,0 +1,242 @@
+<ui:FluentWindow x:Class="Dorisoy.Meeting.Client.Views.JoinRoomWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 mc:Ignorable="d"
+                 Title="加入会议"
+                 Height="650"
+                 Width="800"
+                 MinHeight="600"
+                 MinWidth="700"
+                 WindowStartupLocation="CenterScreen"
+                 WindowState="Maximized"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round"
+                 ResizeMode="CanResize">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- 标题栏 -->
+        <ui:TitleBar x:Name="TitleBar"
+                     Title="加入会议"
+                     Grid.Row="0"
+                     ShowMaximize="False"
+                     ShowMinimize="True">
+            <ui:TitleBar.Icon>
+                <ui:SymbolIcon Symbol="Video24"
+                               FontSize="20" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+
+        <!-- 主内容 -->
+        <Grid Grid.Row="1"
+              Margin="0" Width="800" Height="620">
+            <Grid.ColumnDefinitions>
+                <!-- 左侧：摄像头预览 -->
+                <ColumnDefinition Width="*" />
+                <!-- 右侧：设置面板 -->
+                <ColumnDefinition Width="320" />
+            </Grid.ColumnDefinitions>
+
+            <!-- 左侧：摄像头预览区域 -->
+            <Border Grid.Column="0"
+                    Margin="0,0,16,0"
+                    CornerRadius="12"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    ClipToBounds="True">
+                <Grid>
+                    <!-- 视频预览 -->
+                    <Image Source="{Binding CameraPreviewFrame}"
+                           Stretch="UniformToFill"
+                           RenderOptions.BitmapScalingMode="HighQuality" />
+
+                    <!-- 无预览时的占位符 -->
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding CameraPreviewFrame, 
+                                    Converter={StaticResource NullToVisibleConverter}}">
+                        <ui:SymbolIcon Symbol="Video24"
+                                       FontSize="64"
+                                       Opacity="0.3" />
+                        <TextBlock Text="摄像头预览"
+                                   Opacity="0.5"
+                                   FontSize="16"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,12,0,0" />
+                        <TextBlock Text="点击下方按钮开始预览"
+                                   Opacity="0.3"
+                                   FontSize="12"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+
+                    <!-- 预览控制按钮 -->
+                    <ui:Button HorizontalAlignment="Center"
+                               VerticalAlignment="Bottom"
+                               Margin="0,0,0,16"
+                               Padding="16,8"
+                               CornerRadius="20"
+                               Command="{Binding TogglePreviewCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="{Binding IsPreviewing, 
+                                Converter={StaticResource PreviewIconConverter}}"
+                                           FontSize="16"
+                                           Margin="0,0,8,0" />
+                            <TextBlock Text="{Binding IsPreviewing, 
+                                Converter={StaticResource PreviewTextConverter}}" />
+                        </StackPanel>
+                    </ui:Button>
+                </Grid>
+            </Border>
+
+            <!-- 右侧：设置面板 -->
+            <StackPanel Grid.Column="1">
+
+                <!-- 房间设置 -->
+                <ui:Card Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,12">
+                            <ui:SymbolIcon Symbol="Door20"
+                                           Margin="0,0,8,0" />
+                            <TextBlock Text="会议设置"
+                                       FontWeight="SemiBold" />
+                        </StackPanel>
+
+                        <!-- 服务器地址 -->
+                        <!--<TextBlock Text="服务器地址"
+                                   Margin="0,0,0,6"
+                                   Opacity="0.7" />
+                        <ui:TextBox Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}"
+                                    PlaceholderText="输入服务器地址..."
+                                    Margin="0,0,0,12" />-->
+
+                        <!-- 房间号码 -->
+                        <TextBlock Text="房间号码"
+                                   Margin="0,0,0,6"
+                                   Opacity="0.7" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Grid.Column="0"
+                                        Text="{Binding RoomId, UpdateSourceTrigger=PropertyChanged}"
+                                        PlaceholderText="6位数字房间号"
+                                        MaxLength="6" />
+                            <ui:Button Grid.Column="1"
+                                       Margin="8,0,0,0"
+                                       ToolTip="生成随机房间号"
+                                       Command="{Binding GenerateRandomRoomIdCommand}">
+                                <ui:SymbolIcon Symbol="ArrowSync24"
+                                               FontSize="16" />
+                            </ui:Button>
+                        </Grid>
+
+                        <!-- 用户名 -->
+                        <TextBlock Text="用户名"
+                                   Margin="0,12,0,6"
+                                   Opacity="0.7" />
+                        <ui:TextBox Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}"
+                                    PlaceholderText="输入您的用户名..." />
+                    </StackPanel>
+                </ui:Card>
+
+                <!-- 设备选择 -->
+                <ui:Card Margin="0,0,0,12">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0"
+                                        Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Speaker224"
+                                               Margin="0,0,8,0" />
+                                <TextBlock Text="设备选择"
+                                           FontWeight="SemiBold" />
+                            </StackPanel>
+                            <ui:Button Grid.Column="1"
+                                       Appearance="Transparent"
+                                       ToolTip="刷新设备"
+                                       Command="{Binding RefreshDevicesCommand}">
+                                <ui:SymbolIcon Symbol="ArrowSync24"
+                                               FontSize="14" />
+                            </ui:Button>
+                        </Grid>
+
+                        <!-- 摄像头 -->
+                        <TextBlock Text="摄像头"
+                                   Margin="0,0,0,6"
+                                   Opacity="0.7" />
+                        <ComboBox ItemsSource="{Binding Cameras}"
+                                  SelectedItem="{Binding SelectedCamera}"
+                                  DisplayMemberPath="Label"
+                                  Margin="0,0,0,12"
+                                  HorizontalAlignment="Stretch" />
+
+                        <!-- 麦克风 -->
+                        <TextBlock Text="麦克风"
+                                   Margin="0,0,0,6"
+                                   Opacity="0.7" />
+                        <ComboBox ItemsSource="{Binding Microphones}"
+                                  SelectedItem="{Binding SelectedMicrophone}"
+                                  DisplayMemberPath="Label"
+                                  HorizontalAlignment="Stretch" />
+                    </StackPanel>
+                </ui:Card>
+
+                <!-- 加入选项 -->
+                <ui:Card Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,12">
+                            <ui:SymbolIcon Symbol="Settings24"
+                                           Margin="0,0,8,0" />
+                            <TextBlock Text="加入选项"
+                                       FontWeight="SemiBold" />
+                        </StackPanel>
+
+                        <CheckBox Content="加入后关闭麦克风"
+                                  IsChecked="{Binding MuteMicrophoneOnJoin}"
+                                  Margin="0,0,0,8" />
+
+                        <CheckBox Content="加入后关闭摄像头"
+                                  IsChecked="{Binding MuteCameraOnJoin}" />
+                    </StackPanel>
+                </ui:Card>
+
+                <!-- 操作按钮 -->
+                <Grid Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:Button Grid.Column="0"
+                               Content="取消"
+                               HorizontalAlignment="Stretch"
+                               Margin="0,0,6,0"
+                               Command="{Binding CancelCommand}" />
+
+                    <ui:Button Grid.Column="1"
+                               Content="加入会议"
+                               HorizontalAlignment="Stretch"
+                               Margin="6,0,0,0"
+                               Appearance="Primary"
+                               IsEnabled="{Binding CanJoin}"
+                               Command="{Binding JoinCommand}" />
+                </Grid>
+
+            </StackPanel>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

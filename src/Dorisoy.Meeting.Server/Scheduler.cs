@@ -138,7 +138,17 @@ namespace Dorisoy.Meeting.Server
                         _rooms[room.RoomId] = room;
                     }
 
-                    var result = await peer.JoinRoomAsync(room);
+                    JoinRoomResult result;
+                    try
+                    {
+                        result = await peer.JoinRoomAsync(room);
+                    }
+                    catch (PeerInRoomException)
+                    {
+                        // 幂等操作：如果 Peer 已经在同一个房间中，返回当前房间状态
+                        _logger.LogWarning("JoinRoomAsync() | Peer:{PeerId} 已在 Room:{RoomId}，返回当前状态", peerId, room.RoomId);
+                        result = await room.GetJoinRoomResultAsync(peer);
+                    }
 
                     await peer.SetPeerInternalDataAsync(
                         new SetPeerInternalDataRequest
