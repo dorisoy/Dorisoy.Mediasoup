@@ -37,7 +37,7 @@
 
         <!-- 主内容 -->
         <Grid Grid.Row="1"
-              Margin="0" Width="900" Height="650">
+              Margin="0" Width="900" Height="680">
             <Grid.ColumnDefinitions>
                 <!-- 左侧：摄像头预览 -->
                 <ColumnDefinition Width="*" />
@@ -119,13 +119,12 @@
                                     Margin="0,0,0,12" />-->
 
                         <!-- 房间号码 - 5位自动输入框 -->
-                        <TextBlock Text="房间号码"
-                                   Margin="0,0,0,6"
-                                   Opacity="0.7" />
+
                         
                         <!-- 记忆的房间号列表 -->
                         <StackPanel Orientation="Horizontal"
                                     Margin="0,0,0,8"
+                                    HorizontalAlignment="Right"
                                     Visibility="{Binding HasRecentRooms, Converter={StaticResource BoolToVisConverter}}">
                             <TextBlock Text="最近:"
                                        VerticalAlignment="Center"
@@ -298,6 +297,22 @@
                     </StackPanel>
                 </ui:Card>
 
+                <!-- 错误信息 -->
+                <Border Margin="0,8,0,0"
+                        Background="{DynamicResource SystemFillColorCriticalBackgroundBrush}"
+                        CornerRadius="4"
+                        Padding="12,8"
+                        Visibility="{Binding HasError, Converter={StaticResource BoolToVisConverter}}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="ErrorCircle24"
+                                       Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                       Margin="0,0,8,0" />
+                        <TextBlock Text="{Binding ErrorMessage}"
+                                   Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
                 <!-- 操作按钮 -->
                 <Grid Margin="0,8,0,0">
                     <Grid.ColumnDefinitions>
@@ -309,15 +324,43 @@
                                Content="取消"
                                HorizontalAlignment="Stretch"
                                Margin="0,0,6,0"
+                               IsEnabled="{Binding IsCheckingConnection, Converter={StaticResource InverseBoolConverter}}"
                                Command="{Binding CancelCommand}" />
 
                     <ui:Button Grid.Column="1"
-                               Content="加入会议"
                                HorizontalAlignment="Stretch"
                                Margin="6,0,0,0"
                                Appearance="Primary"
-                               IsEnabled="{Binding CanJoin}"
-                               Command="{Binding JoinCommand}" />
+                               Command="{Binding JoinCommand}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Setter Property="IsEnabled" Value="{Binding CanJoin}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCheckingConnection}" Value="True">
+                                        <Setter Property="IsEnabled" Value="False" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:ProgressRing Width="16" Height="16"
+                                             Margin="0,0,8,0"
+                                             IsIndeterminate="True"
+                                             Visibility="{Binding IsCheckingConnection, Converter={StaticResource BoolToVisConverter}}" />
+                            <TextBlock>
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text" Value="加入会议" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCheckingConnection}" Value="True">
+                                                <Setter Property="Text" Value="连接中..." />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </ui:Button>
                 </Grid>
 
             </StackPanel>

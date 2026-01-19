@@ -17,6 +17,7 @@ public partial class JoinRoomViewModel : ObservableObject
 {
     private readonly ILogger<JoinRoomViewModel> _logger;
     private readonly IWebRtcService _webRtcService;
+    private readonly ISignalRService _signalRService;
     private System.Threading.CancellationTokenSource? _previewCts;
     
     // 记忆文件路径
@@ -126,6 +127,23 @@ public partial class JoinRoomViewModel : ObservableObject
     [ObservableProperty]
     private bool _dialogResult;
 
+    /// <summary>
+    /// 是否正在检测连接
+    /// </summary>
+    [ObservableProperty]
+    private bool _isCheckingConnection;
+
+    /// <summary>
+    /// 错误信息
+    /// </summary>
+    [ObservableProperty]
+    private string? _errorMessage;
+
+    /// <summary>
+    /// 是否有错误
+    /// </summary>
+    public bool HasError => !string.IsNullOrEmpty(ErrorMessage);
+
     #endregion
 
     #region 集合属性
@@ -167,10 +185,12 @@ public partial class JoinRoomViewModel : ObservableObject
 
     public JoinRoomViewModel(
         ILogger<JoinRoomViewModel> logger,
-        IWebRtcService webRtcService)
+        IWebRtcService webRtcService,
+        ISignalRService signalRService)
     {
         _logger = logger;
         _webRtcService = webRtcService;
+        _signalRService = signalRService;
 
         // 加载记忆的设置
         LoadSettings();
@@ -261,16 +281,52 @@ public partial class JoinRoomViewModel : ObservableObject
     [RelayCommand]
     private async Task JoinAsync()
     {
-        if (!CanJoin) return;
+        if (!CanJoin || IsCheckingConnection) return;
 
-        // 停止预览
-        await StopPreviewAsync();
+        // 清除之前的错误信息
+        ErrorMessage = null;
+        OnPropertyChanged(nameof(HasError));
         
-        // 保存记忆
-        SaveSettings();
+        IsCheckingConnection = true;
+        try
+        {
+            _logger.LogInformation("正在检测服务器连接: {ServerUrl}", ServerUrl);
+            
+            // 尝试连接服务器
+            await _signalRService.ConnectAsync(ServerUrl, "");
+            
+            if (!_signalRService.IsConnected)
+            {
+                ErrorMessage = "无法连接到服务器，请检查网络或服务器地址";
+                OnPropertyChanged(nameof(HasError));
+                _logger.LogWarning("服务器连接检测失败: {ServerUrl}", ServerUrl);
+                return;
+            }
+            
+            _logger.LogInformation("服务器连接检测成功");
+            
+            // 断开连接（后续在 MainViewModel 中重新连接）
+            await _signalRService.DisconnectAsync();
+            
+            // 停止预览
+            await StopPreviewAsync();
+            
+            // 保存记忆
+            SaveSettings();
 
-        DialogResult = true;
-        RequestClose?.Invoke(true);
+            DialogResult = true;
+            RequestClose?.Invoke(true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "服务器连接检测失败");
+            ErrorMessage = $"连接服务器失败: {ex.Message}";
+            OnPropertyChanged(nameof(HasError));
+        }
+        finally
+        {
+            IsCheckingConnection = false;
+        }
     }
 
     /// <summary>
