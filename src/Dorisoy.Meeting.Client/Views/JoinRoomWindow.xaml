@@ -118,21 +118,95 @@
                                     PlaceholderText="输入服务器地址..."
                                     Margin="0,0,0,12" />-->
 
-                        <!-- 房间号码 -->
+                        <!-- 房间号码 - 5位自动输入框 -->
                         <TextBlock Text="房间号码"
                                    Margin="0,0,0,6"
                                    Opacity="0.7" />
+                        
+                        <!-- 记忆的房间号列表 -->
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,8"
+                                    Visibility="{Binding HasRecentRooms, Converter={StaticResource BoolToVisConverter}}">
+                            <TextBlock Text="最近:"
+                                       VerticalAlignment="Center"
+                                       Opacity="0.5"
+                                       Margin="0,0,8,0" />
+                            <ItemsControl ItemsSource="{Binding RecentRooms}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <ui:Button Content="{Binding}"
+                                                   Margin="0,0,6,0"
+                                                   Padding="8,4"
+                                                   Appearance="Secondary"
+                                                   Command="{Binding DataContext.SelectRecentRoomCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                   CommandParameter="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        
+                        <!-- 5位房间号输入框 -->
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <ui:TextBox Grid.Column="0"
-                                        Text="{Binding RoomId, UpdateSourceTrigger=PropertyChanged}"
-                                        PlaceholderText="6位数字房间号"
-                                        MaxLength="6" />
+                            
+                            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                                <ui:TextBox x:Name="RoomDigit1"
+                                            Text="{Binding RoomDigit1, UpdateSourceTrigger=PropertyChanged}"
+                                            MaxLength="1"
+                                            Width="48" Height="48"
+                                            FontSize="20"
+                                            TextAlignment="Center"
+                                            Margin="0,0,6,0"
+                                            PreviewTextInput="RoomDigit_PreviewTextInput"
+                                            TextChanged="RoomDigit_TextChanged" />
+                                <ui:TextBox x:Name="RoomDigit2"
+                                            Text="{Binding RoomDigit2, UpdateSourceTrigger=PropertyChanged}"
+                                            MaxLength="1"
+                                            Width="48" Height="48"
+                                            FontSize="20"
+                                            TextAlignment="Center"
+                                            Margin="0,0,6,0"
+                                            PreviewTextInput="RoomDigit_PreviewTextInput"
+                                            TextChanged="RoomDigit_TextChanged" />
+                                <ui:TextBox x:Name="RoomDigit3"
+                                            Text="{Binding RoomDigit3, UpdateSourceTrigger=PropertyChanged}"
+                                            MaxLength="1"
+                                            Width="48" Height="48"
+                                            FontSize="20"
+                                            TextAlignment="Center"
+                                            Margin="0,0,6,0"
+                                            PreviewTextInput="RoomDigit_PreviewTextInput"
+                                            TextChanged="RoomDigit_TextChanged" />
+                                <ui:TextBox x:Name="RoomDigit4"
+                                            Text="{Binding RoomDigit4, UpdateSourceTrigger=PropertyChanged}"
+                                            MaxLength="1"
+                                            Width="48" Height="48"
+                                            FontSize="20"
+                                            TextAlignment="Center"
+                                            Margin="0,0,6,0"
+                                            PreviewTextInput="RoomDigit_PreviewTextInput"
+                                            TextChanged="RoomDigit_TextChanged" />
+                                <ui:TextBox x:Name="RoomDigit5"
+                                            Text="{Binding RoomDigit5, UpdateSourceTrigger=PropertyChanged}"
+                                            MaxLength="1"
+                                            Width="48" Height="48"
+                                            FontSize="20"
+                                            TextAlignment="Center"
+                                            PreviewTextInput="RoomDigit_PreviewTextInput"
+                                            TextChanged="RoomDigit_TextChanged" />
+                            </StackPanel>
+                            
                             <ui:Button Grid.Column="1"
                                        Margin="8,0,0,0"
+                                       Width="48" Height="48"
                                        ToolTip="生成随机房间号"
                                        Command="{Binding GenerateRandomRoomIdCommand}">
                                 <ui:SymbolIcon Symbol="ArrowSync24"

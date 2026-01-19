@@ -806,6 +806,11 @@ public partial class MainViewModel : ObservableObject
     public event Action? OpenSettingsRequested;
 
     /// <summary>
+    /// 请求返回加入房间窗口事件（离开房间后）
+    /// </summary>
+    public event Action? ReturnToJoinRoomRequested;
+
+    /// <summary>
     /// 自动加入房间（用于启动时自动连接并加入）
     /// </summary>
     /// <param name="joinInfo">加入信息</param>
@@ -1635,12 +1640,15 @@ public partial class MainViewModel : ObservableObject
     {
         _logger.LogInformation("开始离开房间...");
         
-        await _webRtcService.CloseAsync();
-
-        var result = await _signalRService.InvokeAsync("LeaveRoom");
+        // 先断开 SignalR 连接（避免 DTLS 错误）
+        await _signalRService.DisconnectAsync();
         
-        // 无论服务器返回成功还是失败，都重置客户端状态
+        // 完全关闭 WebRTC 服务
+        await _webRtcService.CloseAsync();
+        
+        // 重置客户端状态
         IsJoinedRoom = false;
+        IsConnected = false;
         IsCameraEnabled = false;
         IsMicrophoneEnabled = false;
         Peers.Clear();
@@ -1654,16 +1662,11 @@ public partial class MainViewModel : ObservableObject
         _videoProducerId = null;
         _audioProducerId = null;
         
-        if (result.IsSuccess)
-        {
-            StatusMessage = "已离开房间";
-            _logger.LogInformation("离开房间成功");
-        }
-        else
-        {
-            StatusMessage = "已离开房间（本地）";
-            _logger.LogWarning("服务器LeaveRoom返回失败，但已重置客户端状态: {Message}", result.Message);
-        }
+        StatusMessage = "已离开房间";
+        _logger.LogInformation("离开房间完成，返回加入窗口");
+        
+        // 通知窗口返回加入房间界面
+        ReturnToJoinRoomRequested?.Invoke();
     }
 
     /// <summary>

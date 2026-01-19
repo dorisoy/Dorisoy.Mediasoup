@@ -1,6 +1,10 @@
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 using Dorisoy.Meeting.Client.Models;
 using Dorisoy.Meeting.Client.ViewModels;
+using Wpf.Ui.Controls;
+using TextBox = Wpf.Ui.Controls.TextBox;
 
 namespace Dorisoy.Meeting.Client.Views;
 
@@ -12,6 +16,7 @@ public partial class JoinRoomWindow
     private readonly JoinRoomViewModel _viewModel;
     private bool _isConfirmed;
     private JoinRoomInfo? _joinRoomInfo;
+    private TextBox[] _roomDigitBoxes = null!;
 
     public JoinRoomWindow(JoinRoomViewModel viewModel)
     {
@@ -19,6 +24,9 @@ public partial class JoinRoomWindow
         DataContext = viewModel;
         
         InitializeComponent();
+        
+        // 初始化输入框数组
+        _roomDigitBoxes = new[] { RoomDigit1, RoomDigit2, RoomDigit3, RoomDigit4, RoomDigit5 };
 
         // 订阅关闭请求事件
         _viewModel.RequestClose += OnRequestClose;
@@ -56,5 +64,32 @@ public partial class JoinRoomWindow
         
         // 对于 FluentWindow，直接关闭窗口，不使用 DialogResult
         Close();
+    }
+    
+    /// <summary>
+    /// 房间号输入框预览输入 - 只允许数字
+    /// </summary>
+    private void RoomDigit_PreviewTextInput(object sender, TextCompositionEventArgs e)
+    {
+        // 只允许数字
+        e.Handled = !char.IsDigit(e.Text, 0);
+    }
+    
+    /// <summary>
+    /// 房间号输入框文本变化 - 自动跳转到下一个
+    /// </summary>
+    private void RoomDigit_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (sender is not TextBox currentBox) return;
+        
+        // 如果输入了一个数字，自动跳转到下一个输入框
+        if (currentBox.Text.Length == 1)
+        {
+            var currentIndex = Array.IndexOf(_roomDigitBoxes, currentBox);
+            if (currentIndex >= 0 && currentIndex < _roomDigitBoxes.Length - 1)
+            {
+                _roomDigitBoxes[currentIndex + 1].Focus();
+            }
+        }
     }
 }

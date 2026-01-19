@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.Windows;
 using Dorisoy.Meeting.Client.ViewModels;
 using Dorisoy.Meeting.Client.Views;
+using Microsoft.Extensions.DependencyInjection;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
@@ -13,6 +14,7 @@ namespace Dorisoy.Meeting.Client;
 public partial class MainWindow : FluentWindow
 {
     private readonly MainViewModel _viewModel;
+    private bool _isReturningToJoinRoom;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -28,6 +30,9 @@ public partial class MainWindow : FluentWindow
         
         // 订阅打开表情选择器事件
         _viewModel.OpenEmojiPickerRequested += OnOpenEmojiPickerRequested;
+        
+        // 订阅返回加入房间事件
+        _viewModel.ReturnToJoinRoomRequested += OnReturnToJoinRoomRequested;
         
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
@@ -55,6 +60,44 @@ public partial class MainWindow : FluentWindow
             await _viewModel.SendEmojiReactionAsync(picker.SelectedEmoji);
         }
     }
+    
+    /// <summary>
+    /// 返回加入房间窗口
+    /// </summary>
+    private void OnReturnToJoinRoomRequested()
+    {
+        _isReturningToJoinRoom = true;
+        
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            // 隐藏主窗口
+            this.Hide();
+            
+            // 创建并显示 JoinRoomWindow
+            var joinRoomViewModel = App.ServiceProvider?.GetRequiredService<JoinRoomViewModel>();
+            if (joinRoomViewModel != null)
+            {
+                var joinRoomWindow = new JoinRoomWindow(joinRoomViewModel);
+                joinRoomWindow.ShowDialog();
+                
+                if (joinRoomWindow.IsConfirmed && joinRoomWindow.JoinRoomInfo != null)
+                {
+                    // 用户确认加入，重新显示主窗口并加入房间
+                    this.WindowState = WindowState.Maximized;
+                    this.Show();
+                    
+                    // 自动加入房间
+                    _ = _viewModel.AutoJoinAsync(joinRoomWindow.JoinRoomInfo);
+                    _isReturningToJoinRoom = false;
+                }
+                else
+                {
+                    // 用户取消，关闭应用
+                    Application.Current.Shutdown();
+                }
+            }
+        });
+    }
 
     /// <summary>
     /// 窗口关闭事件处理 - 清理资源
@@ -66,6 +109,7 @@ public partial class MainWindow : FluentWindow
             // 取消事件订阅
             _viewModel.OpenSettingsRequested -= OnOpenSettingsRequested;
             _viewModel.OpenEmojiPickerRequested -= OnOpenEmojiPickerRequested;
+            _viewModel.ReturnToJoinRoomRequested -= OnReturnToJoinRoomRequested;
             
             // 异步清理资源
             await _viewModel.CleanupAsync();
@@ -81,7 +125,10 @@ public partial class MainWindow : FluentWindow
     /// </summary>
     private void OnWindowClosed(object? sender, EventArgs e)
     {
-        // 主窗口关闭时退出应用
-        Application.Current.Shutdown();
+        // 如果不是返回加入房间的情况，才退出应用
+        if (!_isReturningToJoinRoom)
+        {
+            Application.Current.Shutdown();
+        }
     }
 }

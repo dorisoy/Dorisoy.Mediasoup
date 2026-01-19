@@ -2,6 +2,8 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
+using System.IO;
+using System.Text.Json;
 using System.Windows.Media.Imaging;
 using Dorisoy.Meeting.Client.Models;
 using Dorisoy.Meeting.Client.Services;
@@ -16,14 +18,58 @@ public partial class JoinRoomViewModel : ObservableObject
     private readonly ILogger<JoinRoomViewModel> _logger;
     private readonly IWebRtcService _webRtcService;
     private System.Threading.CancellationTokenSource? _previewCts;
+    
+    // 记忆文件路径
+    private static readonly string SettingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Dorisoy.Meeting", "settings.json");
 
     #region 可观察属性
 
     /// <summary>
-    /// 房间号码 (6位数字)
+    /// 房间号码第1位
     /// </summary>
     [ObservableProperty]
-    private string _roomId = string.Empty;
+    private string _roomDigit1 = string.Empty;
+
+    /// <summary>
+    /// 房间号码第2位
+    /// </summary>
+    [ObservableProperty]
+    private string _roomDigit2 = string.Empty;
+
+    /// <summary>
+    /// 房间号码第3位
+    /// </summary>
+    [ObservableProperty]
+    private string _roomDigit3 = string.Empty;
+
+    /// <summary>
+    /// 房间号码第4位
+    /// </summary>
+    [ObservableProperty]
+    private string _roomDigit4 = string.Empty;
+
+    /// <summary>
+    /// 房间号码第5位
+    /// </summary>
+    [ObservableProperty]
+    private string _roomDigit5 = string.Empty;
+
+    /// <summary>
+    /// 完整房间号码 (5位数字)
+    /// </summary>
+    public string RoomId => $"{RoomDigit1}{RoomDigit2}{RoomDigit3}{RoomDigit4}{RoomDigit5}";
+
+    /// <summary>
+    /// 最近使用的房间号列表
+    /// </summary>
+    public ObservableCollection<string> RecentRooms { get; } = [];
+
+    /// <summary>
+    /// 是否有最近的房间号
+    /// </summary>
+    public bool HasRecentRooms => RecentRooms.Count > 0;
 
     /// <summary>
     /// 用户名
@@ -35,7 +81,7 @@ public partial class JoinRoomViewModel : ObservableObject
     /// 服务器地址
     /// </summary>
     [ObservableProperty]
-    private string _serverUrl = "http://192.168.0.3:9000";
+    private string _serverUrl = "http://192.168.30.8:9000";
 
     /// <summary>
     /// 摄像头预览帧
@@ -70,8 +116,8 @@ public partial class JoinRoomViewModel : ObservableObject
     /// <summary>
     /// 可加入 - 房间号和用户名都有效
     /// </summary>
-    public bool CanJoin => !string.IsNullOrWhiteSpace(RoomId) && 
-                           RoomId.Length == 6 && 
+    public bool CanJoin => RoomId.Length == 5 && 
+                           RoomId.All(char.IsDigit) &&
                            !string.IsNullOrWhiteSpace(UserName);
 
     /// <summary>
@@ -126,8 +172,14 @@ public partial class JoinRoomViewModel : ObservableObject
         _logger = logger;
         _webRtcService = webRtcService;
 
-        // 生成随机6位数字房间号
-        GenerateRandomRoomId();
+        // 加载记忆的设置
+        LoadSettings();
+
+        // 如果没有记忆的房间号，生成随机5位数字房间号
+        if (string.IsNullOrEmpty(RoomId) || RoomId.Length != 5)
+        {
+            GenerateRandomRoomId();
+        }
 
         // 订阅视频帧事件
         _webRtcService.OnLocalVideoFrame += OnLocalVideoFrameReceived;
@@ -147,7 +199,35 @@ public partial class JoinRoomViewModel : ObservableObject
     private void GenerateRandomRoomId()
     {
         var random = new Random();
-        RoomId = random.Next(100000, 999999).ToString();
+        var roomId = random.Next(10000, 99999).ToString();
+        SetRoomId(roomId);
+    }
+
+    /// <summary>
+    /// 选择最近的房间号
+    /// </summary>
+    [RelayCommand]
+    private void SelectRecentRoom(string roomId)
+    {
+        if (!string.IsNullOrEmpty(roomId) && roomId.Length == 5)
+        {
+            SetRoomId(roomId);
+        }
+    }
+
+    /// <summary>
+    /// 设置房间号
+    /// </summary>
+    private void SetRoomId(string roomId)
+    {
+        if (roomId.Length >= 5)
+        {
+            RoomDigit1 = roomId[0].ToString();
+            RoomDigit2 = roomId[1].ToString();
+            RoomDigit3 = roomId[2].ToString();
+            RoomDigit4 = roomId[3].ToString();
+            RoomDigit5 = roomId[4].ToString();
+        }
     }
 
     /// <summary>
@@ -185,6 +265,9 @@ public partial class JoinRoomViewModel : ObservableObject
 
         // 停止预览
         await StopPreviewAsync();
+        
+        // 保存记忆
+        SaveSettings();
 
         DialogResult = true;
         RequestClose?.Invoke(true);
@@ -205,10 +288,11 @@ public partial class JoinRoomViewModel : ObservableObject
 
     #region 属性变更处理
 
-    partial void OnRoomIdChanged(string value)
-    {
-        OnPropertyChanged(nameof(CanJoin));
-    }
+    partial void OnRoomDigit1Changed(string value) => OnPropertyChanged(nameof(CanJoin));
+    partial void OnRoomDigit2Changed(string value) => OnPropertyChanged(nameof(CanJoin));
+    partial void OnRoomDigit3Changed(string value) => OnPropertyChanged(nameof(CanJoin));
+    partial void OnRoomDigit4Changed(string value) => OnPropertyChanged(nameof(CanJoin));
+    partial void OnRoomDigit5Changed(string value) => OnPropertyChanged(nameof(CanJoin));
 
     partial void OnUserNameChanged(string value)
     {
@@ -373,5 +457,102 @@ public partial class JoinRoomViewModel : ObservableObject
         _previewCts?.Dispose();
     }
 
+    /// <summary>
+    /// 加载设置
+    /// </summary>
+    private void LoadSettings()
+    {
+        try
+        {
+            if (File.Exists(SettingsPath))
+            {
+                var json = File.ReadAllText(SettingsPath);
+                var settings = JsonSerializer.Deserialize<MeetingSettings>(json);
+                if (settings != null)
+                {
+                    // 加载用户名
+                    if (!string.IsNullOrEmpty(settings.LastUserName))
+                    {
+                        UserName = settings.LastUserName;
+                    }
+                    
+                    // 加载最近的房间号
+                    if (settings.RecentRoomIds != null)
+                    {
+                        foreach (var roomId in settings.RecentRoomIds.Take(3))
+                        {
+                            RecentRooms.Add(roomId);
+                        }
+                        OnPropertyChanged(nameof(HasRecentRooms));
+                        
+                        // 如果有记忆的房间号，默认填充第一个
+                        if (RecentRooms.Count > 0)
+                        {
+                            SetRoomId(RecentRooms[0]);
+                        }
+                    }
+                    
+                    _logger.LogDebug("加载设置成功: UserName={UserName}, RecentRooms={Count}", 
+                        UserName, RecentRooms.Count);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "加载设置失败");
+        }
+    }
+
+    /// <summary>
+    /// 保存设置
+    /// </summary>
+    private void SaveSettings()
+    {
+        try
+        {
+            // 确保目录存在
+            var dir = Path.GetDirectoryName(SettingsPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            // 更新最近房间号列表
+            var recentRoomIds = new List<string>();
+            if (!string.IsNullOrEmpty(RoomId) && RoomId.Length == 5)
+            {
+                recentRoomIds.Add(RoomId);
+            }
+            foreach (var roomId in RecentRooms.Where(r => r != RoomId).Take(2))
+            {
+                recentRoomIds.Add(roomId);
+            }
+
+            var settings = new MeetingSettings
+            {
+                LastUserName = UserName,
+                RecentRoomIds = recentRoomIds
+            };
+
+            var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(SettingsPath, json);
+            
+            _logger.LogDebug("保存设置成功: RoomId={RoomId}, UserName={UserName}", RoomId, UserName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "保存设置失败");
+        }
+    }
+
     #endregion
+}
+
+/// <summary>
+/// 会议设置模型
+/// </summary>
+internal class MeetingSettings
+{
+    public string? LastUserName { get; set; }
+    public List<string>? RecentRoomIds { get; set; }
 }
