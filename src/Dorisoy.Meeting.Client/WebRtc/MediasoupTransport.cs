@@ -40,6 +40,10 @@ public class MediasoupTransport : IDisposable
     // PeerConnection 启动状态
     private bool _peerConnectionStarted;
     
+    // ICE 连接状态 - 用于等待 DTLS 就绪
+    private RTCIceConnectionState _iceConnectionState = RTCIceConnectionState.@new;
+    private readonly SemaphoreSlim _iceReadySignal = new(0, 1);
+    
     // SDP 协商延迟处理
     private System.Threading.Timer? _negotiateTimer;
     private readonly object _negotiateLock = new();
@@ -183,6 +187,21 @@ public class MediasoupTransport : IDisposable
         _peerConnection.oniceconnectionstatechange += (state) =>
         {
             _logger.LogDebug("Transport {TransportId} ICE connection state: {State}", TransportId, state);
+            _iceConnectionState = state;
+            
+            // 当 ICE 状态变为 checking 或 connected 时，表示可以开始 DTLS
+            if (state == RTCIceConnectionState.checking || 
+                state == RTCIceConnectionState.connected)
+            {
+                try
+                {
+                    if (_iceReadySignal.CurrentCount == 0)
+                    {
+                        _iceReadySignal.Release();
+                    }
+                }
+                catch { /* 忽略多次释放 */ }
+            }
         };
 
         // 监听 RTCP 报告 - 处理 PLI/FIR 请求
@@ -551,13 +570,13 @@ public class MediasoupTransport : IDisposable
             // 关键：从 SIPSorcery track 获取实际使用的 SSRC，确保与 Producer 注册使用的 SSRC 一致
             UpdateSsrcFromTracks();
 
-            // 等待 ICE 候选者和 DTLS 初始化完成（给 SIPSorcery 内部一些时间初始化）
-            _logger.LogDebug("Waiting for ICE/DTLS initialization...");
-            await Task.Delay(200);
+            // 等待 ICE 候选者初始化完成（给 SIPSorcery 内部一些时间初始化）
+            // DTLS 等待时间会在 StartPeerConnectionWithRetryAsync 中处理
+            _logger.LogDebug("Waiting for ICE initialization...");
+            await Task.Delay(300);
 
             // 启动 PeerConnection - 开始 DTLS 握手
-            // 注意：SIPSorcery 的 Start() 可能在某些情况下抛出 NullReferenceException
-            // 这通常是因为 DTLS 初始化未完成，我们添加重试机制
+            // 使用增强的重试机制，包含 ICE 状态检查和更长的延迟
             await StartPeerConnectionWithRetryAsync();
             _peerConnectionStarted = true;
 
@@ -581,19 +600,59 @@ public class MediasoupTransport : IDisposable
     /// 带重试的 PeerConnection 启动
     /// SIPSorcery 在 DTLS 初始化未完成时可能抛出 NullReferenceException
     /// 这通常发生在 DoDtlsHandshake 方法中尝试获取远程证书时
+    /// 
+    /// 修复策略：
+    /// 1. 首先等待 ICE 连接状态就绪（checking/connected）
+    /// 2. 然后使用延迟重试机制启动 PeerConnection
+    /// 3. 在每次重试前增加延迟，给 DTLS 握手更多时间
     /// </summary>
     private async Task StartPeerConnectionWithRetryAsync()
     {
-        const int maxRetries = 5;  // 增加重试次数
-        const int baseDelayMs = 300;  // 基础延迟
+        const int maxRetries = 8;  // 进一步增加重试次数
+        const int baseDelayMs = 500;  // 增加基础延迟到 500ms
+        const int iceWaitTimeoutMs = 5000;  // ICE 等待超时 5 秒
 
+        // 步骤 1：等待 ICE 连接状态就绪
+        _logger.LogDebug("Waiting for ICE connection to be ready...");
+        try
+        {
+            // 如果 ICE 已经处于就绪状态，跳过等待
+            if (_iceConnectionState != RTCIceConnectionState.checking && 
+                _iceConnectionState != RTCIceConnectionState.connected)
+            {
+                // 等待 ICE ready 信号或超时
+                var iceReady = await _iceReadySignal.WaitAsync(iceWaitTimeoutMs);
+                if (!iceReady)
+                {
+                    _logger.LogWarning("ICE connection did not become ready within {Timeout}ms, proceeding anyway", iceWaitTimeoutMs);
+                }
+                else
+                {
+                    _logger.LogDebug("ICE connection is ready (state: {State})", _iceConnectionState);
+                }
+            }
+            else
+            {
+                _logger.LogDebug("ICE already in ready state: {State}", _iceConnectionState);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning("Error waiting for ICE ready: {Message}", ex.Message);
+        }
+
+        // 步骤 2：给 DTLS 初始化一个初始延迟
+        _logger.LogDebug("Waiting for DTLS initialization...");
+        await Task.Delay(baseDelayMs);
+
+        // 步骤 3：使用重试机制启动 PeerConnection
         for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
             try
             {
                 _logger.LogDebug("Starting PeerConnection (attempt {Attempt}/{MaxRetries})...", attempt, maxRetries);
                 
-                // 在尝试启动前，给 DTLS 初始化一些时间
+                // 在重试时增加额外延迟
                 if (attempt > 1)
                 {
                     int delayMs = baseDelayMs * attempt;
@@ -602,7 +661,7 @@ public class MediasoupTransport : IDisposable
                 }
                 
                 await _peerConnection!.Start();
-                _logger.LogDebug("PeerConnection started successfully");
+                _logger.LogInformation("PeerConnection started successfully on attempt {Attempt}", attempt);
                 return;
             }
             catch (NullReferenceException ex)
@@ -614,9 +673,20 @@ public class MediasoupTransport : IDisposable
                 if (attempt == maxRetries)
                 {
                     _logger.LogError("PeerConnection.Start() failed after {MaxRetries} attempts. DTLS handshake could not complete.", maxRetries);
-                    // 不抛出异常，而是记录警告，让连接继续尝试
-                    _logger.LogWarning("Continuing despite DTLS failure - connection may work later");
-                    return;
+                    // 最后一次尝试：等待更长时间后再试一次
+                    _logger.LogInformation("Final attempt: waiting 2 seconds for DTLS to complete...");
+                    await Task.Delay(2000);
+                    try
+                    {
+                        await _peerConnection!.Start();
+                        _logger.LogInformation("PeerConnection started successfully on final attempt");
+                        return;
+                    }
+                    catch
+                    {
+                        _logger.LogWarning("Continuing despite DTLS failure - connection may work later");
+                        return;
+                    }
                 }
             }
             catch (Exception ex)
@@ -987,11 +1057,12 @@ public class MediasoupTransport : IDisposable
             // 启动 PeerConnection - 确保只启动一次
             if (!_peerConnectionStarted)
             {
-                // 等待 ICE 候选者和 DTLS 初始化完成
-                _logger.LogDebug("Waiting for ICE/DTLS initialization...");
-                await Task.Delay(200);
+                // 等待 ICE 候选者初始化完成
+                // DTLS 等待时间和 ICE 状态检查会在 StartPeerConnectionWithRetryAsync 中处理
+                _logger.LogDebug("Waiting for ICE initialization...");
+                await Task.Delay(300);
                 
-                // 使用重试机制启动 PeerConnection
+                // 使用增强的重试机制启动 PeerConnection（包含 ICE 状态等待和更长的 DTLS 延迟）
                 await StartPeerConnectionWithRetryAsync();
                 _peerConnectionStarted = true;
                 
