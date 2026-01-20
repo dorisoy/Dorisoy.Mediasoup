@@ -573,16 +573,40 @@ public class WebRtcService : IWebRtcService
                 micIndex = index;
             }
 
-            _logger.LogInformation("Starting microphone with index {MicIndex}", micIndex);
+            // 检查设备数量
+            var deviceCount = WaveInEvent.DeviceCount;
+            _logger.LogInformation("检测到 {DeviceCount} 个音频输入设备", deviceCount);
+
+            if (deviceCount == 0)
+            {
+                _logger.LogWarning("没有可用的麦克风设备");
+                return;
+            }
+
+            // 确保设备索引有效
+            if (micIndex >= deviceCount)
+            {
+                _logger.LogWarning("设备索引 {MicIndex} 无效，使用默认设备 0", micIndex);
+                micIndex = 0;
+            }
+
+            // 记录设备信息
+            var deviceInfo = WaveInEvent.GetCapabilities(micIndex);
+            _logger.LogInformation("启动麦克风: Index={MicIndex}, Name={DeviceName}, Channels={Channels}", 
+                micIndex, deviceInfo.ProductName, deviceInfo.Channels);
 
             // 在后台线程初始化麦克风，避免阻塞 UI
             await Task.Run(() =>
             {
+                // 确定通道数 - 使用设备支持的通道数，最多 1 个（单声道）
+                int channels = Math.Min(deviceInfo.Channels, 1);
+                if (channels == 0) channels = 1;
+
                 _waveIn = new WaveInEvent
                 {
                     DeviceNumber = micIndex,
-                    WaveFormat = new WaveFormat(48000, 16, 1), // 48kHz, 16-bit, mono
-                    BufferMilliseconds = 20
+                    WaveFormat = new WaveFormat(48000, 16, channels),
+                    BufferMilliseconds = 50 // 增加缓冲区大小以提高稳定性
                 };
 
                 _waveIn.DataAvailable += OnAudioDataAvailable;
@@ -595,10 +619,15 @@ public class WebRtcService : IWebRtcService
             _logger.LogInformation("Microphone started successfully");
             OnConnectionStateChanged?.Invoke("audio_started");
         }
+        catch (NAudio.MmException mmEx)
+        {
+            _logger.LogWarning(mmEx, "麦克风打开失败 (MME 错误): {Result} - 可能设备被占用或不可用", mmEx.Result);
+            // 不抛出异常，允许继续没有音频
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to start microphone");
-            throw;
+            _logger.LogError(ex, "启动麦克风失败");
+            // 不抛出异常，允许继续没有音频
         }
     }
 

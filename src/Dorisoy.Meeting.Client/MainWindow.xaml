@@ -196,13 +196,19 @@
                                            Height="56"
                                            CornerRadius="28">
                                     <ui:Button.Style>
-                                        <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                                            <Setter Property="Appearance" Value="Transparent" />
-                                            <Setter Property="ToolTip" Value="开启麦克风" />
+                                        <Style TargetType="ui:Button"
+                                               BasedOn="{StaticResource {x:Type ui:Button}}">
+                                            <Setter Property="Appearance"
+                                                    Value="Transparent" />
+                                            <Setter Property="ToolTip"
+                                                    Value="开启麦克风" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsMicrophoneEnabled}" Value="True">
-                                                    <Setter Property="Appearance" Value="Success" />
-                                                    <Setter Property="ToolTip" Value="关闭麦克风" />
+                                                <DataTrigger Binding="{Binding IsMicrophoneEnabled}"
+                                                             Value="True">
+                                                    <Setter Property="Appearance"
+                                                            Value="Success" />
+                                                    <Setter Property="ToolTip"
+                                                            Value="关闭麦克风" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -210,10 +216,13 @@
                                     <ui:SymbolIcon FontSize="24">
                                         <ui:SymbolIcon.Style>
                                             <Style TargetType="ui:SymbolIcon">
-                                                <Setter Property="Symbol" Value="MicOff24" />
+                                                <Setter Property="Symbol"
+                                                        Value="MicOff24" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsMicrophoneEnabled}" Value="True">
-                                                        <Setter Property="Symbol" Value="Mic24" />
+                                                    <DataTrigger Binding="{Binding IsMicrophoneEnabled}"
+                                                                 Value="True">
+                                                        <Setter Property="Symbol"
+                                                                Value="Mic24" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -230,13 +239,19 @@
                                            Height="56"
                                            CornerRadius="28">
                                     <ui:Button.Style>
-                                        <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                                            <Setter Property="Appearance" Value="Transparent" />
-                                            <Setter Property="ToolTip" Value="开启摄像头" />
+                                        <Style TargetType="ui:Button"
+                                               BasedOn="{StaticResource {x:Type ui:Button}}">
+                                            <Setter Property="Appearance"
+                                                    Value="Transparent" />
+                                            <Setter Property="ToolTip"
+                                                    Value="开启摄像头" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsCameraEnabled}" Value="True">
-                                                    <Setter Property="Appearance" Value="Success" />
-                                                    <Setter Property="ToolTip" Value="关闭摄像头" />
+                                                <DataTrigger Binding="{Binding IsCameraEnabled}"
+                                                             Value="True">
+                                                    <Setter Property="Appearance"
+                                                            Value="Success" />
+                                                    <Setter Property="ToolTip"
+                                                            Value="关闭摄像头" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -244,10 +259,13 @@
                                     <ui:SymbolIcon FontSize="24">
                                         <ui:SymbolIcon.Style>
                                             <Style TargetType="ui:SymbolIcon">
-                                                <Setter Property="Symbol" Value="VideoOff24" />
+                                                <Setter Property="Symbol"
+                                                        Value="VideoOff24" />
                                                 <Style.Triggers>
-                                                    <DataTrigger Binding="{Binding IsCameraEnabled}" Value="True">
-                                                        <Setter Property="Symbol" Value="Video24" />
+                                                    <DataTrigger Binding="{Binding IsCameraEnabled}"
+                                                                 Value="True">
+                                                        <Setter Property="Symbol"
+                                                                Value="Video24" />
                                                     </DataTrigger>
                                                 </Style.Triggers>
                                             </Style>
@@ -283,13 +301,19 @@
                                            Height="56"
                                            CornerRadius="28">
                                     <ui:Button.Style>
-                                        <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                                            <Setter Property="Appearance" Value="Transparent" />
-                                            <Setter Property="ToolTip" Value="举手发言" />
+                                        <Style TargetType="ui:Button"
+                                               BasedOn="{StaticResource {x:Type ui:Button}}">
+                                            <Setter Property="Appearance"
+                                                    Value="Transparent" />
+                                            <Setter Property="ToolTip"
+                                                    Value="举手发言" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsHandRaised}" Value="True">
-                                                    <Setter Property="Appearance" Value="Success" />
-                                                    <Setter Property="ToolTip" Value="放下手" />
+                                                <DataTrigger Binding="{Binding IsHandRaised}"
+                                                             Value="True">
+                                                    <Setter Property="Appearance"
+                                                            Value="Success" />
+                                                    <Setter Property="ToolTip"
+                                                            Value="放下手" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -339,13 +363,19 @@
                                            Height="56"
                                            CornerRadius="28">
                                     <ui:Button.Style>
-                                        <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                                            <Setter Property="Appearance" Value="Transparent" />
-                                            <Setter Property="ToolTip" Value="加入房间" />
+                                        <Style TargetType="ui:Button"
+                                               BasedOn="{StaticResource {x:Type ui:Button}}">
+                                            <Setter Property="Appearance"
+                                                    Value="Transparent" />
+                                            <Setter Property="ToolTip"
+                                                    Value="加入房间" />
                                             <Style.Triggers>
-                                                <DataTrigger Binding="{Binding IsJoinedRoom}" Value="True">
-                                                    <Setter Property="Appearance" Value="Danger" />
-                                                    <Setter Property="ToolTip" Value="离开房间" />
+                                                <DataTrigger Binding="{Binding IsJoinedRoom}"
+                                                             Value="True">
+                                                    <Setter Property="Appearance"
+                                                            Value="Danger" />
+                                                    <Setter Property="ToolTip"
+                                                            Value="离开房间" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>
@@ -420,7 +450,8 @@
                                    Margin="0,0,0,20"
                                    Visibility="{Binding ShowManualReconnect, Converter={StaticResource InverseBoolToVisConverter}}">
                             <Run Text="剩余 " />
-                            <Run Text="{Binding ReconnectCountdown}" FontWeight="Bold" />
+                            <Run Text="{Binding ReconnectCountdown}"
+                                 FontWeight="Bold" />
                             <Run Text=" 秒" />
                         </TextBlock>
                         <ui:ProgressRing IsIndeterminate="True"
