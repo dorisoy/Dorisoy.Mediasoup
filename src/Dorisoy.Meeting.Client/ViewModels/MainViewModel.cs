@@ -1753,7 +1753,8 @@ public partial class MainViewModel : ObservableObject
         Peers.Clear();
         ChatUsers.Clear();
         
-        _logger.LogInformation("处理房间内 Peers: Count={Count}", result.Data?.Peers?.Count ?? 0);
+        var peersCount = result.Data?.Peers?.Length ?? 0;
+        _logger.LogInformation("处理房间内 Peers: Count={Count}", peersCount);
         
         if (result.Data?.Peers != null)
         {
