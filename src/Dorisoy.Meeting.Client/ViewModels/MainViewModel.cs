@@ -1029,12 +1029,19 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void SyncAllStates()
     {
+        // 记录同步前的状态
+        _logger.LogInformation("SyncAllStates 开始: IsJoinedRoom={IsJoinedRoom}, IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}, RoomId={RoomId}",
+            IsJoinedRoom, IsCameraEnabled, IsMicrophoneEnabled, RoomId);
+        
         // 确保在 UI 线程上执行属性通知
         if (Application.Current?.Dispatcher?.CheckAccess() == false)
         {
+            _logger.LogDebug("SyncAllStates: 不在 UI 线程，切换到 Dispatcher");
             Application.Current.Dispatcher.Invoke(SyncAllStates);
             return;
         }
+        
+        _logger.LogDebug("SyncAllStates: 在 UI 线程上执行属性通知");
         
         OnPropertyChanged(nameof(RoomId));
         OnPropertyChanged(nameof(IsJoinedRoom));
@@ -1045,7 +1052,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(CanJoinRoom));
         OnPropertyChanged(nameof(CanToggleMedia));
         
-        _logger.LogDebug("已同步所有 UI 状态: IsJoinedRoom={IsJoinedRoom}, IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}, OnlinePeerCount={OnlinePeerCount}",
+        _logger.LogInformation("SyncAllStates 完成: IsJoinedRoom={IsJoinedRoom}, IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}, OnlinePeerCount={OnlinePeerCount}",
             IsJoinedRoom, IsCameraEnabled, IsMicrophoneEnabled, OnlinePeerCount);
     }
 
@@ -1838,10 +1845,20 @@ public partial class MainViewModel : ObservableObject
         // 创建 WebRTC Transport
         await CreateTransportsAsync();
 
+        // 记录 ServeMode 状态
+        _logger.LogInformation("当前 ServeMode={ServeMode}，准备启用媒体", ServeMode);
+        
         // 如果是 Open 模式，自动开始生产
         if (ServeMode == "Open")
         {
+            _logger.LogInformation("开始调用 EnableMediaAsync...");
             await EnableMediaAsync();
+            _logger.LogInformation("EnableMediaAsync 完成: IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}", 
+                IsCameraEnabled, IsMicrophoneEnabled);
+        }
+        else
+        {
+            _logger.LogWarning("ServeMode={ServeMode} 不是 Open，跳过 EnableMediaAsync", ServeMode);
         }
 
         // 通知服务器准备就绪
