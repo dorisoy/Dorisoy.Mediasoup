@@ -126,9 +126,10 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<PeerInfo> Peers { get; } = [];
 
     /// <summary>
-    /// 在线人数（包含自己）
+    /// 在线人数 - 直接等于 Peers 集合的数量（包含自己）
+    /// 注意：Peers 集合包含房间内所有用户，包括自己
     /// </summary>
-    public int OnlinePeerCount => Peers.Count + 1;
+    public int OnlinePeerCount => Peers.Count;
 
     /// <summary>
     /// 房间列表
@@ -946,13 +947,24 @@ public partial class MainViewModel : ObservableObject
         IsBusy = true;
         try
         {
-            // 应用加入信息
+            // 1. 立即应用加入信息并同步到 UI - 这样窗口显示时就能看到正确的房间号
             ServerUrl = joinInfo.ServerUrl;
             CurrentUserName = joinInfo.UserName;
-            RoomId = joinInfo.RoomId;
             _currentAccessToken = joinInfo.AccessToken;
+            
+            // 设置 RoomId 并强制触发 UI 更新
+            RoomId = joinInfo.RoomId;
+            OnPropertyChanged(nameof(RoomId));
+            
+            // 设置初始媒体状态（根据用户在 JoinRoomWindow 中的选择）
+            // 注意：这里设置的是"previewState"，实际开启在后面处理
+            var shouldEnableCamera = !joinInfo.MuteCameraOnJoin;
+            var shouldEnableMic = !joinInfo.MuteMicrophoneOnJoin;
+            
+            _logger.LogInformation("自动加入开始: ServerUrl={ServerUrl}, UserName={UserName}, RoomId={RoomId}, EnableCamera={EnableCamera}, EnableMic={EnableMic}", 
+                ServerUrl, CurrentUserName, RoomId, shouldEnableCamera, shouldEnableMic);
 
-            // 设置选中的设备
+            // 2. 设置选中的设备
             if (!string.IsNullOrEmpty(joinInfo.CameraDeviceId))
             {
                 SelectedCamera = Cameras.FirstOrDefault(c => c.DeviceId == joinInfo.CameraDeviceId) ?? Cameras.FirstOrDefault();
@@ -962,10 +974,7 @@ public partial class MainViewModel : ObservableObject
                 SelectedMicrophone = Microphones.FirstOrDefault(m => m.DeviceId == joinInfo.MicrophoneDeviceId) ?? Microphones.FirstOrDefault();
             }
 
-            _logger.LogInformation("自动加入: ServerUrl={ServerUrl}, UserName={UserName}, RoomId={RoomId}", 
-                ServerUrl, CurrentUserName, RoomId);
-
-            // 连接服务器
+            // 3. 连接服务器
             StatusMessage = "正在连接服务器...";
             await ConnectAsync();
 
@@ -975,7 +984,7 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            // 加入房间
+            // 4. 加入房间
             StatusMessage = "正在加入房间...";
             await JoinRoomAsync();
 
@@ -985,18 +994,24 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            // 根据设置控制摄像头和麦克风
-            if (!joinInfo.MuteCameraOnJoin && !IsCameraEnabled)
+            // 5. 根据设置控制摄像头和麦克风 - 在加入房间成功后处理
+            // EnableMediaAsync 已经在 JoinRoomAsync -> CreateTransportsAsync 后调用
+            // 这里根据用户设置决定是否需要关闭某个媒体
+            if (joinInfo.MuteCameraOnJoin && IsCameraEnabled)
             {
-                await ToggleCameraAsync();
+                await ToggleCameraAsync(); // 关闭摄像头
             }
-            if (!joinInfo.MuteMicrophoneOnJoin && !IsMicrophoneEnabled)
+            if (joinInfo.MuteMicrophoneOnJoin && IsMicrophoneEnabled)
             {
-                await ToggleMicrophoneAsync();
+                await ToggleMicrophoneAsync(); // 关闭麦克风
             }
 
+            // 6. 最终状态同步
+            SyncAllStates();
+            
             StatusMessage = $"已加入房间 {RoomId}";
-            _logger.LogInformation("自动加入成功: RoomId={RoomId}", RoomId);
+            _logger.LogInformation("自动加入成功: RoomId={RoomId}, IsJoinedRoom={IsJoinedRoom}, OnlinePeerCount={OnlinePeerCount}", 
+                RoomId, IsJoinedRoom, OnlinePeerCount);
         }
         catch (Exception ex)
         {
@@ -1007,6 +1022,24 @@ public partial class MainViewModel : ObservableObject
         {
             IsBusy = false;
         }
+    }
+    
+    /// <summary>
+    /// 同步所有 UI 状态 - 强制触发所有相关属性的通知
+    /// </summary>
+    private void SyncAllStates()
+    {
+        OnPropertyChanged(nameof(RoomId));
+        OnPropertyChanged(nameof(IsJoinedRoom));
+        OnPropertyChanged(nameof(IsConnected));
+        OnPropertyChanged(nameof(IsCameraEnabled));
+        OnPropertyChanged(nameof(IsMicrophoneEnabled));
+        OnPropertyChanged(nameof(OnlinePeerCount));
+        OnPropertyChanged(nameof(CanJoinRoom));
+        OnPropertyChanged(nameof(CanToggleMedia));
+        
+        _logger.LogDebug("已同步所有 UI 状态: IsJoinedRoom={IsJoinedRoom}, IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}, OnlinePeerCount={OnlinePeerCount}",
+            IsJoinedRoom, IsCameraEnabled, IsMicrophoneEnabled, OnlinePeerCount);
     }
 
     #endregion
