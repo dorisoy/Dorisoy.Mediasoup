@@ -119,12 +119,12 @@ public partial class App : Application
         services.AddSingleton<ISignalRService, SignalRService>();
         services.AddSingleton<IWebRtcService, WebRtcService>();
 
-        // ViewModels
-        services.AddTransient<MainViewModel>();
+        // ViewModels - MainViewModel 必须是单例，确保 UI 绑定和业务逻辑使用同一实例
+        services.AddSingleton<MainViewModel>();
         services.AddTransient<JoinRoomViewModel>();
 
-        // Views
-        services.AddTransient<MainWindow>();
+        // Views - MainWindow 也改为单例，避免重复创建
+        services.AddSingleton<MainWindow>();
     }
 
     /// <summary>

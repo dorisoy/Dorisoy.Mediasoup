@@ -432,9 +432,9 @@ public class LeaveAppearanceConverter : IValueConverter
     {
         if (value is bool isJoinedRoom)
         {
-            return isJoinedRoom ? ControlAppearance.Danger : ControlAppearance.Primary;
+            return isJoinedRoom ? ControlAppearance.Danger : ControlAppearance.Transparent;
         }
-        return ControlAppearance.Primary;
+        return ControlAppearance.Transparent;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
@@ -444,7 +444,7 @@ public class LeaveAppearanceConverter : IValueConverter
 }
 
 /// <summary>
-/// 离开按钮文本转换器
+/// 离开按钮文本转换器 - 用于 ToolTip
 /// </summary>
 public class LeaveTextConverter : IValueConverter
 {
@@ -452,9 +452,9 @@ public class LeaveTextConverter : IValueConverter
     {
         if (value is bool isJoinedRoom)
         {
-            return isJoinedRoom ? "离开" : "加入";
+            return isJoinedRoom ? "离开房间" : "加入房间";
         }
-        return "加入";
+        return "加入房间";
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

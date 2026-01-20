@@ -1040,8 +1040,15 @@ public partial class MainViewModel : ObservableObject
             return;
         }
         
-        // 使用 BeginInvoke 异步执行，确保 UI 更新
-        dispatcher.BeginInvoke(new Action(DoSyncAllStates), System.Windows.Threading.DispatcherPriority.Send);
+        // 使用同步 Invoke，确保 UI 更新完成后再返回
+        if (!dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(DoSyncAllStates);
+        }
+        else
+        {
+            DoSyncAllStates();
+        }
     }
     
     /// <summary>
@@ -1482,7 +1489,15 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnIsJoinedRoomChanged(bool value)
     {
+        _logger.LogInformation("=== IsJoinedRoom 属性变化: OldValue -> NewValue={NewValue}, 当前线程={ThreadId} ===", 
+            value, System.Threading.Thread.CurrentThread.ManagedThreadId);
+        
+        // 通知相关计算属性
         OnPropertyChanged(nameof(CanToggleMedia));
+        
+        // 输出堆栈追踪以便调试
+        _logger.LogDebug("IsJoinedRoom 变化调用栈: {StackTrace}", 
+            new System.Diagnostics.StackTrace().ToString());
     }
 
     /// <summary>

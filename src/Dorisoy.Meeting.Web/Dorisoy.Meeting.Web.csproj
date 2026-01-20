@@ -10,12 +10,12 @@
         <NoWarn>1701;1702;VSTHRD200</NoWarn>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="Google.FlatBuffers"  />
+        <PackageReference Include="Google.FlatBuffers" />
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
         <PackageReference Include="Microsoft.Extensions.Caching.Redis" />
-        <PackageReference Include="Microsoft.Extensions.Logging.Console"  />
-        <PackageReference Include="Serilog.AspNetCore"  />
-        <PackageReference Include="Swashbuckle.AspNetCore"  />
+        <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+        <PackageReference Include="Serilog.AspNetCore" />
+        <PackageReference Include="Swashbuckle.AspNetCore" />
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\Dorisoy.Mediasoup.Common\Dorisoy.Mediasoup.Common.csproj">
@@ -33,5 +33,8 @@
     </ItemGroup>
     <ItemGroup>
         <None Remove="docs\*" />
+    </ItemGroup>
+    <ItemGroup>
+      <Content Include="bin\Debug\net8.0\logs\log.txt" />
     </ItemGroup>
 </Project>
