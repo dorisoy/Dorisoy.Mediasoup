@@ -288,30 +288,15 @@
 
                             </StackPanel>
 
-                            <!-- 离开/加入 -->
+                            <!-- 离开/加入 - 加入后显示"离开房间"（红色），点击后退出到 JoinRoomWindow -->
                             <StackPanel Margin="12,0">
-                                <ui:Button Command="{Binding ToggleRoomCommand}"
-                                           IsEnabled="{Binding CanJoinRoom}"
+                                <ui:Button Command="{Binding ExitToJoinWindowCommand}"
                                            ToolTip="{Binding IsJoinedRoom, Converter={StaticResource RoomButtonTextConverter}}"
                                            Appearance="{Binding IsJoinedRoom, Converter={StaticResource LeaveAppearanceConverter}}"
                                            Width="56"
                                            Height="56"
                                            CornerRadius="28">
                                     <ui:SymbolIcon Symbol="CallEnd24"
-                                                   FontSize="24" />
-                                </ui:Button>
-
-                            </StackPanel>
-
-                            <!-- 退出会议（完全断开连接） -->
-                            <StackPanel Margin="12,0">
-                                <ui:Button Command="{Binding ExitToJoinWindowCommand}"
-                                           ToolTip="退出会议"
-                                           Appearance="Danger"
-                                           Width="56"
-                                           Height="56"
-                                           CornerRadius="28">
-                                    <ui:SymbolIcon Symbol="SignOut24"
                                                    FontSize="24" />
                                 </ui:Button>
 
