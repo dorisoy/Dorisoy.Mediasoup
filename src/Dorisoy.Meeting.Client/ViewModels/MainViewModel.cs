@@ -1728,7 +1728,8 @@ public partial class MainViewModel : ObservableObject
         };
 
         StatusMessage = "正在加入房间...";
-        _logger.LogInformation("调用JoinRoom: RoomId={RoomId}, IsAdmin={IsAdmin}", roomIdToJoin, isAdmin);
+        _logger.LogInformation("调用JoinRoom: RoomId={RoomId}, IsAdmin={IsAdmin}, CurrentUserName={CurrentUserName}", 
+            roomIdToJoin, isAdmin, CurrentUserName);
 
         var result = await _signalRService.InvokeAsync<JoinRoomResponse>("JoinRoom", joinRoomRequest);
         if (!result.IsSuccess)
@@ -1739,7 +1740,7 @@ public partial class MainViewModel : ObservableObject
             if (result.Message?.Contains("already") == true || result.Message?.Contains("已在") == true)
             {
                 _logger.LogWarning("检测到已在房间中，同步状态为已加入");
-                IsJoinedRoom = true;
+                SyncRoomState(roomIdToJoin, true);
                 StatusMessage = $"已在房间 {roomIdToJoin} 中";
                 return;
             }
@@ -1751,15 +1752,27 @@ public partial class MainViewModel : ObservableObject
         // 更新 Peer 列表和 ChatUsers 列表
         Peers.Clear();
         ChatUsers.Clear();
+        
+        _logger.LogInformation("处理房间内 Peers: Count={Count}", result.Data?.Peers?.Count ?? 0);
+        
         if (result.Data?.Peers != null)
         {
             foreach (var peer in result.Data.Peers)
             {
+                _logger.LogDebug("处理 Peer: PeerId={PeerId}, DisplayName={DisplayName}", 
+                    peer.PeerId, peer.DisplayName);
+                    
                 Peers.Add(peer);
                 
-                // 同步到聊天用户列表（排除自己）
-                if (peer.PeerId != CurrentUserName && !string.IsNullOrEmpty(peer.PeerId))
+                // 同步到聊天用户列表（排除自己 - 使用 DisplayName 比较，因为 PeerId 是连接ID）
+                // 排除自己：比较 DisplayName 和 CurrentUserName，或者 PeerId 和当前连接ID
+                bool isSelf = string.Equals(peer.DisplayName, CurrentUserName, StringComparison.OrdinalIgnoreCase);
+                
+                if (!isSelf && !string.IsNullOrEmpty(peer.PeerId))
                 {
+                    _logger.LogDebug("添加聊天用户: PeerId={PeerId}, DisplayName={DisplayName}", 
+                        peer.PeerId, peer.DisplayName);
+                        
                     ChatUsers.Add(new ChatUser
                     {
                         PeerId = peer.PeerId,
@@ -1767,12 +1780,19 @@ public partial class MainViewModel : ObservableObject
                         IsOnline = true
                     });
                 }
+                else
+                {
+                    _logger.LogDebug("跳过自己: PeerId={PeerId}, DisplayName={DisplayName}, IsSelf={IsSelf}", 
+                        peer.PeerId, peer.DisplayName, isSelf);
+                }
             }
         }
 
-        IsJoinedRoom = true;
-        IsInLobby = false;  // 已加入房间，不在大厅
-        _logger.LogInformation("加入房间成功: RoomId={RoomId}, PeerCount={PeerCount}", roomIdToJoin, Peers.Count);
+        // 同步房间状态到 UI
+        SyncRoomState(roomIdToJoin, true);
+        
+        _logger.LogInformation("加入房间成功: RoomId={RoomId}, PeerCount={PeerCount}, ChatUserCount={ChatUserCount}", 
+            roomIdToJoin, Peers.Count, ChatUsers.Count);
 
         // 创建 WebRTC Transport
         await CreateTransportsAsync();
@@ -1790,6 +1810,38 @@ public partial class MainViewModel : ObservableObject
         }
 
         StatusMessage = $"已加入房间 {roomIdToJoin}";
+    }
+    
+    /// <summary>
+    /// 同步房间状态到 UI - 确保所有相关属性都被正确通知
+    /// </summary>
+    /// <param name="roomId">房间ID</param>
+    /// <param name="isJoined">是否已加入</param>
+    private void SyncRoomState(string roomId, bool isJoined)
+    {
+        _logger.LogInformation("同步房间状态: RoomId={RoomId}, IsJoined={IsJoined}, CurrentIsJoinedRoom={CurrentIsJoinedRoom}", 
+            roomId, isJoined, IsJoinedRoom);
+            
+        // 确保 RoomId 被更新（即使值相同也触发通知）
+        var oldRoomId = RoomId;
+        RoomId = roomId;
+        if (oldRoomId == roomId)
+        {
+            // 如果值相同，手动触发通知
+            OnPropertyChanged(nameof(RoomId));
+        }
+        
+        // 更新加入状态
+        IsJoinedRoom = isJoined;
+        IsInLobby = !isJoined;
+        
+        // 手动触发所有相关属性的通知，确保 UI 更新
+        OnPropertyChanged(nameof(OnlinePeerCount));
+        OnPropertyChanged(nameof(CanJoinRoom));
+        OnPropertyChanged(nameof(CanToggleMedia));
+        
+        _logger.LogInformation("房间状态同步完成: IsJoinedRoom={IsJoinedRoom}, OnlinePeerCount={OnlinePeerCount}", 
+            IsJoinedRoom, OnlinePeerCount);
     }
 
     /// <summary>
@@ -2236,12 +2288,21 @@ public partial class MainViewModel : ObservableObject
         var notification = JsonSerializer.Deserialize<PeerJoinRoomData>(json, JsonOptions);
         if (notification?.Peer != null)
         {
-            Peers.Add(notification.Peer);
-            _logger.LogInformation("Peer joined: {PeerId}", notification.Peer.PeerId);
+            // 检查是否已存在，避免重复添加
+            var existingPeer = Peers.FirstOrDefault(p => p.PeerId == notification.Peer.PeerId);
+            if (existingPeer == null)
+            {
+                Peers.Add(notification.Peer);
+            }
+            
+            _logger.LogInformation("Peer joined: PeerId={PeerId}, DisplayName={DisplayName}", 
+                notification.Peer.PeerId, notification.Peer.DisplayName);
             StatusMessage = $"用户 {notification.Peer.DisplayName} 加入房间";
 
-            // 同步到聊天用户列表
-            if (!ChatUsers.Any(u => u.PeerId == notification.Peer.PeerId))
+            // 同步到聊天用户列表 - 使用 DisplayName 比较来排除自己
+            bool isSelf = string.Equals(notification.Peer.DisplayName, CurrentUserName, StringComparison.OrdinalIgnoreCase);
+            
+            if (!isSelf && !ChatUsers.Any(u => u.PeerId == notification.Peer.PeerId))
             {
                 ChatUsers.Add(new ChatUser
                 {
@@ -2249,7 +2310,11 @@ public partial class MainViewModel : ObservableObject
                     DisplayName = notification.Peer.DisplayName ?? "Unknown",
                     IsOnline = true
                 });
+                _logger.LogDebug("添加新聊天用户: {DisplayName}", notification.Peer.DisplayName);
             }
+            
+            // 手动触发在线人数更新
+            OnPropertyChanged(nameof(OnlinePeerCount));
         }
     }
 
@@ -2265,7 +2330,8 @@ public partial class MainViewModel : ObservableObject
             if (peer != null)
             {
                 Peers.Remove(peer);
-                _logger.LogInformation("Peer left: {PeerId}", notification.PeerId);
+                _logger.LogInformation("Peer left: PeerId={PeerId}, DisplayName={DisplayName}", 
+                    notification.PeerId, peer.DisplayName);
                 StatusMessage = $"用户 {peer.DisplayName} 离开房间";
             }
 
@@ -2285,7 +2351,11 @@ public partial class MainViewModel : ObservableObject
             if (chatUser != null)
             {
                 ChatUsers.Remove(chatUser);
+                _logger.LogDebug("移除聊天用户: {DisplayName}", chatUser.DisplayName);
             }
+            
+            // 手动触发在线人数更新
+            OnPropertyChanged(nameof(OnlinePeerCount));
         }
     }
 
