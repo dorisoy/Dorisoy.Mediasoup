@@ -6,7 +6,7 @@ namespace Dorisoy.Meeting.Client.Models;
 public class JoinRoomInfo
 {
     /// <summary>
-    /// 房间号码 (6位数字)
+    /// 房间号码 (5位数字)
     /// </summary>
     public string RoomId { get; set; } = string.Empty;
 
@@ -19,6 +19,11 @@ public class JoinRoomInfo
     /// 服务器地址
     /// </summary>
     public string ServerUrl { get; set; } = "http://192.168.30.8:9000";
+
+    /// <summary>
+    /// 访问令牌 (JWT Token) - 用于 SignalR 连接认证
+    /// </summary>
+    public string AccessToken { get; set; } = string.Empty;
 
     /// <summary>
     /// 选中的摄像头设备ID

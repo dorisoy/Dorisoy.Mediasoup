@@ -290,31 +290,9 @@ public partial class MainViewModel : ObservableObject
     #region 私有字段
 
     /// <summary>
-    /// 预设的测试 Token - 2024-12-22 生成，有效期 300 天
+    /// 当前用户的访问令牌 - 从 JoinRoomInfo 传入
     /// </summary>
-    private readonly string[] _accessTokens =
-    [
-        // Peer 0
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiMCIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.jOYQxKv8b_dQ04HlaOWE_wKEPyD6cjqHbY315q6vbt8",
-        // Peer 1
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiMSIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.ebWA7vkeQZyw3r6EpkL9gcrcO5hvfNPVWNdgY8FDBmM",
-        // Peer 2
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiMiIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.9kDOHUQ981zO_NvEG0OHvXS1g4id-DdPyQhtDhgGoEg",
-        // Peer 3
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiMyIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.lP0Ip4UjLd5YkDgFCV1hEHCbP4M2QvsTL4FcpICqP-k",
-        // Peer 4
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiNCIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.8PoprZl9sbL9GNqnnq1m9PoNyGZdPUN0vZRlvKGvGMg",
-        // Peer 5
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiNSIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.RJwY5X-6UROHy-nnkXPMJjGT4cgJxnMshxAvNnevvk8",
-        // Peer 6
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiNiIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.9BvxRplgwzfCCSabCszQ_Jmu9sxzKWpeA0CYtR1HmmM",
-        // Peer 7
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiNyIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.3hVVcQ4o5_iR-mhdwjOldCheO2ib8_YC7kbIzfyhuSg",
-        // Peer 8 (Admin)
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiOCIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.zYmqT6G87Ucpegewrr9HPqCrnyAwk3-7iSXW81_Jkls",
-        // Peer 9 (Admin)
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiOSIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.hGMms3iLeuabuPp6RBWsAOWmnxJ3s_ltC2z2CR-W69g"
-    ];
+    private string _currentAccessToken = string.Empty;
 
     private object? _routerRtpCapabilities;
     private string? _sendTransportId;
@@ -825,6 +803,7 @@ public partial class MainViewModel : ObservableObject
             ServerUrl = joinInfo.ServerUrl;
             CurrentUserName = joinInfo.UserName;
             RoomId = joinInfo.RoomId;
+            _currentAccessToken = joinInfo.AccessToken;
 
             // 设置选中的设备
             if (!string.IsNullOrEmpty(joinInfo.CameraDeviceId))
@@ -1479,8 +1458,16 @@ public partial class MainViewModel : ObservableObject
         try
         {
             StatusMessage = "正在连接...";
-            var token = _accessTokens[SelectedPeerIndex];
-            await _signalRService.ConnectAsync(ServerUrl, token);
+            
+            // 使用动态获取的 Token
+            if (string.IsNullOrEmpty(_currentAccessToken))
+            {
+                _logger.LogError("访问令牌为空，无法连接");
+                StatusMessage = "访问令牌无效";
+                return;
+            }
+            
+            await _signalRService.ConnectAsync(ServerUrl, _currentAccessToken);
             await StartMeetingAsync();
             StatusMessage = "已连接";
         }

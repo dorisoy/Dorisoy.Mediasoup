@@ -3,6 +3,7 @@ using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.IO;
+using System.Net.Http;
 using System.Text.Json;
 using System.Windows.Media.Imaging;
 using Dorisoy.Meeting.Client.Models;
@@ -18,12 +19,16 @@ public partial class JoinRoomViewModel : ObservableObject
     private readonly ILogger<JoinRoomViewModel> _logger;
     private readonly IWebRtcService _webRtcService;
     private readonly ISignalRService _signalRService;
+    private readonly HttpClient _httpClient;
     private System.Threading.CancellationTokenSource? _previewCts;
     
     // 记忆文件路径
     private static readonly string SettingsPath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "Dorisoy.Meeting", "settings.json");
+
+    // 当前获取的访问令牌
+    private string? _currentAccessToken;
 
     #region 可观察属性
 
@@ -191,6 +196,7 @@ public partial class JoinRoomViewModel : ObservableObject
         _logger = logger;
         _webRtcService = webRtcService;
         _signalRService = signalRService;
+        _httpClient = new HttpClient();
 
         // 加载记忆的设置
         LoadSettings();
@@ -290,20 +296,31 @@ public partial class JoinRoomViewModel : ObservableObject
         IsCheckingConnection = true;
         try
         {
-            _logger.LogInformation("正在检测服务器连接: {ServerUrl}", ServerUrl);
+            _logger.LogInformation("正在连接服务器: {ServerUrl}", ServerUrl);
             
-            // 尝试连接服务器
-            await _signalRService.ConnectAsync(ServerUrl, "");
+            // 1. 从服务器获取动态 Token
+            var token = await GetAccessTokenAsync(UserName);
+            if (string.IsNullOrEmpty(token))
+            {
+                ErrorMessage = "获取访问令牌失败，请检查服务器地址";
+                OnPropertyChanged(nameof(HasError));
+                return;
+            }
+            _currentAccessToken = token;
+            _logger.LogInformation("成功获取访问令牌");
+            
+            // 2. 使用 Token 连接 SignalR 验证服务器可达性
+            await _signalRService.ConnectAsync(ServerUrl, token);
             
             if (!_signalRService.IsConnected)
             {
                 ErrorMessage = "无法连接到服务器，请检查网络或服务器地址";
                 OnPropertyChanged(nameof(HasError));
-                _logger.LogWarning("服务器连接检测失败: {ServerUrl}", ServerUrl);
+                _logger.LogWarning("服务器连接失败: {ServerUrl}", ServerUrl);
                 return;
             }
             
-            _logger.LogInformation("服务器连接检测成功");
+            _logger.LogInformation("服务器连接成功");
             
             // 断开连接（后续在 MainViewModel 中重新连接）
             await _signalRService.DisconnectAsync();
@@ -319,13 +336,40 @@ public partial class JoinRoomViewModel : ObservableObject
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "服务器连接检测失败");
+            _logger.LogError(ex, "服务器连接失败");
             ErrorMessage = $"连接服务器失败: {ex.Message}";
             OnPropertyChanged(nameof(HasError));
         }
         finally
         {
             IsCheckingConnection = false;
+        }
+    }
+
+    /// <summary>
+    /// 从服务器获取访问令牌
+    /// </summary>
+    private async Task<string?> GetAccessTokenAsync(string userName)
+    {
+        try
+        {
+            // 调用服务器 API 获取 Token
+            var url = $"{ServerUrl}/api/Token/createToken?userIdOrUsername={Uri.EscapeDataString(userName)}";
+            var response = await _httpClient.PostAsync(url, null);
+            
+            if (response.IsSuccessStatusCode)
+            {
+                var token = await response.Content.ReadAsStringAsync();
+                return token;
+            }
+            
+            _logger.LogWarning("获取 Token 失败: {StatusCode}", response.StatusCode);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "获取 Token 异常");
+            return null;
         }
     }
 
@@ -496,6 +540,7 @@ public partial class JoinRoomViewModel : ObservableObject
             RoomId = RoomId,
             UserName = UserName,
             ServerUrl = ServerUrl,
+            AccessToken = _currentAccessToken ?? string.Empty,
             CameraDeviceId = SelectedCamera?.DeviceId,
             MicrophoneDeviceId = SelectedMicrophone?.DeviceId,
             MuteMicrophoneOnJoin = MuteMicrophoneOnJoin,
@@ -511,6 +556,7 @@ public partial class JoinRoomViewModel : ObservableObject
         _webRtcService.OnLocalVideoFrame -= OnLocalVideoFrameReceived;
         await StopPreviewAsync();
         _previewCts?.Dispose();
+        _httpClient.Dispose();
     }
 
     /// <summary>
