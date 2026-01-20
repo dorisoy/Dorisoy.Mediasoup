@@ -3,16 +3,55 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  Title="选择表情"
-                 Width="420"
-                 Height="450"
+                 Width="400"
+                 Height="420"
                  WindowStartupLocation="CenterOwner"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
                  WindowCornerPreference="Round"
                  ResizeMode="NoResize">
 
+    <!-- 自定义样式 - 必须在引用之前定义 -->
+    <ui:FluentWindow.Resources>
+        <!-- 类别切换按钮样式 -->
+        <Style x:Key="EmojiCategoryButtonStyle" TargetType="RadioButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" 
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="border" Property="Background" 
+                                        Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="border" Property="Background" 
+                                        Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+                                <Setter Property="Foreground" 
+                                        Value="{DynamicResource TextOnAccentFillColorPrimaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </ui:FluentWindow.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
@@ -27,185 +66,131 @@
             </ui:TitleBar.Icon>
         </ui:TitleBar>
 
-        <!-- 表情内容 -->
-        <TabControl Grid.Row="1" Margin="8">
-            <!-- Tab 不换行样式 -->
-            <TabControl.Resources>
-                <Style TargetType="TabPanel">
-                    <Setter Property="HorizontalAlignment" Value="Left"/>
-                </Style>
-                <Style TargetType="TabItem">
-                    <Setter Property="Padding" Value="12,6"/>
-                </Style>
-            </TabControl.Resources>
-            
-            <!-- 举手/互动 -->
-            <TabItem>
-                <TabItem.Header>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="✋" FontSize="18" Margin="0,0,4,0"/>
-                        <TextBlock Text="举手" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </TabItem.Header>
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <ItemsControl x:Name="HandEmojisControl" Margin="4">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Content="{Binding}"
-                                        FontSize="32"
-                                        Width="56" Height="56"
-                                        Margin="3"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Click="EmojiButton_Click"
-                                        Cursor="Hand">
-                                    <Button.Style>
-                                        <Style TargetType="Button">
-                                            <Setter Property="Foreground" Value="#FFB800"/>
-                                            <Style.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
-                                                </Trigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </TabItem>
+        <!-- 类别切换按钮组 -->
+        <Border Grid.Row="1" 
+                Margin="12,8,12,4" 
+                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                CornerRadius="8"
+                Padding="4">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
 
-            <!-- 表情 -->
-            <TabItem>
-                <TabItem.Header>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="😀" FontSize="18" Margin="0,0,4,0"/>
-                        <TextBlock Text="表情" VerticalAlignment="Center"/>
+                <!-- 举手按钮 -->
+                <RadioButton x:Name="BtnHand" 
+                             Grid.Column="0"
+                             GroupName="EmojiCategory"
+                             IsChecked="True"
+                             Checked="CategoryButton_Checked"
+                             Style="{StaticResource EmojiCategoryButtonStyle}">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="✋" FontSize="20" VerticalAlignment="Center"/>
+                        <TextBlock Text="举手" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-                </TabItem.Header>
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <ItemsControl x:Name="FaceEmojisControl" Margin="4">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Content="{Binding}"
-                                        FontSize="32"
-                                        Width="56" Height="56"
-                                        Margin="3"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Click="EmojiButton_Click"
-                                        Cursor="Hand">
-                                    <Button.Style>
-                                        <Style TargetType="Button">
-                                            <Setter Property="Foreground" Value="#FFB800"/>
-                                            <Style.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
-                                                </Trigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </TabItem>
+                </RadioButton>
 
-            <!-- 手势 -->
-            <TabItem>
-                <TabItem.Header>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="👍" FontSize="18" Margin="0,0,4,0"/>
-                        <TextBlock Text="手势" VerticalAlignment="Center"/>
+                <!-- 表情按钮 -->
+                <RadioButton x:Name="BtnFace" 
+                             Grid.Column="1"
+                             GroupName="EmojiCategory"
+                             Checked="CategoryButton_Checked"
+                             Style="{StaticResource EmojiCategoryButtonStyle}">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="😀" FontSize="20" VerticalAlignment="Center"/>
+                        <TextBlock Text="表情" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-                </TabItem.Header>
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <ItemsControl x:Name="GestureEmojisControl" Margin="4">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Content="{Binding}"
-                                        FontSize="32"
-                                        Width="56" Height="56"
-                                        Margin="3"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Click="EmojiButton_Click"
-                                        Cursor="Hand">
-                                    <Button.Style>
-                                        <Style TargetType="Button">
-                                            <Setter Property="Foreground" Value="#FFB800"/>
-                                            <Style.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
-                                                </Trigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </TabItem>
+                </RadioButton>
 
-            <!-- 心形 -->
-            <TabItem>
-                <TabItem.Header>
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="❤️" FontSize="18" Margin="0,0,4,0"/>
-                        <TextBlock Text="心形" VerticalAlignment="Center"/>
+                <!-- 手势按钮 -->
+                <RadioButton x:Name="BtnGesture" 
+                             Grid.Column="2"
+                             GroupName="EmojiCategory"
+                             Checked="CategoryButton_Checked"
+                             Style="{StaticResource EmojiCategoryButtonStyle}">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="👍" FontSize="20" VerticalAlignment="Center"/>
+                        <TextBlock Text="手势" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
-                </TabItem.Header>
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <ItemsControl x:Name="HeartEmojisControl" Margin="4">
-                        <ItemsControl.ItemsPanel>
-                            <ItemsPanelTemplate>
-                                <WrapPanel/>
-                            </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                            <DataTemplate>
-                                <Button Content="{Binding}"
-                                        FontSize="32"
-                                        Width="56" Height="56"
-                                        Margin="3"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Click="EmojiButton_Click"
-                                        Cursor="Hand">
-                                    <Button.Style>
-                                        <Style TargetType="Button">
-                                            <Setter Property="Foreground" Value="#FFB800"/>
-                                            <Style.Triggers>
-                                                <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter Property="Background" Value="{DynamicResource ControlFillColorDefaultBrush}"/>
-                                                </Trigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
-                            </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                    </ItemsControl>
-                </ScrollViewer>
-            </TabItem>
-        </TabControl>
+                </RadioButton>
+
+                <!-- 心形按钮 -->
+                <RadioButton x:Name="BtnHeart" 
+                             Grid.Column="3"
+                             GroupName="EmojiCategory"
+                             Checked="CategoryButton_Checked"
+                             Style="{StaticResource EmojiCategoryButtonStyle}">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="❤️" FontSize="20" VerticalAlignment="Center"/>
+                        <TextBlock Text="心形" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </RadioButton>
+            </Grid>
+        </Border>
+
+        <!-- 表情内容区域 -->
+        <ScrollViewer Grid.Row="2" 
+                      Margin="8,4,8,8"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <ItemsControl x:Name="EmojisControl">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel HorizontalAlignment="Center"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Button Content="{Binding}"
+                                FontSize="28"
+                                Width="52" Height="52"
+                                Margin="4"
+                                Cursor="Hand"
+                                Click="EmojiButton_Click">
+                            <Button.Style>
+                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                    <Setter Property="Background" Value="Transparent"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
+                                    <Setter Property="Padding" Value="0"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border x:Name="border"
+                                                        Background="{TemplateBinding Background}"
+                                                        CornerRadius="8"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center" 
+                                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                                <ControlTemplate.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="RenderTransform">
+                                                            <Setter.Value>
+                                                                <ScaleTransform ScaleX="1.8" ScaleY="1.8"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+                                                    </Trigger>
+                                                    <Trigger Property="IsPressed" Value="True">
+                                                        <Setter Property="RenderTransform">
+                                                            <Setter.Value>
+                                                                <ScaleTransform ScaleX="0.9" ScaleY="0.9"/>
+                                                            </Setter.Value>
+                                                        </Setter>
+                                                    </Trigger>
+                                                </ControlTemplate.Triggers>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
     </Grid>
 </ui:FluentWindow>

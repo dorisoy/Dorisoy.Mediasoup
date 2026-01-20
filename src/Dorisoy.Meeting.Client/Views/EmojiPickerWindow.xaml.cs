@@ -17,18 +17,36 @@ public partial class EmojiPickerWindow
     public EmojiPickerWindow()
     {
         InitializeComponent();
-        LoadEmojis();
+        
+        // 默认显示举手类别
+        EmojisControl.ItemsSource = CommonEmojis.HandEmojis;
     }
 
     /// <summary>
-    /// 加载表情
+    /// 类别按钮切换
     /// </summary>
-    private void LoadEmojis()
+    private void CategoryButton_Checked(object sender, RoutedEventArgs e)
     {
-        HandEmojisControl.ItemsSource = CommonEmojis.HandEmojis;
-        FaceEmojisControl.ItemsSource = CommonEmojis.FaceEmojis;
-        GestureEmojisControl.ItemsSource = CommonEmojis.GestureEmojis;
-        HeartEmojisControl.ItemsSource = CommonEmojis.HeartEmojis;
+        if (sender is not RadioButton radioButton) return;
+        if (EmojisControl == null) return;
+
+        // 根据选中的按钮切换表情列表
+        if (radioButton == BtnHand)
+        {
+            EmojisControl.ItemsSource = CommonEmojis.HandEmojis;
+        }
+        else if (radioButton == BtnFace)
+        {
+            EmojisControl.ItemsSource = CommonEmojis.FaceEmojis;
+        }
+        else if (radioButton == BtnGesture)
+        {
+            EmojisControl.ItemsSource = CommonEmojis.GestureEmojis;
+        }
+        else if (radioButton == BtnHeart)
+        {
+            EmojisControl.ItemsSource = CommonEmojis.HeartEmojis;
+        }
     }
 
     /// <summary>
