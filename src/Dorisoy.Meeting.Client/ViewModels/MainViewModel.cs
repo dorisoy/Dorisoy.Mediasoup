@@ -1025,10 +1025,17 @@ public partial class MainViewModel : ObservableObject
     }
     
     /// <summary>
-    /// 同步所有 UI 状态 - 强制触发所有相关属性的通知
+    /// 同步所有 UI 状态 - 强制触发所有相关属性的通知（在 UI 线程上执行）
     /// </summary>
     private void SyncAllStates()
     {
+        // 确保在 UI 线程上执行属性通知
+        if (Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            Application.Current.Dispatcher.Invoke(SyncAllStates);
+            return;
+        }
+        
         OnPropertyChanged(nameof(RoomId));
         OnPropertyChanged(nameof(IsJoinedRoom));
         OnPropertyChanged(nameof(IsConnected));
@@ -1847,12 +1854,19 @@ public partial class MainViewModel : ObservableObject
     }
     
     /// <summary>
-    /// 同步房间状态到 UI - 确保所有相关属性都被正确通知
+    /// 同步房间状态到 UI - 确保所有相关属性都被正确通知（在 UI 线程上执行）
     /// </summary>
     /// <param name="roomId">房间ID</param>
     /// <param name="isJoined">是否已加入</param>
     private void SyncRoomState(string roomId, bool isJoined)
     {
+        // 确保在 UI 线程上执行
+        if (Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            Application.Current.Dispatcher.Invoke(() => SyncRoomState(roomId, isJoined));
+            return;
+        }
+        
         _logger.LogInformation("同步房间状态: RoomId={RoomId}, IsJoined={IsJoined}, CurrentIsJoinedRoom={CurrentIsJoinedRoom}", 
             roomId, isJoined, IsJoinedRoom);
             
