@@ -1,4 +1,5 @@
 using Dorisoy.Meeting.Client.Models;
+using Microsoft.AspNetCore.SignalR.Client;
 
 namespace Dorisoy.Meeting.Client.Services;
 
@@ -11,6 +12,11 @@ public interface ISignalRService : IAsyncDisposable
     /// 是否已连接
     /// </summary>
     bool IsConnected { get; }
+
+    /// <summary>
+    /// 连接状态
+    /// </summary>
+    HubConnectionState ConnectionState { get; }
 
     /// <summary>
     /// 收到服务器通知事件
@@ -26,6 +32,16 @@ public interface ISignalRService : IAsyncDisposable
     /// 连接断开事件
     /// </summary>
     event Action<Exception?>? OnDisconnected;
+
+    /// <summary>
+    /// 正在重连事件 - 参数：第几次重试
+    /// </summary>
+    event Action<int>? OnReconnecting;
+
+    /// <summary>
+    /// 重连成功事件
+    /// </summary>
+    event Action? OnReconnected;
 
     /// <summary>
     /// 连接到服务器

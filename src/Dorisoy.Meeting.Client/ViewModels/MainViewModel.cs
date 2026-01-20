@@ -41,6 +41,12 @@ public partial class MainViewModel : ObservableObject
     private bool _isJoinedRoom;
 
     /// <summary>
+    /// 是否在大厅（已连接但未加入房间）
+    /// </summary>
+    [ObservableProperty]
+    private bool _isInLobby;
+
+    /// <summary>
     /// 服务器地址
     /// </summary>
     [ObservableProperty]
@@ -118,6 +124,11 @@ public partial class MainViewModel : ObservableObject
     /// 房间内 Peer 列表
     /// </summary>
     public ObservableCollection<PeerInfo> Peers { get; } = [];
+
+    /// <summary>
+    /// 在线人数（包含自己）
+    /// </summary>
+    public int OnlinePeerCount => Peers.Count + 1;
 
     /// <summary>
     /// 房间列表
@@ -287,6 +298,34 @@ public partial class MainViewModel : ObservableObject
 
     #endregion
 
+    #region 断线重连相关属性
+
+    /// <summary>
+    /// 是否正在重连
+    /// </summary>
+    [ObservableProperty]
+    private bool _isReconnecting;
+
+    /// <summary>
+    /// 重连倒计时秒数
+    /// </summary>
+    [ObservableProperty]
+    private int _reconnectCountdown;
+
+    /// <summary>
+    /// 重连提示消息
+    /// </summary>
+    [ObservableProperty]
+    private string _reconnectMessage = "";
+
+    /// <summary>
+    /// 重连失败后是否显示手动重连按钮
+    /// </summary>
+    [ObservableProperty]
+    private bool _showManualReconnect;
+
+    #endregion
+
     #region 私有字段
 
     /// <summary>
@@ -330,6 +369,13 @@ public partial class MainViewModel : ObservableObject
         // 订阅 recv transport DTLS 连接完成事件 - 在这之后才能 Resume Consumer
         _webRtcService.OnRecvTransportDtlsConnected += OnRecvTransportDtlsConnected;
 
+        // 订阅 Peers 集合变化事件 - 同步更新在线人数
+        Peers.CollectionChanged += (s, e) => OnPropertyChanged(nameof(OnlinePeerCount));
+
+        // 订阅重连事件
+        _signalRService.OnReconnecting += OnSignalRReconnecting;
+        _signalRService.OnReconnected += OnSignalRReconnected;
+
         // 初始化视频质量配置
         _webRtcService.VideoQuality = SelectedVideoQuality;
 
@@ -354,6 +400,8 @@ public partial class MainViewModel : ObservableObject
             _signalRService.OnNotification -= HandleNotification;
             _signalRService.OnConnected -= OnSignalRConnected;
             _signalRService.OnDisconnected -= OnSignalRDisconnected;
+            _signalRService.OnReconnecting -= OnSignalRReconnecting;
+            _signalRService.OnReconnected -= OnSignalRReconnected;
 
             _webRtcService.OnLocalVideoFrame -= OnLocalVideoFrameReceived;
             _webRtcService.OnRemoteVideoFrame -= OnRemoteVideoFrameReceived;
@@ -372,6 +420,105 @@ public partial class MainViewModel : ObservableObject
             _logger.LogError(ex, "Error during cleanup");
         }
     }
+
+    #region 断线重连处理
+
+    /// <summary>
+    /// SignalR 正在重连事件处理
+    /// </summary>
+    private async void OnSignalRReconnecting(int attempt)
+    {
+        await Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            IsReconnecting = true;
+            ShowManualReconnect = false;
+            ReconnectCountdown = 30;
+            ReconnectMessage = $"网络连接中断，正在尝试重连 ({attempt})...";
+            StatusMessage = "正在重连...";
+        });
+
+        // 启动倒计时
+        while (IsReconnecting && ReconnectCountdown > 0)
+        {
+            await Task.Delay(1000);
+            
+            // 如果已经重连成功，退出循环
+            if (_signalRService.IsConnected)
+            {
+                return;
+            }
+            
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                ReconnectCountdown--;
+            });
+        }
+
+        // 倒计时结束，检查连接状态
+        if (IsReconnecting && !_signalRService.IsConnected)
+        {
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                ReconnectMessage = "重连失败，请检查网络后重试";
+                ShowManualReconnect = true;
+            });
+        }
+    }
+
+    /// <summary>
+    /// SignalR 重连成功事件处理
+    /// </summary>
+    private void OnSignalRReconnected()
+    {
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            IsReconnecting = false;
+            ShowManualReconnect = false;
+            ReconnectCountdown = 0;
+            ReconnectMessage = "";
+            StatusMessage = "重连成功";
+            _logger.LogInformation("重连成功");
+        });
+    }
+
+    /// <summary>
+    /// 手动重连命令
+    /// </summary>
+    [RelayCommand]
+    private async Task ManualReconnectAsync()
+    {
+        if (IsBusy) return;
+
+        IsBusy = true;
+        try
+        {
+            ShowManualReconnect = false;
+            IsReconnecting = true;
+            ReconnectMessage = "正在手动重连...";
+
+            // 先断开现有连接
+            await _signalRService.DisconnectAsync();
+
+            // 重新连接
+            await _signalRService.ConnectAsync(ServerUrl, _currentAccessToken);
+
+            IsReconnecting = false;
+            ReconnectMessage = "";
+            StatusMessage = "手动重连成功";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "手动重连失败");
+            ReconnectMessage = $"重连失败: {ex.Message}";
+            ShowManualReconnect = true;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    #endregion
 
     /// <summary>
     /// 连接/断开服务器
@@ -1126,15 +1273,21 @@ public partial class MainViewModel : ObservableObject
             }
             else
             {
-                // 私聊消息
-                if (!_privateMessages.TryGetValue(message.ReceiverId, out var messages))
+                // 私聊消息 - 确定对方 ID
+                // 自己发的，对方是接收者；别人发的，对方是发送者
+                string peerId = message.IsFromSelf
+                    ? message.ReceiverId    // 自己发的，对方是接收者
+                    : message.SenderId;      // 别人发的，对方是发送者
+
+                if (!_privateMessages.TryGetValue(peerId, out var messages))
                 {
                     messages = [];
-                    _privateMessages[message.ReceiverId] = messages;
+                    _privateMessages[peerId] = messages;
                 }
                 messages.Add(message);
 
-                if (!IsGroupChatMode && SelectedChatUser?.PeerId == message.ReceiverId)
+                // 更新当前显示
+                if (!IsGroupChatMode && SelectedChatUser?.PeerId == peerId)
                 {
                     CurrentMessages.Add(message);
                 }
@@ -1156,7 +1309,13 @@ public partial class MainViewModel : ObservableObject
             if (msgData == null) return;
 
             // 忽略自己发送的消息
-            if (msgData.SenderId == SelectedPeerIndex.ToString()) return;
+            if (msgData.SenderId == CurrentUserName) return;
+
+            // 检查私聊消息：如果有 ReceiverId 且不是发给自己的，忽略
+            if (!string.IsNullOrEmpty(msgData.ReceiverId) && msgData.ReceiverId != CurrentUserName)
+            {
+                return;
+            }
 
             var message = new ChatMessage
             {
@@ -1589,17 +1748,30 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        // 更新 Peer 列表
+        // 更新 Peer 列表和 ChatUsers 列表
         Peers.Clear();
+        ChatUsers.Clear();
         if (result.Data?.Peers != null)
         {
             foreach (var peer in result.Data.Peers)
             {
                 Peers.Add(peer);
+                
+                // 同步到聊天用户列表（排除自己）
+                if (peer.PeerId != CurrentUserName && !string.IsNullOrEmpty(peer.PeerId))
+                {
+                    ChatUsers.Add(new ChatUser
+                    {
+                        PeerId = peer.PeerId,
+                        DisplayName = peer.DisplayName ?? "Unknown",
+                        IsOnline = true
+                    });
+                }
             }
         }
 
         IsJoinedRoom = true;
+        IsInLobby = false;  // 已加入房间，不在大厅
         _logger.LogInformation("加入房间成功: RoomId={RoomId}, PeerCount={PeerCount}", roomIdToJoin, Peers.Count);
 
         // 创建 WebRTC Transport
@@ -1621,25 +1793,33 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 离开房间
+    /// 离开房间（回到大厅，保持SignalR连接）
     /// </summary>
     private async Task LeaveRoomAsync()
     {
         _logger.LogInformation("开始离开房间...");
         
-        // 先断开 SignalR 连接（避免 DTLS 错误）
-        await _signalRService.DisconnectAsync();
+        try
+        {
+            // 调用服务器 LeaveRoom，但保持 SignalR 连接
+            await _signalRService.InvokeAsync("LeaveRoom");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "调用 LeaveRoom 失败");
+        }
         
-        // 完全关闭 WebRTC 服务
+        // 关闭 WebRTC 媒体，但保持 SignalR 连接
         await _webRtcService.CloseAsync();
         
-        // 重置客户端状态
+        // 重置房间相关状态，但保持连接状态
         IsJoinedRoom = false;
-        IsConnected = false;
+        IsInLobby = true;  // 回到大厅状态
         IsCameraEnabled = false;
         IsMicrophoneEnabled = false;
         Peers.Clear();
         RemoteVideos.Clear();
+        ChatUsers.Clear();
         HasNoRemoteVideos = true;
         LocalVideoFrame = null;
         
@@ -1649,8 +1829,61 @@ public partial class MainViewModel : ObservableObject
         _videoProducerId = null;
         _audioProducerId = null;
         
-        StatusMessage = "已离开房间";
-        _logger.LogInformation("离开房间完成，返回加入窗口");
+        StatusMessage = "已回到大厅";
+        _logger.LogInformation("离开房间完成，回到大厅");
+        
+        // 通知窗口返回加入房间界面（但保持 SignalR 连接）
+        ReturnToJoinRoomRequested?.Invoke();
+    }
+
+    /// <summary>
+    /// 完全退出会议（断开SignalR连接，返回JoinRoomWindow）
+    /// </summary>
+    [RelayCommand]
+    private async Task ExitToJoinWindowAsync()
+    {
+        _logger.LogInformation("完全退出会议...");
+        
+        try
+        {
+            // 如果在房间中，先离开房间
+            if (IsJoinedRoom)
+            {
+                await _signalRService.InvokeAsync("LeaveRoom");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "退出时调用 LeaveRoom 失败");
+        }
+        
+        // 断开 SignalR 连接
+        await _signalRService.DisconnectAsync();
+        
+        // 完全关闭 WebRTC 服务
+        await _webRtcService.CloseAsync();
+        
+        // 重置所有状态
+        IsJoinedRoom = false;
+        IsInLobby = false;
+        IsConnected = false;
+        IsCameraEnabled = false;
+        IsMicrophoneEnabled = false;
+        Peers.Clear();
+        RemoteVideos.Clear();
+        ChatUsers.Clear();
+        HasNoRemoteVideos = true;
+        LocalVideoFrame = null;
+        
+        // 清理 Transport ID
+        _sendTransportId = null;
+        _recvTransportId = null;
+        _videoProducerId = null;
+        _audioProducerId = null;
+        _currentAccessToken = string.Empty;
+        
+        StatusMessage = "已断开连接";
+        _logger.LogInformation("完全退出会议，返回加入窗口");
         
         // 通知窗口返回加入房间界面
         ReturnToJoinRoomRequested?.Invoke();

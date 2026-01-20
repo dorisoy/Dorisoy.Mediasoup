@@ -12,6 +12,7 @@ public class SignalRService : ISignalRService
 {
     private readonly ILogger<SignalRService> _logger;
     private HubConnection? _connection;
+    private int _reconnectAttempt;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -23,6 +24,11 @@ public class SignalRService : ISignalRService
     /// 是否已连接
     /// </summary>
     public bool IsConnected => _connection?.State == HubConnectionState.Connected;
+
+    /// <summary>
+    /// 连接状态
+    /// </summary>
+    public HubConnectionState ConnectionState => _connection?.State ?? HubConnectionState.Disconnected;
 
     /// <summary>
     /// 收到服务器通知事件
@@ -38,6 +44,16 @@ public class SignalRService : ISignalRService
     /// 连接断开事件
     /// </summary>
     public event Action<Exception?>? OnDisconnected;
+
+    /// <summary>
+    /// 正在重连事件 - 参数：第几次重试
+    /// </summary>
+    public event Action<int>? OnReconnecting;
+
+    /// <summary>
+    /// 重连成功事件
+    /// </summary>
+    public event Action? OnReconnected;
 
     public SignalRService(ILogger<SignalRService> logger)
     {
@@ -96,6 +112,8 @@ public class SignalRService : ISignalRService
         _connection.Reconnected += async connectionId =>
         {
             _logger.LogInformation("Reconnected with connectionId: {ConnectionId}", connectionId);
+            _reconnectAttempt = 0;  // 重置重连计数
+            OnReconnected?.Invoke();
             OnConnected?.Invoke();
             await Task.CompletedTask;
         };
@@ -103,7 +121,9 @@ public class SignalRService : ISignalRService
         // 重连中事件
         _connection.Reconnecting += async error =>
         {
-            _logger.LogWarning(error, "Reconnecting...");
+            _reconnectAttempt++;
+            _logger.LogWarning(error, "Reconnecting... Attempt: {Attempt}", _reconnectAttempt);
+            OnReconnecting?.Invoke(_reconnectAttempt);
             await Task.CompletedTask;
         };
 
