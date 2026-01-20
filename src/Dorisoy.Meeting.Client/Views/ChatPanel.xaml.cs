@@ -1,8 +1,10 @@
 using Microsoft.Win32;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using Dorisoy.Meeting.Client.ViewModels;
+using Dorisoy.Meeting.Client.Models;
 
 namespace Dorisoy.Meeting.Client.Views;
 
@@ -115,6 +117,124 @@ public partial class ChatPanel : UserControl
         if (dialog.ShowDialog() == true)
         {
             _viewModel?.SendFileMessage(dialog.FileName, _isGroupChat ? null : _viewModel.SelectedChatUser?.PeerId);
+        }
+    }
+
+    /// <summary>
+    /// 文件消息点击 - 保存文件
+    /// </summary>
+    private async void FileMessage_Click(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is FrameworkElement element && element.DataContext is ChatMessage message)
+        {
+            // 优先使用下载 URL（大文件）
+            if (!string.IsNullOrEmpty(message.DownloadUrl))
+            {
+                await DownloadFileFromUrlAsync(message.DownloadUrl, message.FileName ?? "file");
+            }
+            // 如果有 Base64 数据，允许保存
+            else if (!string.IsNullOrEmpty(message.FileData))
+            {
+                var dialog = new SaveFileDialog
+                {
+                    Title = "保存文件",
+                    FileName = message.FileName ?? "file",
+                    Filter = "所有文件|*.*"
+                };
+
+                if (dialog.ShowDialog() == true)
+                {
+                    try
+                    {
+                        var fileBytes = Convert.FromBase64String(message.FileData);
+                        System.IO.File.WriteAllBytes(dialog.FileName, fileBytes);
+                        MessageBox.Show($"文件已保存到:\n{dialog.FileName}", "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"保存文件失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+            }
+            // 如果是自己发送的，使用本地文件路径
+            else if (!string.IsNullOrEmpty(message.FilePath) && System.IO.File.Exists(message.FilePath))
+            {
+                try
+                {
+                    // 打开文件所在文件夹
+                    System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{message.FilePath}\"");
+                }
+                catch
+                {
+                    // 忽略打开失败
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 从 URL 下载文件
+    /// </summary>
+    private async Task DownloadFileFromUrlAsync(string url, string suggestedFileName)
+    {
+        var dialog = new SaveFileDialog
+        {
+            Title = "保存文件",
+            FileName = suggestedFileName,
+            Filter = "所有文件|*.*"
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            try
+            {
+                // 显示下载进度（简单提示）
+                if (_viewModel != null)
+                {
+                    _viewModel.StatusMessage = $"正在下载文件: {suggestedFileName}...";
+                }
+
+                using var httpClient = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
+                var response = await httpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                response.EnsureSuccessStatusCode();
+
+                await using var contentStream = await response.Content.ReadAsStreamAsync();
+                await using var fileStream = new System.IO.FileStream(dialog.FileName, System.IO.FileMode.Create, System.IO.FileAccess.Write, System.IO.FileShare.None);
+                
+                // 复制数据（带进度报告）
+                var buffer = new byte[81920]; // 80KB buffer
+                var totalBytesRead = 0L;
+                var contentLength = response.Content.Headers.ContentLength ?? -1L;
+                int bytesRead;
+
+                while ((bytesRead = await contentStream.ReadAsync(buffer)) > 0)
+                {
+                    await fileStream.WriteAsync(buffer.AsMemory(0, bytesRead));
+                    totalBytesRead += bytesRead;
+
+                    // 更新进度
+                    if (contentLength > 0 && _viewModel != null)
+                    {
+                        var progress = (double)totalBytesRead / contentLength * 100;
+                        _viewModel.StatusMessage = $"正在下载文件: {suggestedFileName} ({progress:F0}%)";
+                    }
+                }
+
+                if (_viewModel != null)
+                {
+                    _viewModel.StatusMessage = $"文件已保存: {suggestedFileName}";
+                }
+
+                MessageBox.Show($"文件已保存到:\n{dialog.FileName}", "下载完成", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                if (_viewModel != null)
+                {
+                    _viewModel.StatusMessage = $"下载失败: {ex.Message}";
+                }
+                MessageBox.Show($"下载文件失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
     }
 

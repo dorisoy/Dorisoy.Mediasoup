@@ -259,6 +259,12 @@ public partial class MainViewModel : ObservableObject
     private bool _isGroupChatMode = true;
 
     /// <summary>
+    /// 群聊未读消息计数
+    /// </summary>
+    [ObservableProperty]
+    private int _groupUnreadCount;
+
+    /// <summary>
     /// 当前显示的表情反应
     /// </summary>
     [ObservableProperty]
@@ -333,6 +339,11 @@ public partial class MainViewModel : ObservableObject
     /// 当前用户的访问令牌 - 从 JoinRoomInfo 传入
     /// </summary>
     private string _currentAccessToken = string.Empty;
+
+    /// <summary>
+    /// 文件上传服务 - 支持大文件分片上传
+    /// </summary>
+    private FileUploadService? _fileUploadService;
 
     private object? _routerRtpCapabilities;
     private string? _sendTransportId;
@@ -1130,6 +1141,9 @@ public partial class MainViewModel : ObservableObject
         IsGroupChatMode = true;
         SelectedChatUser = null;
         
+        // 清除群聊未读计数
+        GroupUnreadCount = 0;
+        
         CurrentMessages.Clear();
         foreach (var msg in _groupMessages)
         {
@@ -1207,6 +1221,7 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// 发送图片消息
+    /// 小于 5MB 的图片将转换为 Base64 传输
     /// </summary>
     public async void SendImageMessage(string filePath, string? receiverId)
     {
@@ -1215,6 +1230,20 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var fileInfo = new System.IO.FileInfo(filePath);
+            
+            // 限制图片大小为 5MB
+            const long maxImageSize = 5 * 1024 * 1024;
+            if (fileInfo.Length > maxImageSize)
+            {
+                StatusMessage = $"图片大小超过 5MB 限制，无法发送";
+                _logger.LogWarning("图片太大: {Size} bytes, 限制: {Limit} bytes", fileInfo.Length, maxImageSize);
+                return;
+            }
+
+            // 读取文件并转换为 Base64
+            var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+            var base64Data = Convert.ToBase64String(fileBytes);
+
             var message = new ChatMessage
             {
                 SenderId = SelectedPeerIndex.ToString(),
@@ -1228,17 +1257,18 @@ public partial class MainViewModel : ObservableObject
                 IsFromSelf = true
             };
 
-            // 加载图片
+            // 加载图片用于本地显示
             var bitmap = new System.Windows.Media.Imaging.BitmapImage();
             bitmap.BeginInit();
             bitmap.UriSource = new Uri(filePath);
             bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
             bitmap.EndInit();
+            bitmap.Freeze(); // 允许跨线程访问
             message.ImageSource = bitmap;
 
             AddMessageToCollection(message);
 
-            // 发送消息通知（实际文件传输需要额外实现）
+            // 发送包含 Base64 数据的消息
             await _signalRService.InvokeAsync("BroadcastMessage", new
             {
                 type = "chatMessage",
@@ -1252,11 +1282,13 @@ public partial class MainViewModel : ObservableObject
                     messageType = (int)message.MessageType,
                     fileName = message.FileName,
                     fileSize = message.FileSize,
+                    fileData = base64Data,
                     timestamp = message.Timestamp
                 }
             });
 
             StatusMessage = "图片已发送";
+            _logger.LogInformation("图片发送成功: {FileName}, 大小: {Size} bytes", fileInfo.Name, fileInfo.Length);
         }
         catch (Exception ex)
         {
@@ -1267,6 +1299,8 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// 发送文件消息
+    /// 小于 10MB 的文件使用 Base64 传输
+    /// 大于 10MB 的文件使用分片上传（最大支持 500MB）
     /// </summary>
     public async void SendFileMessage(string filePath, string? receiverId)
     {
@@ -1275,45 +1309,169 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var fileInfo = new System.IO.FileInfo(filePath);
-            var message = new ChatMessage
+            
+            // Base64 传输的阈值：10MB
+            const long base64Threshold = 10 * 1024 * 1024;
+            // 分片上传的最大限制：500MB
+            const long maxFileSize = 500L * 1024 * 1024;
+
+            if (fileInfo.Length > maxFileSize)
             {
-                SenderId = SelectedPeerIndex.ToString(),
-                SenderName = CurrentUserName,
-                ReceiverId = receiverId ?? "",
-                Content = $"[文件] {fileInfo.Name}",
-                MessageType = ChatMessageType.File,
-                FileName = fileInfo.Name,
-                FilePath = filePath,
-                FileSize = fileInfo.Length,
-                IsFromSelf = true
-            };
+                StatusMessage = $"文件大小超过 500MB 限制，无法发送";
+                _logger.LogWarning("文件太大: {Size} bytes, 限制: {Limit} bytes", fileInfo.Length, maxFileSize);
+                return;
+            }
 
-            AddMessageToCollection(message);
-
-            // 发送消息通知（实际文件传输需要额外实现）
-            await _signalRService.InvokeAsync("BroadcastMessage", new
+            // 大于 10MB 的文件使用分片上传
+            if (fileInfo.Length > base64Threshold)
             {
-                type = "chatMessage",
-                data = new
-                {
-                    id = message.Id,
-                    senderId = message.SenderId,
-                    senderName = message.SenderName,
-                    receiverId = message.ReceiverId,
-                    content = message.Content,
-                    messageType = (int)message.MessageType,
-                    fileName = message.FileName,
-                    fileSize = message.FileSize,
-                    timestamp = message.Timestamp
-                }
-            });
-
-            StatusMessage = "文件已发送";
+                await SendLargeFileAsync(filePath, fileInfo, receiverId);
+            }
+            else
+            {
+                await SendSmallFileAsync(filePath, fileInfo, receiverId);
+            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "发送文件失败");
             StatusMessage = $"发送文件失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 发送小文件（使用 Base64）
+    /// </summary>
+    private async Task SendSmallFileAsync(string filePath, System.IO.FileInfo fileInfo, string? receiverId)
+    {
+        // 读取文件并转换为 Base64
+        var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
+        var base64Data = Convert.ToBase64String(fileBytes);
+
+        var message = new ChatMessage
+        {
+            SenderId = SelectedPeerIndex.ToString(),
+            SenderName = CurrentUserName,
+            ReceiverId = receiverId ?? "",
+            Content = $"[文件] {fileInfo.Name}",
+            MessageType = ChatMessageType.File,
+            FileName = fileInfo.Name,
+            FilePath = filePath,
+            FileSize = fileInfo.Length,
+            FileData = base64Data,
+            IsFromSelf = true
+        };
+
+        AddMessageToCollection(message);
+
+        // 发送包含 Base64 数据的消息
+        await _signalRService.InvokeAsync("BroadcastMessage", new
+        {
+            type = "chatMessage",
+            data = new
+            {
+                id = message.Id,
+                senderId = message.SenderId,
+                senderName = message.SenderName,
+                receiverId = message.ReceiverId,
+                content = message.Content,
+                messageType = (int)message.MessageType,
+                fileName = message.FileName,
+                fileSize = message.FileSize,
+                fileData = base64Data,
+                timestamp = message.Timestamp
+            }
+        });
+
+        StatusMessage = "文件已发送";
+        _logger.LogInformation("文件发送成功 (Base64): {FileName}, 大小: {Size} bytes", fileInfo.Name, fileInfo.Length);
+    }
+
+    /// <summary>
+    /// 发送大文件（使用分片上传）
+    /// </summary>
+    private async Task SendLargeFileAsync(string filePath, System.IO.FileInfo fileInfo, string? receiverId)
+    {
+        // 确保 FileUploadService 已初始化
+        EnsureFileUploadServiceInitialized();
+
+        if (_fileUploadService == null)
+        {
+            StatusMessage = "文件上传服务未初始化";
+            return;
+        }
+
+        StatusMessage = $"正在上传文件: {fileInfo.Name} (0%)";
+        _logger.LogInformation("开始分片上传大文件: {FileName}, 大小: {Size} bytes", fileInfo.Name, fileInfo.Length);
+
+        // 上传文件
+        var result = await _fileUploadService.UploadFileAsync(filePath, progress =>
+        {
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                StatusMessage = $"正在上传文件: {fileInfo.Name} ({progress:F0}%)";
+            });
+        });
+
+        if (!result.Success)
+        {
+            StatusMessage = $"文件上传失败: {result.Message}";
+            _logger.LogError("文件上传失败: {FileName}, 错误: {Error}", fileInfo.Name, result.Message);
+            return;
+        }
+
+        // 获取完整的下载 URL
+        var downloadUrl = _fileUploadService.GetFullDownloadUrl(result.DownloadUrl!);
+
+        var message = new ChatMessage
+        {
+            SenderId = SelectedPeerIndex.ToString(),
+            SenderName = CurrentUserName,
+            ReceiverId = receiverId ?? "",
+            Content = $"[文件] {fileInfo.Name}",
+            MessageType = ChatMessageType.File,
+            FileName = fileInfo.Name,
+            FilePath = downloadUrl, // 使用下载 URL 作为文件路径
+            FileSize = fileInfo.Length,
+            DownloadUrl = downloadUrl,
+            IsFromSelf = true
+        };
+
+        AddMessageToCollection(message);
+
+        // 发送包含下载 URL 的消息
+        await _signalRService.InvokeAsync("BroadcastMessage", new
+        {
+            type = "chatMessage",
+            data = new
+            {
+                id = message.Id,
+                senderId = message.SenderId,
+                senderName = message.SenderName,
+                receiverId = message.ReceiverId,
+                content = message.Content,
+                messageType = (int)message.MessageType,
+                fileName = message.FileName,
+                fileSize = message.FileSize,
+                downloadUrl = downloadUrl,
+                timestamp = message.Timestamp
+            }
+        });
+
+        StatusMessage = $"文件已发送: {fileInfo.Name}";
+        _logger.LogInformation("大文件发送成功 (分片上传): {FileName}, 大小: {Size} bytes, URL: {Url}",
+            fileInfo.Name, fileInfo.Length, downloadUrl);
+    }
+
+    /// <summary>
+    /// 确保文件上传服务已初始化
+    /// </summary>
+    private void EnsureFileUploadServiceInitialized()
+    {
+        if (_fileUploadService == null && !string.IsNullOrEmpty(ServerUrl))
+        {
+            _fileUploadService = new FileUploadService(ServerUrl, _currentAccessToken);
+            _logger.LogDebug("文件上传服务已初始化: {ServerUrl}", ServerUrl);
         }
     }
 
@@ -1389,20 +1547,74 @@ public partial class MainViewModel : ObservableObject
                 MessageType = (ChatMessageType)(msgData.MessageType ?? 0),
                 FileName = msgData.FileName,
                 FileSize = msgData.FileSize ?? 0,
+                FileData = msgData.FileData,
+                DownloadUrl = msgData.DownloadUrl,
                 Timestamp = msgData.Timestamp ?? DateTime.Now,
                 IsFromSelf = false
             };
 
+            // 如果是文件消息，记录日志
+            if (message.MessageType == ChatMessageType.File)
+            {
+                if (!string.IsNullOrEmpty(msgData.DownloadUrl))
+                {
+                    _logger.LogDebug("接收到大文件消息: {FileName}, 大小: {Size}, URL: {Url}",
+                        message.FileName, message.FileSize, msgData.DownloadUrl);
+                }
+                else if (!string.IsNullOrEmpty(msgData.FileData))
+                {
+                    _logger.LogDebug("接收到小文件消息 (Base64): {FileName}, 大小: {Size}",
+                        message.FileName, message.FileSize);
+                }
+            }
+
+            // 如果是图片消息且包含 Base64 数据，加载图片
+            if (message.MessageType == ChatMessageType.Image && !string.IsNullOrEmpty(msgData.FileData))
+            {
+                try
+                {
+                    var imageBytes = Convert.FromBase64String(msgData.FileData);
+                    Application.Current?.Dispatcher.Invoke(() =>
+                    {
+                        using var ms = new System.IO.MemoryStream(imageBytes);
+                        var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                        bitmap.BeginInit();
+                        bitmap.StreamSource = ms;
+                        bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                        bitmap.EndInit();
+                        bitmap.Freeze();
+                        message.ImageSource = bitmap;
+                    });
+                    _logger.LogDebug("已加载接收的图片: {FileName}, 大小: {Size} bytes", message.FileName, imageBytes.Length);
+                }
+                catch (Exception imgEx)
+                {
+                    _logger.LogWarning(imgEx, "加载接收图片失败: {FileName}", message.FileName);
+                }
+            }
+
             AddMessageToCollection(message);
 
             // 如果不在当前聊天，增加未读数
-            if (!IsChatPanelVisible || (!IsGroupChatMode && SelectedChatUser?.PeerId != message.SenderId))
+            if (string.IsNullOrEmpty(message.ReceiverId))
             {
-                var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
-                if (user != null)
+                // 群聊消息 - 如果不在群聊模式或聊天面板不可见，增加群聊未读计数
+                if (!IsChatPanelVisible || !IsGroupChatMode)
                 {
-                    user.UnreadCount++;
-                    user.LastMessage = message;
+                    GroupUnreadCount++;
+                }
+            }
+            else
+            {
+                // 私聊消息 - 如果不在当前聊天，增加未读数
+                if (!IsChatPanelVisible || (!IsGroupChatMode && SelectedChatUser?.PeerId != message.SenderId))
+                {
+                    var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
+                    if (user != null)
+                    {
+                        user.UnreadCount++;
+                        user.LastMessage = message;
+                    }
                 }
             }
         }

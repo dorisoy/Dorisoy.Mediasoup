@@ -160,6 +160,33 @@ public class ChatMessage : ObservableObject
         set => SetProperty(ref _imageSource, value);
     }
 
+    private string? _fileData;
+    private string? _downloadUrl;
+    
+    /// <summary>
+    /// 文件数据 (Base64 编码)
+    /// 用于接收方保存文件
+    /// </summary>
+    public string? FileData
+    {
+        get => _fileData;
+        set => SetProperty(ref _fileData, value);
+    }
+
+    /// <summary>
+    /// 文件下载 URL（大文件分片上传后的下载链接）
+    /// </summary>
+    public string? DownloadUrl
+    {
+        get => _downloadUrl;
+        set => SetProperty(ref _downloadUrl, value);
+    }
+
+    /// <summary>
+    /// 是否有可下载的文件（有 Base64 数据或下载链接）
+    /// </summary>
+    public bool HasDownloadableFile => !string.IsNullOrEmpty(FileData) || !string.IsNullOrEmpty(DownloadUrl);
+
     /// <summary>
     /// 格式化的时间
     /// </summary>

@@ -42,6 +42,8 @@
             <converters:LeaveAppearanceConverter x:Key="LeaveAppearanceConverter"/>
             <converters:LeaveTextConverter x:Key="LeaveTextConverter"/>
             <converters:TextMessageVisibilityConverter x:Key="TextMessageVisibilityConverter"/>
+            <converters:ImageMessageVisibilityConverter x:Key="ImageMessageVisibilityConverter"/>
+            <converters:FileMessageVisibilityConverter x:Key="FileMessageVisibilityConverter"/>
             <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter"/>
             <converters:InverseBoolToVisConverter x:Key="InverseBoolToVisConverter"/>
         </ResourceDictionary>

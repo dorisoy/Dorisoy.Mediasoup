@@ -31,6 +31,12 @@ namespace Dorisoy.Meeting.Web
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
+            // 配置大文件上传支持
+            services.Configure<Microsoft.AspNetCore.Http.Features.FormOptions>(options =>
+            {
+                options.MultipartBodyLengthLimit = 10 * 1024 * 1024; // 单个分片最大 10MB
+            });
+
             services
                 .AddMvc()
                 .AddJsonOptions(options =>

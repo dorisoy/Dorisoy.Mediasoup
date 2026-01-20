@@ -522,3 +522,43 @@ public class InverseBoolToVisConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
+
+/// <summary>
+/// 图片消息可见性转换器
+/// </summary>
+public class ImageMessageVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is Models.ChatMessageType messageType)
+        {
+            return messageType == Models.ChatMessageType.Image ? Visibility.Visible : Visibility.Collapsed;
+        }
+        return Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 文件消息可见性转换器
+/// </summary>
+public class FileMessageVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is Models.ChatMessageType messageType)
+        {
+            return messageType == Models.ChatMessageType.File ? Visibility.Visible : Visibility.Collapsed;
+        }
+        return Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}

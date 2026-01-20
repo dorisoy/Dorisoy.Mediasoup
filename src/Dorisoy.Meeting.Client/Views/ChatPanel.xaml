@@ -22,12 +22,44 @@
                         <Border Background="#0078D4"
                                 CornerRadius="12,12,4,12"
                                 Padding="12,8">
-                            <!-- 文本消息 -->
-                            <TextBlock Text="{Binding Content}"
-                                       Foreground="White"
-                                       TextWrapping="Wrap"
-                                       FontSize="13"
-                                       Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}"/>
+                            <Grid>
+                                <!-- 文本消息 -->
+                                <TextBlock Text="{Binding Content}"
+                                           Foreground="White"
+                                           TextWrapping="Wrap"
+                                           FontSize="13"
+                                           Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}"/>
+                                
+                                <!-- 图片消息 -->
+                                <StackPanel Visibility="{Binding MessageType, Converter={StaticResource ImageMessageVisibilityConverter}}">
+                                    <Image Source="{Binding ImageSource}"
+                                           MaxWidth="200"
+                                           MaxHeight="200"
+                                           Stretch="Uniform"
+                                           Margin="0,0,0,4"/>
+                                    <TextBlock Text="{Binding FileName}"
+                                               Foreground="White"
+                                               FontSize="11"
+                                               Opacity="0.8"/>
+                                </StackPanel>
+                                
+                                <!-- 文件消息 -->
+                                <StackPanel Orientation="Horizontal" 
+                                            Visibility="{Binding MessageType, Converter={StaticResource FileMessageVisibilityConverter}}">
+                                    <ui:SymbolIcon Symbol="Document24" FontSize="24" Foreground="White" Margin="0,0,8,0"/>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding FileName}"
+                                                   Foreground="White"
+                                                   FontSize="13"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   MaxWidth="150"/>
+                                        <TextBlock Text="{Binding FormattedFileSize}"
+                                                   Foreground="White"
+                                                   FontSize="11"
+                                                   Opacity="0.7"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Grid>
                         </Border>
                     </StackPanel>
                 </Border>
@@ -49,10 +81,47 @@
                             CornerRadius="12,12,12,4"
                             Padding="12,8"
                             MaxWidth="280">
-                        <!-- 文本消息 -->
-                        <TextBlock Text="{Binding Content}"
-                                   TextWrapping="Wrap"
-                                   FontSize="13"/>
+                        <Grid>
+                            <!-- 文本消息 -->
+                            <TextBlock Text="{Binding Content}"
+                                       TextWrapping="Wrap"
+                                       FontSize="13"
+                                       Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}"/>
+                            
+                            <!-- 图片消息 -->
+                            <StackPanel Visibility="{Binding MessageType, Converter={StaticResource ImageMessageVisibilityConverter}}">
+                                <Image Source="{Binding ImageSource}"
+                                       MaxWidth="200"
+                                       MaxHeight="200"
+                                       Stretch="Uniform"
+                                       Margin="0,0,0,4"/>
+                                <TextBlock Text="{Binding FileName}"
+                                           FontSize="11"
+                                           Opacity="0.6"/>
+                            </StackPanel>
+                            
+                            <!-- 文件消息 -->
+                            <Border Background="{DynamicResource ControlFillColorTertiaryBrush}"
+                                    CornerRadius="8"
+                                    Padding="8"
+                                    Cursor="Hand"
+                                    Visibility="{Binding MessageType, Converter={StaticResource FileMessageVisibilityConverter}}"
+                                    MouseLeftButtonDown="FileMessage_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="Document24" FontSize="24" Margin="0,0,8,0"/>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding FileName}"
+                                                   FontSize="13"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   MaxWidth="150"/>
+                                        <TextBlock Text="{Binding FormattedFileSize}"
+                                                   FontSize="11"
+                                                   Opacity="0.6"/>
+                                    </StackPanel>
+                                    <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="18" Margin="8,0,0,0" Opacity="0.6"/>
+                                </StackPanel>
+                            </Border>
+                        </Grid>
                     </Border>
                 </StackPanel>
             </Grid>
@@ -95,19 +164,12 @@
                                    MaxWidth="120"/>
                     </StackPanel>
                     
-                    <!-- 未读数 -->
-                    <Border Grid.Column="2"
-                            Background="#0078D4"
-                            CornerRadius="10"
-                            MinWidth="20" Height="20"
-                            Padding="6,0"
-                            Visibility="{Binding UnreadCount, Converter={StaticResource CountToVisibilityConverter}}">
-                        <TextBlock Text="{Binding UnreadCount}"
-                                   Foreground="White"
-                                   FontSize="11"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"/>
-                    </Border>
+                    <!-- 未读数 InfoBadge -->
+                    <ui:InfoBadge Grid.Column="2"
+                                  Severity="Attention"
+                                  Value="{Binding UnreadCount}"
+                                  Visibility="{Binding UnreadCount, Converter={StaticResource CountToVisibilityConverter}}"
+                                  VerticalAlignment="Center"/>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -151,8 +213,10 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         
+                        <!-- 群聊图标 -->
                         <Border Grid.Column="0"
                                 Width="36" Height="36"
                                 CornerRadius="18"
@@ -161,11 +225,19 @@
                             <ui:SymbolIcon Symbol="PeopleTeam24" FontSize="16" Foreground="White"/>
                         </Border>
                         
+                        <!-- 群聊标签 -->
                         <TextBlock Grid.Column="1"
                                    Text="群聊"
                                    FontSize="13"
                                    FontWeight="Medium"
                                    VerticalAlignment="Center"/>
+                        
+                        <!-- 未读消息计数 InfoBadge -->
+                        <ui:InfoBadge Grid.Column="2"
+                                      Severity="Attention"
+                                      Value="{Binding GroupUnreadCount}"
+                                      Visibility="{Binding GroupUnreadCount, Converter={StaticResource CountToVisibilityConverter}}"
+                                      Margin="0,0,4,0"/>
                     </Grid>
                 </Border>
 

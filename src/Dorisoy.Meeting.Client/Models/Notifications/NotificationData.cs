@@ -179,6 +179,17 @@ public class ChatMessageData
     public long? FileSize { get; set; }
 
     /// <summary>
+    /// 文件数据 (Base64 编码)
+    /// 用于图片和文件传输
+    /// </summary>
+    public string? FileData { get; set; }
+
+    /// <summary>
+    /// 文件下载 URL（大文件分片上传后的下载链接）
+    /// </summary>
+    public string? DownloadUrl { get; set; }
+
+    /// <summary>
     /// 时间戳
     /// </summary>
     public DateTime? Timestamp { get; set; }
