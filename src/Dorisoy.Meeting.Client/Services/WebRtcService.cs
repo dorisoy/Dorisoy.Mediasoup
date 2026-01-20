@@ -318,14 +318,14 @@ public class WebRtcService : IWebRtcService
     #region 视频采集
 
     /// <summary>
-    /// 开始摄像头采集
+    /// 开始摄像头采集 - 异步执行，不阻塞 UI 线程
     /// </summary>
-    public Task StartCameraAsync(string? deviceId = null)
+    public async Task StartCameraAsync(string? deviceId = null)
     {
         if (_isVideoCaptureRunning)
         {
             _logger.LogWarning("Camera is already running");
-            return Task.CompletedTask;
+            return;
         }
 
         try
@@ -338,22 +338,26 @@ public class WebRtcService : IWebRtcService
 
             _logger.LogInformation("Starting camera with index {CameraIndex}", cameraIndex);
 
-            lock (_videoCaptureLock)
+            // 在后台线程初始化摄像头，避免阻塞 UI
+            await Task.Run(() =>
             {
-                _videoCapture = new VideoCapture(cameraIndex, VideoCaptureAPIs.DSHOW);
-
-                if (!_videoCapture.IsOpened())
+                lock (_videoCaptureLock)
                 {
-                    throw new Exception($"Failed to open camera {cameraIndex}");
+                    _videoCapture = new VideoCapture(cameraIndex, VideoCaptureAPIs.DSHOW);
+
+                    if (!_videoCapture.IsOpened())
+                    {
+                        throw new Exception($"Failed to open camera {cameraIndex}");
+                    }
+
+                    // 设置视频参数
+                    _videoCapture.Set(VideoCaptureProperties.FrameWidth, 640);
+                    _videoCapture.Set(VideoCaptureProperties.FrameHeight, 480);
+                    _videoCapture.Set(VideoCaptureProperties.Fps, 30);
+
+                    _isVideoCaptureRunning = true;
                 }
-
-                // 设置视频参数
-                _videoCapture.Set(VideoCaptureProperties.FrameWidth, 640);
-                _videoCapture.Set(VideoCaptureProperties.FrameHeight, 480);
-                _videoCapture.Set(VideoCaptureProperties.Fps, 30);
-
-                _isVideoCaptureRunning = true;
-            }
+            }).ConfigureAwait(false);
 
             // 启动视频采集线程
             _videoCaptureThread = new Thread(VideoCaptureLoop)
@@ -365,8 +369,6 @@ public class WebRtcService : IWebRtcService
 
             _logger.LogInformation("Camera started successfully");
             OnConnectionStateChanged?.Invoke("video_started");
-
-            return Task.CompletedTask;
         }
         catch (Exception ex)
         {
@@ -553,14 +555,14 @@ public class WebRtcService : IWebRtcService
     #region 音频采集
 
     /// <summary>
-    /// 开始麦克风采集
+    /// 开始麦克风采集 - 异步执行，不阻塞 UI 线程
     /// </summary>
-    public Task StartMicrophoneAsync(string? deviceId = null)
+    public async Task StartMicrophoneAsync(string? deviceId = null)
     {
         if (_isAudioCaptureRunning)
         {
             _logger.LogWarning("Microphone is already running");
-            return Task.CompletedTask;
+            return;
         }
 
         try
@@ -573,23 +575,25 @@ public class WebRtcService : IWebRtcService
 
             _logger.LogInformation("Starting microphone with index {MicIndex}", micIndex);
 
-            _waveIn = new WaveInEvent
+            // 在后台线程初始化麦克风，避免阻塞 UI
+            await Task.Run(() =>
             {
-                DeviceNumber = micIndex,
-                WaveFormat = new WaveFormat(48000, 16, 1), // 48kHz, 16-bit, mono
-                BufferMilliseconds = 20
-            };
+                _waveIn = new WaveInEvent
+                {
+                    DeviceNumber = micIndex,
+                    WaveFormat = new WaveFormat(48000, 16, 1), // 48kHz, 16-bit, mono
+                    BufferMilliseconds = 20
+                };
 
-            _waveIn.DataAvailable += OnAudioDataAvailable;
-            _waveIn.RecordingStopped += OnRecordingStopped;
+                _waveIn.DataAvailable += OnAudioDataAvailable;
+                _waveIn.RecordingStopped += OnRecordingStopped;
 
-            _waveIn.StartRecording();
-            _isAudioCaptureRunning = true;
+                _waveIn.StartRecording();
+                _isAudioCaptureRunning = true;
+            }).ConfigureAwait(false);
 
             _logger.LogInformation("Microphone started successfully");
             OnConnectionStateChanged?.Invoke("audio_started");
-
-            return Task.CompletedTask;
         }
         catch (Exception ex)
         {
