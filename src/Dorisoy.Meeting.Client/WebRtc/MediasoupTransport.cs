@@ -5,6 +5,7 @@ using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Dorisoy.Meeting.Client.Models;
 
 namespace Dorisoy.Meeting.Client.WebRtc;
@@ -617,6 +618,7 @@ public class MediasoupTransport : IDisposable
     /// 2. 忽略 NullReferenceException - SIPSorcery 会在 ICE 状态变化时自动重试 DTLS
     /// 3. DTLS 连接成功后会通过 onconnectionstatechange 回调通知
     /// </summary>
+    [DebuggerHidden] // 防止调试器在 SIPSorcery 已知异常处中断
     private async Task StartPeerConnectionAsync()
     {
         const int initialDelayMs = 100;  // 初始延迟

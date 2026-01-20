@@ -1220,8 +1220,8 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 发送图片消息
-    /// 小于 5MB 的图片将转换为 Base64 传输
+    /// 发送图片消息 - 通过文件上传服务传输 URL
+    /// 避免 Base64 超过 SignalR 消息大小限制 (32KB)
     /// </summary>
     public async void SendImageMessage(string filePath, string? receiverId)
     {
@@ -1231,18 +1231,44 @@ public partial class MainViewModel : ObservableObject
         {
             var fileInfo = new System.IO.FileInfo(filePath);
             
-            // 限制图片大小为 5MB
-            const long maxImageSize = 5 * 1024 * 1024;
+            // 限制图片大小为 50MB
+            const long maxImageSize = 50 * 1024 * 1024;
             if (fileInfo.Length > maxImageSize)
             {
-                StatusMessage = $"图片大小超过 5MB 限制，无法发送";
+                StatusMessage = $"图片大小超过 50MB 限制，无法发送";
                 _logger.LogWarning("图片太大: {Size} bytes, 限制: {Limit} bytes", fileInfo.Length, maxImageSize);
                 return;
             }
 
-            // 读取文件并转换为 Base64
-            var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
-            var base64Data = Convert.ToBase64String(fileBytes);
+            // 确保文件上传服务已初始化
+            EnsureFileUploadServiceInitialized();
+            if (_fileUploadService == null)
+            {
+                StatusMessage = "文件上传服务未初始化";
+                return;
+            }
+
+            StatusMessage = $"正在上传图片: {fileInfo.Name} (0%)";
+            _logger.LogInformation("开始上传图片: {FileName}, 大小: {Size} bytes", fileInfo.Name, fileInfo.Length);
+
+            // 上传图片到服务器
+            var result = await _fileUploadService.UploadFileAsync(filePath, progress =>
+            {
+                Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    StatusMessage = $"正在上传图片: {fileInfo.Name} ({progress:F0}%)";
+                });
+            });
+
+            if (!result.Success)
+            {
+                StatusMessage = $"图片上传失败: {result.Message}";
+                _logger.LogError("图片上传失败: {FileName}, 错误: {Error}", fileInfo.Name, result.Message);
+                return;
+            }
+
+            // 获取完整的下载 URL
+            var downloadUrl = _fileUploadService.GetFullDownloadUrl(result.DownloadUrl!);
 
             var message = new ChatMessage
             {
@@ -1254,6 +1280,7 @@ public partial class MainViewModel : ObservableObject
                 FileName = fileInfo.Name,
                 FilePath = filePath,
                 FileSize = fileInfo.Length,
+                DownloadUrl = downloadUrl,
                 IsFromSelf = true
             };
 
@@ -1263,12 +1290,12 @@ public partial class MainViewModel : ObservableObject
             bitmap.UriSource = new Uri(filePath);
             bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
             bitmap.EndInit();
-            bitmap.Freeze(); // 允许跨线程访问
+            bitmap.Freeze();
             message.ImageSource = bitmap;
 
             AddMessageToCollection(message);
 
-            // 发送包含 Base64 数据的消息
+            // 发送包含下载 URL 的消息（不再发送 Base64）
             await _signalRService.InvokeAsync("BroadcastMessage", new
             {
                 type = "chatMessage",
@@ -1282,13 +1309,13 @@ public partial class MainViewModel : ObservableObject
                     messageType = (int)message.MessageType,
                     fileName = message.FileName,
                     fileSize = message.FileSize,
-                    fileData = base64Data,
+                    downloadUrl = downloadUrl, // 使用 URL 而非 Base64
                     timestamp = message.Timestamp
                 }
             });
 
             StatusMessage = "图片已发送";
-            _logger.LogInformation("图片发送成功: {FileName}, 大小: {Size} bytes", fileInfo.Name, fileInfo.Length);
+            _logger.LogInformation("图片发送成功: {FileName}, 大小: {Size} bytes, URL: {Url}", fileInfo.Name, fileInfo.Length, downloadUrl);
         }
         catch (Exception ex)
         {
@@ -1298,9 +1325,8 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 发送文件消息
-    /// 小于 10MB 的文件使用 Base64 传输
-    /// 大于 10MB 的文件使用分片上传（最大支持 500MB）
+    /// 发送文件消息 - 通过文件上传服务传输 URL
+    /// 最大支持 500MB
     /// </summary>
     public async void SendFileMessage(string filePath, string? receiverId)
     {
@@ -1310,9 +1336,7 @@ public partial class MainViewModel : ObservableObject
         {
             var fileInfo = new System.IO.FileInfo(filePath);
             
-            // Base64 传输的阈值：10MB
-            const long base64Threshold = 10 * 1024 * 1024;
-            // 分片上传的最大限制：500MB
+            // 最大限制：500MB
             const long maxFileSize = 500L * 1024 * 1024;
 
             if (fileInfo.Length > maxFileSize)
@@ -1322,15 +1346,8 @@ public partial class MainViewModel : ObservableObject
                 return;
             }
 
-            // 大于 10MB 的文件使用分片上传
-            if (fileInfo.Length > base64Threshold)
-            {
-                await SendLargeFileAsync(filePath, fileInfo, receiverId);
-            }
-            else
-            {
-                await SendSmallFileAsync(filePath, fileInfo, receiverId);
-            }
+            // 统一使用文件上传服务（避免 SignalR 消息大小限制）
+            await SendFileViaUploadServiceAsync(filePath, fileInfo, receiverId);
         }
         catch (Exception ex)
         {
@@ -1340,57 +1357,9 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 发送小文件（使用 Base64）
+    /// 通过文件上传服务发送文件
     /// </summary>
-    private async Task SendSmallFileAsync(string filePath, System.IO.FileInfo fileInfo, string? receiverId)
-    {
-        // 读取文件并转换为 Base64
-        var fileBytes = await System.IO.File.ReadAllBytesAsync(filePath);
-        var base64Data = Convert.ToBase64String(fileBytes);
-
-        var message = new ChatMessage
-        {
-            SenderId = SelectedPeerIndex.ToString(),
-            SenderName = CurrentUserName,
-            ReceiverId = receiverId ?? "",
-            Content = $"[文件] {fileInfo.Name}",
-            MessageType = ChatMessageType.File,
-            FileName = fileInfo.Name,
-            FilePath = filePath,
-            FileSize = fileInfo.Length,
-            FileData = base64Data,
-            IsFromSelf = true
-        };
-
-        AddMessageToCollection(message);
-
-        // 发送包含 Base64 数据的消息
-        await _signalRService.InvokeAsync("BroadcastMessage", new
-        {
-            type = "chatMessage",
-            data = new
-            {
-                id = message.Id,
-                senderId = message.SenderId,
-                senderName = message.SenderName,
-                receiverId = message.ReceiverId,
-                content = message.Content,
-                messageType = (int)message.MessageType,
-                fileName = message.FileName,
-                fileSize = message.FileSize,
-                fileData = base64Data,
-                timestamp = message.Timestamp
-            }
-        });
-
-        StatusMessage = "文件已发送";
-        _logger.LogInformation("文件发送成功 (Base64): {FileName}, 大小: {Size} bytes", fileInfo.Name, fileInfo.Length);
-    }
-
-    /// <summary>
-    /// 发送大文件（使用分片上传）
-    /// </summary>
-    private async Task SendLargeFileAsync(string filePath, System.IO.FileInfo fileInfo, string? receiverId)
+    private async Task SendFileViaUploadServiceAsync(string filePath, System.IO.FileInfo fileInfo, string? receiverId)
     {
         // 确保 FileUploadService 已初始化
         EnsureFileUploadServiceInitialized();
@@ -1516,9 +1485,39 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 从 URL 异步加载图片
+    /// </summary>
+    private async Task LoadImageFromUrlAsync(ChatMessage message, string url)
+    {
+        try
+        {
+            using var httpClient = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(30) };
+            var imageBytes = await httpClient.GetByteArrayAsync(url).ConfigureAwait(false);
+
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                using var ms = new System.IO.MemoryStream(imageBytes);
+                var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                bitmap.BeginInit();
+                bitmap.StreamSource = ms;
+                bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                bitmap.EndInit();
+                bitmap.Freeze();
+                message.ImageSource = bitmap;
+            });
+
+            _logger.LogDebug("已从 URL 加载图片: {FileName}, 大小: {Size} bytes", message.FileName, imageBytes.Length);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "从 URL 加载图片失败: {Url}", url);
+        }
+    }
+
+    /// <summary>
     /// 处理接收到的消息
     /// </summary>
-    private void HandleChatMessage(object? data)
+    private async void HandleChatMessage(object? data)
     {
         if (data == null) return;
 
@@ -1568,28 +1567,45 @@ public partial class MainViewModel : ObservableObject
                 }
             }
 
-            // 如果是图片消息且包含 Base64 数据，加载图片
-            if (message.MessageType == ChatMessageType.Image && !string.IsNullOrEmpty(msgData.FileData))
+            // 如果是图片消息，优先从 URL 下载，否则使用 Base64
+            if (message.MessageType == ChatMessageType.Image)
             {
-                try
+                // 优先使用 DownloadUrl
+                if (!string.IsNullOrEmpty(msgData.DownloadUrl))
                 {
-                    var imageBytes = Convert.FromBase64String(msgData.FileData);
-                    Application.Current?.Dispatcher.Invoke(() =>
+                    try
                     {
-                        using var ms = new System.IO.MemoryStream(imageBytes);
-                        var bitmap = new System.Windows.Media.Imaging.BitmapImage();
-                        bitmap.BeginInit();
-                        bitmap.StreamSource = ms;
-                        bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
-                        bitmap.EndInit();
-                        bitmap.Freeze();
-                        message.ImageSource = bitmap;
-                    });
-                    _logger.LogDebug("已加载接收的图片: {FileName}, 大小: {Size} bytes", message.FileName, imageBytes.Length);
+                        _logger.LogDebug("从 URL 加载图片: {Url}", msgData.DownloadUrl);
+                        await LoadImageFromUrlAsync(message, msgData.DownloadUrl);
+                    }
+                    catch (Exception imgEx)
+                    {
+                        _logger.LogWarning(imgEx, "从 URL 加载图片失败: {Url}", msgData.DownloadUrl);
+                    }
                 }
-                catch (Exception imgEx)
+                // 宜后考虑 Base64（向后兼容）
+                else if (!string.IsNullOrEmpty(msgData.FileData))
                 {
-                    _logger.LogWarning(imgEx, "加载接收图片失败: {FileName}", message.FileName);
+                    try
+                    {
+                        var imageBytes = Convert.FromBase64String(msgData.FileData);
+                        Application.Current?.Dispatcher.Invoke(() =>
+                        {
+                            using var ms = new System.IO.MemoryStream(imageBytes);
+                            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                            bitmap.BeginInit();
+                            bitmap.StreamSource = ms;
+                            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                            bitmap.EndInit();
+                            bitmap.Freeze();
+                            message.ImageSource = bitmap;
+                        });
+                        _logger.LogDebug("已加载接收的图片 (Base64): {FileName}, 大小: {Size} bytes", message.FileName, imageBytes.Length);
+                    }
+                    catch (Exception imgEx)
+                    {
+                        _logger.LogWarning(imgEx, "加载接收图片失败: {FileName}", message.FileName);
+                    }
                 }
             }
 
