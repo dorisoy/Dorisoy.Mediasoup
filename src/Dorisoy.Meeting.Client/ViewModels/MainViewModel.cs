@@ -2579,6 +2579,9 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
+            _logger.LogDebug("收到远端视频帧: ConsumerId={ConsumerId}, Frame={Width}x{Height}",
+                consumerId, frame?.PixelWidth ?? 0, frame?.PixelHeight ?? 0);
+            
             // 查找或创建对应的远端视频项
             var existingVideo = RemoteVideos.FirstOrDefault(v => v.ConsumerId == consumerId);
             if (existingVideo != null)
@@ -2822,8 +2825,8 @@ public partial class MainViewModel : ObservableObject
         var notification = JsonSerializer.Deserialize<NewConsumerData>(json, JsonOptions);
         if (notification != null)
         {
-            _logger.LogInformation("New consumer: {ConsumerId}, Kind: {Kind}",
-                notification.ConsumerId, notification.Kind);
+            _logger.LogInformation("New consumer: ConsumerId={ConsumerId}, Kind={Kind}, ProducerPeerId={ProducerPeerId}",
+                notification.ConsumerId, notification.Kind, notification.ProducerPeerId);
 
             // 如果是视频 Consumer，立即在 UI 中添加占位符
             if (notification.Kind == "video")
@@ -2857,6 +2860,7 @@ public partial class MainViewModel : ObservableObject
             // 判断 recv transport 是否已完成 DTLS 连接
             // 如果已连接，立即恢复 Consumer
             // 如果未连接，将 Consumer ID 添加到待恢复列表，等待 DTLS 连接后再恢复
+            _logger.LogInformation("检查 Recv Transport DTLS 状态: IsConnected={IsConnected}", _webRtcService.IsRecvTransportDtlsConnected);
             if (_webRtcService.IsRecvTransportDtlsConnected)
             {
                 _logger.LogDebug("Recv transport already connected, resuming consumer immediately: {ConsumerId}", notification.ConsumerId);
@@ -3049,13 +3053,15 @@ public partial class MainViewModel : ObservableObject
     /// <summary>
     /// 处理广播聊天消息
     /// </summary>
-    private void HandleBroadcastChatMessage(BroadcastMessageData broadcastData)
+    private async void HandleBroadcastChatMessage(BroadcastMessageData broadcastData)
     {
         if (broadcastData.Data == null) return;
 
         try
         {
             var json = JsonSerializer.Serialize(broadcastData.Data);
+            _logger.LogInformation("广播聊天消息原始数据: {Json}", json);
+            
             var msgData = JsonSerializer.Deserialize<ChatMessageData>(json, JsonOptions);
             if (msgData == null) return;
 
@@ -3075,21 +3081,86 @@ public partial class MainViewModel : ObservableObject
                 MessageType = (ChatMessageType)(msgData.MessageType ?? 0),
                 FileName = msgData.FileName,
                 FileSize = msgData.FileSize ?? 0,
+                DownloadUrl = msgData.DownloadUrl,
+                FileData = msgData.FileData,
                 Timestamp = msgData.Timestamp ?? DateTime.Now,
                 IsFromSelf = false
             };
 
+            // 如果是图片消息，从 URL 下载图片
+            if (message.MessageType == ChatMessageType.Image)
+            {
+                _logger.LogInformation("图片消息解析: FileName={FileName}, DownloadUrl={DownloadUrl}, FileData长度={FileDataLen}",
+                    msgData.FileName, msgData.DownloadUrl, msgData.FileData?.Length ?? 0);
+                
+                if (!string.IsNullOrEmpty(msgData.DownloadUrl))
+                {
+                    try
+                    {
+                        _logger.LogDebug("广播消息: 从 URL 加载图片: {Url}", msgData.DownloadUrl);
+                        await LoadImageFromUrlAsync(message, msgData.DownloadUrl);
+                    }
+                    catch (Exception imgEx)
+                    {
+                        _logger.LogWarning(imgEx, "广播消息: 从 URL 加载图片失败: {Url}", msgData.DownloadUrl);
+                    }
+                }
+                else if (!string.IsNullOrEmpty(msgData.FileData))
+                {
+                    // Base64 向后兼容
+                    try
+                    {
+                        var imageBytes = Convert.FromBase64String(msgData.FileData);
+                        Application.Current?.Dispatcher.Invoke(() =>
+                        {
+                            using var ms = new System.IO.MemoryStream(imageBytes);
+                            var bitmap = new System.Windows.Media.Imaging.BitmapImage();
+                            bitmap.BeginInit();
+                            bitmap.StreamSource = ms;
+                            bitmap.CacheOption = System.Windows.Media.Imaging.BitmapCacheOption.OnLoad;
+                            bitmap.EndInit();
+                            bitmap.Freeze();
+                            message.ImageSource = bitmap;
+                        });
+                    }
+                    catch (Exception imgEx)
+                    {
+                        _logger.LogWarning(imgEx, "广播消息: 加载 Base64 图片失败");
+                    }
+                }
+            }
+
+            // 如果是文件消息，记录日志
+            if (message.MessageType == ChatMessageType.File)
+            {
+                _logger.LogDebug("广播消息: 接收到文件: {FileName}, 大小: {Size}, URL: {Url}",
+                    message.FileName, message.FileSize, msgData.DownloadUrl);
+            }
+
             AddMessageToCollection(message);
-            _logger.LogInformation("收到聊天消息: From={From}, Content={Content}", message.SenderName, message.Content);
+            _logger.LogInformation("收到广播聊天消息: From={From}, Type={Type}, Content={Content}", 
+                message.SenderName, message.MessageType, message.Content);
 
             // 如果不在当前聊天，增加未读数
-            if (!IsChatPanelVisible || (!IsGroupChatMode && SelectedChatUser?.PeerId != message.SenderId))
+            if (string.IsNullOrEmpty(message.ReceiverId))
             {
-                var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
-                if (user != null)
+                // 群聊消息 - 如果不在群聊模式或聊天面板不可见，增加群聊未读计数
+                if (!IsChatPanelVisible || !IsGroupChatMode)
                 {
-                    user.UnreadCount++;
-                    user.LastMessage = message;
+                    GroupUnreadCount++;
+                }
+            }
+            else
+            {
+                // 私聊消息
+                if (!IsChatPanelVisible || (!IsGroupChatMode && SelectedChatUser?.PeerId != message.SenderId))
+                {
+                    var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
+                    if (user != null)
+                    {
+                        user.UnreadCount++;
+                        user.LastMessage = message;
+                    }
                 }
             }
         }
