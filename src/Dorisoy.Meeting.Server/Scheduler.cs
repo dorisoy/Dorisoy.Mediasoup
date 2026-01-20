@@ -742,6 +742,24 @@ namespace Dorisoy.Meeting.Server
             }
         }
 
+        /// <summary>
+        /// 获取 Peer 信息（用于消息广播等）
+        /// </summary>
+        public async Task<Peer?> GetPeerAsync(string peerId, string connectionId)
+        {
+            await using (await _peersLock.ReadLockAsync())
+            {
+                if (!_peers.TryGetValue(peerId, out var peer))
+                {
+                    return null;
+                }
+
+                CheckConnection(peer, connectionId);
+
+                return peer;
+            }
+        }
+
         private static void CheckConnection(Peer peer, string connectionId)
         {
             if (peer.ConnectionId != connectionId)

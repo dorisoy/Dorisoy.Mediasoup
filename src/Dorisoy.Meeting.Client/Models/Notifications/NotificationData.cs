@@ -246,3 +246,29 @@ public class ScreenShareResponseData
     /// </summary>
     public bool Accepted { get; set; }
 }
+
+/// <summary>
+/// 广播消息数据（从服务器 BroadcastMessage 方法发送的消息）
+/// </summary>
+public class BroadcastMessageData
+{
+    /// <summary>
+    /// 消息类型：chatMessage, emojiReaction, screenShareRequest, screenShareResponse 等
+    /// </summary>
+    public string? Type { get; set; }
+
+    /// <summary>
+    /// 发送者 PeerId
+    /// </summary>
+    public string? SenderId { get; set; }
+
+    /// <summary>
+    /// 发送者显示名
+    /// </summary>
+    public string? SenderName { get; set; }
+
+    /// <summary>
+    /// 消息数据（根据 Type 不同，内容格式不同）
+    /// </summary>
+    public object? Data { get; set; }
+}

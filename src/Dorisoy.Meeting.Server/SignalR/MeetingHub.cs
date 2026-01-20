@@ -1120,6 +1120,53 @@ namespace Dorisoy.Meeting.Server
             return MeetingMessage.Failure("SendMessage 失败");
         }
 
+        /// <summary>
+        /// Broadcast message to other peers in room - 支持即时聊天、表情等
+        /// </summary>
+        public async Task<MeetingMessage> BroadcastMessage(BroadcastMessageRequest request)
+        {
+            try
+            {
+                // 获取当前用户信息
+                var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+                if (peer == null)
+                {
+                    return MeetingMessage.Failure("Peer not found");
+                }
+
+                // 获取房间内其他用户
+                var otherPeerIds = await _scheduler.GetOtherPeerIdsAsync(UserId, ConnectionId);
+
+                // 广播消息到房间内其他用户
+                SendNotification(
+                    otherPeerIds,
+                    "broadcastMessage",
+                    new BroadcastMessageNotification
+                    {
+                        Type = request.Type,
+                        SenderId = UserId,
+                        SenderName = peer.DisplayName,
+                        Data = request.Data
+                    }
+                );
+
+                _logger.LogDebug("BroadcastMessage: Type={Type}, SenderId={SenderId}, SenderName={SenderName}",
+                    request.Type, UserId, peer.DisplayName);
+
+                return MeetingMessage.Success("BroadcastMessage 成功");
+            }
+            catch (MeetingException ex)
+            {
+                _logger.LogError("BroadcastMessage 调用失败: {Message}", ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BroadcastMessage 调用失败.");
+            }
+
+            return MeetingMessage.Failure("BroadcastMessage 失败");
+        }
+
         #endregion
 
         #region PeerAppData

@@ -129,6 +129,32 @@ namespace Dorisoy.Meeting.Server
         public string Message { get; set; }
     }
 
+    /// <summary>
+    /// 广播消息通知 - 支持即时聊天
+    /// </summary>
+    public class BroadcastMessageNotification
+    {
+        /// <summary>
+        /// 消息类型（chatMessage, emojiReaction 等）
+        /// </summary>
+        public string Type { get; set; }
+
+        /// <summary>
+        /// 发送者 PeerId
+        /// </summary>
+        public string SenderId { get; set; }
+
+        /// <summary>
+        /// 发送者显示名
+        /// </summary>
+        public string SenderName { get; set; }
+
+        /// <summary>
+        /// 消息数据
+        /// </summary>
+        public object Data { get; set; }
+    }
+
     #endregion
 
     #region Consumer

@@ -1764,12 +1764,12 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
-        // 4. 加入会议
+        // 4. 加入会议 - 使用真实用户名
         var joinRequest = new
         {
             rtpCapabilities = _routerRtpCapabilities,
             sctpCapabilities = (object?)null,
-            displayName = $"Peer {SelectedPeerIndex}",
+            displayName = CurrentUserName,  // 使用用户输入的真实用户名
             sources = new[] { "audio:mic", "video:cam" },
             appData = new Dictionary<string, object>()
         };
@@ -2451,6 +2451,9 @@ public partial class MainViewModel : ObservableObject
                     case "screenShareResponse":
                         HandleScreenShareResponse(notification.Data);
                         break;
+                    case "broadcastMessage":
+                        HandleBroadcastMessage(notification.Data);
+                        break;
                     default:
                         _logger.LogDebug("Unhandled notification: {Type}", notification.Type);
                         break;
@@ -2727,6 +2730,194 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "处理屏幕共享响应失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理广播消息通知（从服务器 BroadcastMessage 方法发送的消息）
+    /// </summary>
+    private void HandleBroadcastMessage(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            _logger.LogDebug("收到广播消息: {Json}", json);
+            
+            var broadcastData = JsonSerializer.Deserialize<BroadcastMessageData>(json, JsonOptions);
+            if (broadcastData == null) return;
+
+            // 忽略自己发送的消息（SenderId 是服务器端的 UserId/PeerId）
+            // 注意：检查逻辑需要与实际的 Peer ID 匹配
+
+            // 根据消息类型分发处理
+            switch (broadcastData.Type)
+            {
+                case "chatMessage":
+                    HandleBroadcastChatMessage(broadcastData);
+                    break;
+                case "emojiReaction":
+                    HandleBroadcastEmojiReaction(broadcastData);
+                    break;
+                case "screenShareRequest":
+                    HandleBroadcastScreenShareRequest(broadcastData);
+                    break;
+                case "screenShareResponse":
+                    HandleBroadcastScreenShareResponse(broadcastData);
+                    break;
+                default:
+                    _logger.LogDebug("未处理的广播消息类型: {Type}", broadcastData.Type);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理广播消息失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理广播聊天消息
+    /// </summary>
+    private void HandleBroadcastChatMessage(BroadcastMessageData broadcastData)
+    {
+        if (broadcastData.Data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(broadcastData.Data);
+            var msgData = JsonSerializer.Deserialize<ChatMessageData>(json, JsonOptions);
+            if (msgData == null) return;
+
+            // 检查私聊消息：如果有 ReceiverId 且不是发给自己的，忽略
+            if (!string.IsNullOrEmpty(msgData.ReceiverId) && msgData.ReceiverId != CurrentUserName)
+            {
+                return;
+            }
+
+            var message = new ChatMessage
+            {
+                Id = msgData.Id ?? Guid.NewGuid().ToString(),
+                SenderId = broadcastData.SenderId ?? msgData.SenderId ?? "",
+                SenderName = broadcastData.SenderName ?? msgData.SenderName ?? "Unknown",
+                ReceiverId = msgData.ReceiverId ?? "",
+                Content = msgData.Content ?? "",
+                MessageType = (ChatMessageType)(msgData.MessageType ?? 0),
+                FileName = msgData.FileName,
+                FileSize = msgData.FileSize ?? 0,
+                Timestamp = msgData.Timestamp ?? DateTime.Now,
+                IsFromSelf = false
+            };
+
+            AddMessageToCollection(message);
+            _logger.LogInformation("收到聊天消息: From={From}, Content={Content}", message.SenderName, message.Content);
+
+            // 如果不在当前聊天，增加未读数
+            if (!IsChatPanelVisible || (!IsGroupChatMode && SelectedChatUser?.PeerId != message.SenderId))
+            {
+                var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
+                if (user != null)
+                {
+                    user.UnreadCount++;
+                    user.LastMessage = message;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理广播聊天消息失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理广播表情反应
+    /// </summary>
+    private void HandleBroadcastEmojiReaction(BroadcastMessageData broadcastData)
+    {
+        if (broadcastData.Data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(broadcastData.Data);
+            var reactionData = JsonSerializer.Deserialize<EmojiReactionData>(json, JsonOptions);
+            if (reactionData == null) return;
+
+            var reaction = new EmojiReaction
+            {
+                SenderId = broadcastData.SenderId ?? reactionData.SenderId ?? "",
+                SenderName = broadcastData.SenderName ?? reactionData.SenderName ?? "Unknown",
+                Emoji = reactionData.Emoji ?? "👍"
+            };
+
+            ShowEmojiReaction(reaction);
+            _logger.LogInformation("收到表情反应: From={From}, Emoji={Emoji}", reaction.SenderName, reaction.Emoji);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理广播表情反应失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理广播屏幕共享请求
+    /// </summary>
+    private void HandleBroadcastScreenShareRequest(BroadcastMessageData broadcastData)
+    {
+        if (broadcastData.Data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(broadcastData.Data);
+            var requestData = JsonSerializer.Deserialize<ScreenShareRequestData>(json, JsonOptions);
+            if (requestData == null) return;
+
+            // 使用 broadcastData 中的发送者信息
+            requestData.RequesterId ??= broadcastData.SenderId;
+            requestData.RequesterName ??= broadcastData.SenderName;
+
+            // 保存当前请求
+            _pendingScreenShareRequest = requestData;
+            PendingScreenShareRequesterName = requestData.RequesterName ?? "Unknown";
+            HasPendingScreenShareRequest = true;
+
+            StatusMessage = $"{requestData.RequesterName} 请求共享屏幕";
+            _logger.LogInformation("收到屏幕共享请求: {RequesterName}", requestData.RequesterName);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理广播屏幕共享请求失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理广播屏幕共享响应
+    /// </summary>
+    private void HandleBroadcastScreenShareResponse(BroadcastMessageData broadcastData)
+    {
+        if (broadcastData.Data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(broadcastData.Data);
+            var responseData = JsonSerializer.Deserialize<ScreenShareResponseData>(json, JsonOptions);
+            if (responseData == null) return;
+
+            if (responseData.Accepted)
+            {
+                _logger.LogInformation("屏幕共享被接受");
+                StatusMessage = "对方接受了屏幕共享";
+            }
+            else
+            {
+                _logger.LogInformation("屏幕共享被拒绝");
+                StatusMessage = "对方拒绝了屏幕共享";
+                IsScreenSharing = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理广播屏幕共享响应失败");
         }
     }
 
