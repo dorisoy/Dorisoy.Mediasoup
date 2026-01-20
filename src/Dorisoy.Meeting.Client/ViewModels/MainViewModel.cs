@@ -1025,23 +1025,31 @@ public partial class MainViewModel : ObservableObject
     }
     
     /// <summary>
-    /// 同步所有 UI 状态 - 强制触发所有相关属性的通知（在 UI 线程上执行）
+    /// 同步所有 UI 状态 - 强制触发所有相关属性的通知（强制在 UI 线程上执行）
     /// </summary>
     private void SyncAllStates()
     {
-        // 记录同步前的状态
         _logger.LogInformation("SyncAllStates 开始: IsJoinedRoom={IsJoinedRoom}, IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}, RoomId={RoomId}",
             IsJoinedRoom, IsCameraEnabled, IsMicrophoneEnabled, RoomId);
         
-        // 确保在 UI 线程上执行属性通知
-        if (Application.Current?.Dispatcher?.CheckAccess() == false)
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
         {
-            _logger.LogDebug("SyncAllStates: 不在 UI 线程，切换到 Dispatcher");
-            Application.Current.Dispatcher.Invoke(SyncAllStates);
+            _logger.LogWarning("SyncAllStates: Dispatcher 为 null");
+            DoSyncAllStates();
             return;
         }
         
-        _logger.LogDebug("SyncAllStates: 在 UI 线程上执行属性通知");
+        // 使用 BeginInvoke 异步执行，确保 UI 更新
+        dispatcher.BeginInvoke(new Action(DoSyncAllStates), System.Windows.Threading.DispatcherPriority.Send);
+    }
+    
+    /// <summary>
+    /// 实际执行所有状态同步
+    /// </summary>
+    private void DoSyncAllStates()
+    {
+        _logger.LogDebug("DoSyncAllStates 执行");
         
         OnPropertyChanged(nameof(RoomId));
         OnPropertyChanged(nameof(IsJoinedRoom));
@@ -1871,28 +1879,40 @@ public partial class MainViewModel : ObservableObject
     }
     
     /// <summary>
-    /// 同步房间状态到 UI - 确保所有相关属性都被正确通知（在 UI 线程上执行）
+    /// 同步房间状态到 UI - 确保所有相关属性都被正确通知（强制在 UI 线程上执行）
     /// </summary>
     /// <param name="roomId">房间ID</param>
     /// <param name="isJoined">是否已加入</param>
     private void SyncRoomState(string roomId, bool isJoined)
     {
-        // 确保在 UI 线程上执行
-        if (Application.Current?.Dispatcher?.CheckAccess() == false)
+        _logger.LogInformation("同步房间状态: RoomId={RoomId}, IsJoined={IsJoined}, CurrentIsJoinedRoom={CurrentIsJoinedRoom}", 
+            roomId, isJoined, IsJoinedRoom);
+        
+        // 强制通过 Dispatcher 执行 UI 更新
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
         {
-            Application.Current.Dispatcher.Invoke(() => SyncRoomState(roomId, isJoined));
+            _logger.LogWarning("Dispatcher 为 null，直接更新状态");
+            DoSyncRoomState(roomId, isJoined);
             return;
         }
         
-        _logger.LogInformation("同步房间状态: RoomId={RoomId}, IsJoined={IsJoined}, CurrentIsJoinedRoom={CurrentIsJoinedRoom}", 
-            roomId, isJoined, IsJoinedRoom);
-            
+        // 使用 BeginInvoke 异步执行，确保 UI 更新在消息循环中被正确处理
+        dispatcher.BeginInvoke(new Action(() => DoSyncRoomState(roomId, isJoined)), System.Windows.Threading.DispatcherPriority.Send);
+    }
+    
+    /// <summary>
+    /// 实际执行房间状态同步
+    /// </summary>
+    private void DoSyncRoomState(string roomId, bool isJoined)
+    {
+        _logger.LogDebug("DoSyncRoomState 执行: RoomId={RoomId}, IsJoined={IsJoined}", roomId, isJoined);
+        
         // 确保 RoomId 被更新（即使值相同也触发通知）
         var oldRoomId = RoomId;
         RoomId = roomId;
         if (oldRoomId == roomId)
         {
-            // 如果值相同，手动触发通知
             OnPropertyChanged(nameof(RoomId));
         }
         
@@ -1901,6 +1921,7 @@ public partial class MainViewModel : ObservableObject
         IsInLobby = !isJoined;
         
         // 手动触发所有相关属性的通知，确保 UI 更新
+        OnPropertyChanged(nameof(IsJoinedRoom));
         OnPropertyChanged(nameof(OnlinePeerCount));
         OnPropertyChanged(nameof(CanJoinRoom));
         OnPropertyChanged(nameof(CanToggleMedia));
@@ -2150,6 +2171,8 @@ public partial class MainViewModel : ObservableObject
     /// <param name="mic">麦克风状态，null 表示不更新</param>
     private void UpdateMediaStateOnUiThread(bool? camera, bool? mic)
     {
+        _logger.LogDebug("UpdateMediaStateOnUiThread: camera={Camera}, mic={Mic}", camera, mic);
+        
         void DoUpdate()
         {
             if (camera.HasValue)
@@ -2157,23 +2180,27 @@ public partial class MainViewModel : ObservableObject
                 IsCameraEnabled = camera.Value;
                 OnPropertyChanged(nameof(IsCameraEnabled));
                 OnPropertyChanged(nameof(CanToggleMedia));
+                _logger.LogDebug("IsCameraEnabled 已更新为 {Value}", camera.Value);
             }
             if (mic.HasValue)
             {
                 IsMicrophoneEnabled = mic.Value;
                 OnPropertyChanged(nameof(IsMicrophoneEnabled));
                 OnPropertyChanged(nameof(CanToggleMedia));
+                _logger.LogDebug("IsMicrophoneEnabled 已更新为 {Value}", mic.Value);
             }
         }
         
-        if (Application.Current?.Dispatcher?.CheckAccess() == false)
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
         {
-            Application.Current.Dispatcher.Invoke(DoUpdate);
-        }
-        else
-        {
+            _logger.LogWarning("UpdateMediaStateOnUiThread: Dispatcher 为 null");
             DoUpdate();
+            return;
         }
+        
+        // 使用 BeginInvoke 异步执行，确保 UI 更新
+        dispatcher.BeginInvoke(new Action(DoUpdate), System.Windows.Threading.DispatcherPriority.Send);
     }
 
     /// <summary>
