@@ -6,9 +6,9 @@
         xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
         mc:Ignorable="d"
         Title="系统设置" 
-        Height="700" 
+        Height="600" 
         Width="500"
-        MinHeight="600"
+        MinHeight="500"
         MinWidth="450"
         WindowStartupLocation="CenterOwner"
         ExtendsContentIntoTitleBar="True"
@@ -51,49 +51,7 @@
                         <TextBlock Text="服务器地址" Margin="0,0,0,6" Opacity="0.7" />
                         <ui:TextBox Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}"
                                     PlaceholderText="输入服务器地址..."
-                                    IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBoolConverter}}" />
-
-                        <TextBlock Text="选择用户" Margin="0,12,0,6" Opacity="0.7" />
-                        <ComboBox SelectedIndex="{Binding SelectedPeerIndex}"
-                                  IsEnabled="{Binding IsConnected, Converter={StaticResource InverseBoolConverter}}"
-                                  HorizontalAlignment="Stretch">
-                            <ComboBoxItem>Peer 0</ComboBoxItem>
-                            <ComboBoxItem>Peer 1</ComboBoxItem>
-                            <ComboBoxItem>Peer 2</ComboBoxItem>
-                            <ComboBoxItem>Peer 3</ComboBoxItem>
-                            <ComboBoxItem>Peer 4</ComboBoxItem>
-                            <ComboBoxItem>Peer 5</ComboBoxItem>
-                            <ComboBoxItem>Peer 6</ComboBoxItem>
-                            <ComboBoxItem>Peer 7</ComboBoxItem>
-                            <ComboBoxItem>Peer 8 (管理员)</ComboBoxItem>
-                            <ComboBoxItem>Peer 9 (管理员)</ComboBoxItem>
-                        </ComboBox>
-                    </StackPanel>
-                </ui:Card>
-
-                <!-- 房间设置 -->
-                <ui:Card Margin="0,0,0,12" IsEnabled="{Binding IsConnected}">
-                    <StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                            <ui:SymbolIcon Symbol="Door20" Margin="0,0,8,0" />
-                            <TextBlock Text="房间设置" FontWeight="SemiBold" />
-                        </StackPanel>
-                        
-                        <TextBlock Text="选择房间" Margin="0,0,0,6" Opacity="0.7" />
-                        <ComboBox SelectedIndex="{Binding SelectedRoomIndex}"
-                                  IsEnabled="{Binding IsJoinedRoom, Converter={StaticResource InverseBoolConverter}}"
-                                  HorizontalAlignment="Stretch">
-                            <ComboBoxItem>Room 0</ComboBoxItem>
-                            <ComboBoxItem>Room 1</ComboBoxItem>
-                            <ComboBoxItem>Room 2</ComboBoxItem>
-                            <ComboBoxItem>Room 3</ComboBoxItem>
-                            <ComboBoxItem>Room 4</ComboBoxItem>
-                            <ComboBoxItem>Room 5</ComboBoxItem>
-                            <ComboBoxItem>Room 6</ComboBoxItem>
-                            <ComboBoxItem>Room 7</ComboBoxItem>
-                            <ComboBoxItem>Room 8</ComboBoxItem>
-                            <ComboBoxItem>Room 9</ComboBoxItem>
-                        </ComboBox>
+                                    IsReadOnly="True" />
                     </StackPanel>
                 </ui:Card>
 
