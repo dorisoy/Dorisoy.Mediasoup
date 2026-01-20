@@ -551,8 +551,13 @@ public class MediasoupTransport : IDisposable
             // 关键：从 SIPSorcery track 获取实际使用的 SSRC，确保与 Producer 注册使用的 SSRC 一致
             UpdateSsrcFromTracks();
 
+            // 等待 ICE 候选者处理完成（给 SIPSorcery 内部一些时间初始化）
+            await Task.Delay(100);
+
             // 启动 PeerConnection - 开始 DTLS 握手
-            await _peerConnection.Start();
+            // 注意：SIPSorcery 的 Start() 可能在某些情况下抛出 NullReferenceException
+            // 这通常是因为 DTLS 初始化未完成，我们添加重试机制
+            await StartPeerConnectionWithRetryAsync();
             _peerConnectionStarted = true;
 
             var rtpChannel = _peerConnection.GetRtpChannel();
@@ -568,6 +573,40 @@ public class MediasoupTransport : IDisposable
         {
             _logger.LogError(ex, "Failed to start Send Transport");
             throw;
+        }
+    }
+
+    /// <summary>
+    /// 带重试的 PeerConnection 启动
+    /// </summary>
+    private async Task StartPeerConnectionWithRetryAsync()
+    {
+        const int maxRetries = 3;
+        const int retryDelayMs = 200;
+
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
+        {
+            try
+            {
+                _logger.LogDebug("Starting PeerConnection (attempt {Attempt}/{MaxRetries})...", attempt, maxRetries);
+                await _peerConnection!.Start();
+                _logger.LogDebug("PeerConnection started successfully");
+                return;
+            }
+            catch (NullReferenceException ex)
+            {
+                _logger.LogWarning("PeerConnection.Start() failed with NullReferenceException (attempt {Attempt}/{MaxRetries}): {Message}", 
+                    attempt, maxRetries, ex.Message);
+
+                if (attempt == maxRetries)
+                {
+                    _logger.LogError("PeerConnection.Start() failed after {MaxRetries} attempts", maxRetries);
+                    throw;
+                }
+
+                // 等待一段时间后重试
+                await Task.Delay(retryDelayMs * attempt);
+            }
         }
     }
 
@@ -924,7 +963,11 @@ public class MediasoupTransport : IDisposable
             // 启动 PeerConnection - 确保只启动一次
             if (!_peerConnectionStarted)
             {
-                await _peerConnection.Start();
+                // 等待 ICE 候选者处理完成
+                await Task.Delay(100);
+                
+                // 使用重试机制启动 PeerConnection
+                await StartPeerConnectionWithRetryAsync();
                 _peerConnectionStarted = true;
                 
                 // 打印 RTP 通道信息

@@ -165,7 +165,11 @@ public class SignalRService : ISignalRService
                 ? await _connection.InvokeAsync<JsonElement>(methodName)
                 : await _connection.InvokeAsync<JsonElement>(methodName, arg);
 
-            var response = JsonSerializer.Deserialize<MeetingMessage<T>>(result.GetRawText(), JsonOptions);
+            // 详细日志：输出原始 JSON 响应
+            var rawJson = result.GetRawText();
+            _logger.LogDebug("{MethodName} 原始响应: {RawJson}", methodName, rawJson.Length > 500 ? rawJson[..500] + "..." : rawJson);
+            
+            var response = JsonSerializer.Deserialize<MeetingMessage<T>>(rawJson, JsonOptions);
             
             if (response == null)
             {
@@ -173,7 +177,10 @@ public class SignalRService : ISignalRService
                 return new MeetingMessage<T> { Code = 500, Message = "Deserialization failed" };
             }
 
-            _logger.LogDebug("{MethodName} completed with code: {Code}", methodName, response.Code);
+            // 详细日志：输出反序列化后的数据
+            _logger.LogDebug("{MethodName} 反序列化成功: Code={Code}, IsSuccess={IsSuccess}, Data={Data}", 
+                methodName, response.Code, response.IsSuccess, response.Data != null ? "not null" : "null");
+            
             return response;
         }
         catch (Exception ex)
