@@ -41,6 +41,7 @@ namespace Microsoft.Extensions.DependencyInjection
             services.AddSingleton(meetingServerOptions);
             services.AddSingleton<Scheduler>();
             services.AddSingleton<BadDisconnectSocketService>();
+            services.AddSingleton<ServerMessageChunker>();
             return services;
         }
 

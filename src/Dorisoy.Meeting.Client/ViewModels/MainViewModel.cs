@@ -387,6 +387,9 @@ public partial class MainViewModel : ObservableObject
         // 订阅重连事件
         _signalRService.OnReconnecting += OnSignalRReconnecting;
         _signalRService.OnReconnected += OnSignalRReconnected;
+        
+        // 订阅分块消息重组完成事件
+        _signalRService.OnChunkedMessageReceived += OnChunkedMessageReceived;
 
         // 初始化视频质量配置
         _webRtcService.VideoQuality = SelectedVideoQuality;
@@ -414,6 +417,7 @@ public partial class MainViewModel : ObservableObject
             _signalRService.OnDisconnected -= OnSignalRDisconnected;
             _signalRService.OnReconnecting -= OnSignalRReconnecting;
             _signalRService.OnReconnected -= OnSignalRReconnected;
+            _signalRService.OnChunkedMessageReceived -= OnChunkedMessageReceived;
 
             _webRtcService.OnLocalVideoFrame -= OnLocalVideoFrameReceived;
             _webRtcService.OnRemoteVideoFrame -= OnRemoteVideoFrameReceived;
@@ -2634,6 +2638,43 @@ public partial class MainViewModel : ObservableObject
                 _logger.LogError(ex, "Failed to resume consumer {ConsumerId}", consumerId);
             }
         }
+    }
+
+    /// <summary>
+    /// 处理分块消息重组完成事件
+    /// 当服务器将大消息分块发送到客户端并重组后触发
+    /// </summary>
+    private void OnChunkedMessageReceived(string type, string json)
+    {
+        _logger.LogDebug("分块消息重组完成: Type={Type}", type);
+        
+        System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+        {
+            try
+            {
+                // 根据类型处理重组后的消息
+                switch (type)
+                {
+                    case "chatMessage":
+                        // 解析聊天消息并处理
+                        var chatData = JsonSerializer.Deserialize<object>(json, JsonOptions);
+                        HandleChatMessage(chatData);
+                        break;
+                    case "broadcastMessage":
+                        // 解析广播消息并处理
+                        var broadcastData = JsonSerializer.Deserialize<object>(json, JsonOptions);
+                        HandleBroadcastMessage(broadcastData);
+                        break;
+                    default:
+                        _logger.LogDebug("未处理的分块消息类型: {Type}", type);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "处理分块消息失败: Type={Type}", type);
+            }
+        });
     }
 
     /// <summary>

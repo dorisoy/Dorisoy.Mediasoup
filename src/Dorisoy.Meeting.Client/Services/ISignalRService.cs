@@ -44,6 +44,12 @@ public interface ISignalRService : IAsyncDisposable
     event Action? OnReconnected;
 
     /// <summary>
+    /// 分块消息重组完成事件
+    /// 参数: (type: 消息类型, json: 重组后的完整 JSON)
+    /// </summary>
+    event Action<string, string>? OnChunkedMessageReceived;
+
+    /// <summary>
     /// 连接到服务器
     /// </summary>
     /// <param name="serverUrl">服务器地址</param>

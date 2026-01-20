@@ -23,6 +23,8 @@ namespace Dorisoy.Meeting.Server
         private readonly Scheduler _scheduler;
 
         private readonly MeetingServerOptions _meetingServerOptions;
+        
+        private readonly ServerMessageChunker _messageChunker;
 
         private string UserId => Context.UserIdentifier!;
 
@@ -33,7 +35,8 @@ namespace Dorisoy.Meeting.Server
             IHubContext<MeetingHub, IHubClient> hubContext,
             BadDisconnectSocketService badDisconnectSocketService,
             Scheduler scheduler,
-            MeetingServerOptions meetingServerOptions
+            MeetingServerOptions meetingServerOptions,
+            ServerMessageChunker messageChunker
         )
         {
             _logger = logger;
@@ -41,6 +44,7 @@ namespace Dorisoy.Meeting.Server
             _badDisconnectSocketService = badDisconnectSocketService;
             _scheduler = scheduler;
             _meetingServerOptions = meetingServerOptions;
+            _messageChunker = messageChunker;
         }
 
         public override async Task OnConnectedAsync()
@@ -1165,6 +1169,49 @@ namespace Dorisoy.Meeting.Server
             }
 
             return MeetingMessage.Failure("BroadcastMessage 失败");
+        }
+
+        /// <summary>
+        /// 接收客户端发送的分块消息
+        /// 当所有分块接收完成后，重组并广播到房间内其他用户
+        /// </summary>
+        public async Task<MeetingMessage> ReceiveChunk(ReceiveChunkRequest request)
+        {
+            try
+            {
+                // 接收分块并尝试重组
+                var assembledJson = _messageChunker.ReceiveChunk(request.Chunk);
+                
+                if (assembledJson != null)
+                {
+                    // 重组完成，根据原始方法名处理
+                    _logger.LogInformation("分块消息重组完成: MethodName={MethodName}, MessageId={MessageId}",
+                        request.MethodName, request.Chunk.MessageId);
+                    
+                    // 如果是 BroadcastMessage，解析并广播
+                    if (request.MethodName == "BroadcastMessage")
+                    {
+                        var broadcastRequest = System.Text.Json.JsonSerializer.Deserialize<BroadcastMessageRequest>(
+                            assembledJson, 
+                            new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                        
+                        if (broadcastRequest != null)
+                        {
+                            return await BroadcastMessage(broadcastRequest);
+                        }
+                    }
+                    
+                    return MeetingMessage.Success("分块消息处理完成");
+                }
+                
+                // 分块接收成功，等待更多分块
+                return MeetingMessage.Success($"分块接收成功: {request.Chunk.ChunkIndex + 1}/{request.Chunk.TotalChunks}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "ReceiveChunk 处理失败: MessageId={MessageId}", request.Chunk?.MessageId);
+                return MeetingMessage.Failure($"ReceiveChunk 失败: {ex.Message}");
+            }
         }
 
         #endregion
