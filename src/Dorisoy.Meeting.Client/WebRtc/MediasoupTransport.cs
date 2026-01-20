@@ -1926,7 +1926,12 @@ public class MediasoupTransport : IDisposable
             _remoteConsumers.Clear();
         }
 
+        // 重置所有状态标志
         _connected = false;
+        _peerConnectionStarted = false;
+        _hasAddedSendVideoTrack = false;
+        _hasAddedSendAudioTrack = false;
+        
         _logger.LogInformation("Transport {TransportId} closed", TransportId);
     }
 

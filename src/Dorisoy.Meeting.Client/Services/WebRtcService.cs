@@ -815,6 +815,21 @@ public class WebRtcService : IWebRtcService
     {
         _logger.LogInformation("Creating send transport: {TransportId}", transportId);
 
+        // 先清理旧的 Transport（如果存在）
+        if (_sendTransport != null)
+        {
+            _logger.LogWarning("清理旧的 send transport: {OldTransportId}", _sendTransport.TransportId);
+            try
+            {
+                _sendTransport.Close();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "清理旧 send transport 失败");
+            }
+            _sendTransport = null;
+        }
+
         var iceParams = ParseIceParameters(iceParameters);
         var iceCands = ParseIceCandidates(iceCandidates);
         var dtlsParams = ParseDtlsParameters(dtlsParameters);
@@ -854,6 +869,30 @@ public class WebRtcService : IWebRtcService
     public void CreateRecvTransport(string transportId, object iceParameters, object iceCandidates, object dtlsParameters)
     {
         _logger.LogInformation("Creating recv transport: {TransportId}", transportId);
+
+        // 先清理旧的 Transport（如果存在）
+        if (_recvTransport != null)
+        {
+            _logger.LogWarning("清理旧的 recv transport: {OldTransportId}", _recvTransport.TransportId);
+            try
+            {
+                _recvTransport.Close();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "清理旧 recv transport 失败");
+            }
+            _recvTransport = null;
+        }
+        
+        // 清理旧的 RTP 解码器
+        if (_rtpDecoder != null)
+        {
+            _rtpDecoder.OnDecodedVideoFrame -= HandleRemoteVideoFrame;
+            _rtpDecoder.OnDecodedAudioSamples -= HandleDecodedAudioSamples;
+            _rtpDecoder.Dispose();
+            _rtpDecoder = null;
+        }
 
         var iceParams = ParseIceParameters(iceParameters);
         var iceCands = ParseIceCandidates(iceCandidates);
