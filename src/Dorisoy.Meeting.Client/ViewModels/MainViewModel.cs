@@ -1570,7 +1570,7 @@ public partial class MainViewModel : ObservableObject
                     _videoProducerId = null;
                 }
 
-                IsCameraEnabled = false;
+                UpdateMediaStateOnUiThread(camera: false, mic: null);
                 LocalVideoFrame = null;
                 StatusMessage = "摄像头已关闭";
                 _logger.LogInformation("摄像头已关闭");
@@ -1580,7 +1580,7 @@ public partial class MainViewModel : ObservableObject
                 // 启动摄像头（使用选中的设备）
                 var deviceId = SelectedCamera?.DeviceId;
                 await _webRtcService.StartCameraAsync(deviceId);
-                IsCameraEnabled = true;
+                UpdateMediaStateOnUiThread(camera: true, mic: null);
                 StatusMessage = "摄像头采集中...";
                 _logger.LogInformation("摄像头已开启");
 
@@ -1618,7 +1618,7 @@ public partial class MainViewModel : ObservableObject
                     _audioProducerId = null;
                 }
 
-                IsMicrophoneEnabled = false;
+                UpdateMediaStateOnUiThread(camera: null, mic: false);
                 StatusMessage = "麦克风已关闭";
                 _logger.LogInformation("麦克风已关闭");
             }
@@ -1627,7 +1627,7 @@ public partial class MainViewModel : ObservableObject
                 // 启动麦克风（使用选中的设备）
                 var deviceId = SelectedMicrophone?.DeviceId;
                 await _webRtcService.StartMicrophoneAsync(deviceId);
-                IsMicrophoneEnabled = true;
+                UpdateMediaStateOnUiThread(camera: null, mic: true);
                 StatusMessage = "麦克风已开启";
                 _logger.LogInformation("麦克风已开启");
 
@@ -2095,7 +2095,9 @@ public partial class MainViewModel : ObservableObject
             var micDeviceId = SelectedMicrophone?.DeviceId;
 
             await _webRtcService.StartCameraAsync(cameraDeviceId);
-            IsCameraEnabled = true;
+            
+            // 确保在 UI 线程上更新状态
+            UpdateMediaStateOnUiThread(camera: true, mic: null);
             StatusMessage = "摄像头采集中...";
 
             // 调用 Produce 推送视频
@@ -2105,7 +2107,9 @@ public partial class MainViewModel : ObservableObject
             }
 
             await _webRtcService.StartMicrophoneAsync(micDeviceId);
-            IsMicrophoneEnabled = true;
+            
+            // 确保在 UI 线程上更新状态
+            UpdateMediaStateOnUiThread(camera: null, mic: true);
 
             // 调用 Produce 推送音频
             if (!string.IsNullOrEmpty(_sendTransportId))
@@ -2113,11 +2117,45 @@ public partial class MainViewModel : ObservableObject
                 await ProduceAudioAsync();
             }
 
-            _logger.LogInformation("Media enabled");
+            _logger.LogInformation("Media enabled: IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}", 
+                IsCameraEnabled, IsMicrophoneEnabled);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to enable media");
+        }
+    }
+    
+    /// <summary>
+    /// 在 UI 线程上更新媒体状态
+    /// </summary>
+    /// <param name="camera">摄像头状态，null 表示不更新</param>
+    /// <param name="mic">麦克风状态，null 表示不更新</param>
+    private void UpdateMediaStateOnUiThread(bool? camera, bool? mic)
+    {
+        void DoUpdate()
+        {
+            if (camera.HasValue)
+            {
+                IsCameraEnabled = camera.Value;
+                OnPropertyChanged(nameof(IsCameraEnabled));
+                OnPropertyChanged(nameof(CanToggleMedia));
+            }
+            if (mic.HasValue)
+            {
+                IsMicrophoneEnabled = mic.Value;
+                OnPropertyChanged(nameof(IsMicrophoneEnabled));
+                OnPropertyChanged(nameof(CanToggleMedia));
+            }
+        }
+        
+        if (Application.Current?.Dispatcher?.CheckAccess() == false)
+        {
+            Application.Current.Dispatcher.Invoke(DoUpdate);
+        }
+        else
+        {
+            DoUpdate();
         }
     }
 
