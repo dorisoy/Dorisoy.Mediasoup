@@ -44,6 +44,10 @@ public class MediasoupTransport : IDisposable
     private RTCIceConnectionState _iceConnectionState = RTCIceConnectionState.@new;
     private readonly SemaphoreSlim _iceReadySignal = new(0, 1);
     
+    // DTLS 连接状态 - 用于等待 DTLS 握手完成
+    private RTCPeerConnectionState _dtlsConnectionState = RTCPeerConnectionState.@new;
+    private readonly SemaphoreSlim _dtlsConnectedSignal = new(0, 1);
+    
     // SDP 协商延迟处理
     private System.Threading.Timer? _negotiateTimer;
     private readonly object _negotiateLock = new();
@@ -167,12 +171,22 @@ public class MediasoupTransport : IDisposable
         _peerConnection.onconnectionstatechange += (state) =>
         {
             _logger.LogDebug("Transport {TransportId} connection state: {State}", TransportId, state);
+            _dtlsConnectionState = state;
             OnConnectionStateChanged?.Invoke(state.ToString());
 
             if (state == RTCPeerConnectionState.connected)
             {
                 _connected = true;
-                // 输出连接成功时的详细信息
+                // DTLS 连接成功，释放信号
+                try
+                {
+                    if (_dtlsConnectedSignal.CurrentCount == 0)
+                    {
+                        _dtlsConnectedSignal.Release();
+                    }
+                }
+                catch { /* 忽略多次释放 */ }
+                
                 _logger.LogInformation("Transport {TransportId} DTLS connected, AcceptRtpFromAny={AcceptRtpFromAny}", 
                     TransportId, _peerConnection.AcceptRtpFromAny);
             }
@@ -605,22 +619,22 @@ public class MediasoupTransport : IDisposable
     /// 1. 首先等待 ICE 连接状态就绪（checking/connected）
     /// 2. 然后使用延迟重试机制启动 PeerConnection
     /// 3. 在每次重试前增加延迟，给 DTLS 握手更多时间
+    /// 4. 启动后等待 DTLS 连接完成
     /// </summary>
     private async Task StartPeerConnectionWithRetryAsync()
     {
-        const int maxRetries = 8;  // 进一步增加重试次数
-        const int baseDelayMs = 500;  // 增加基础延迟到 500ms
-        const int iceWaitTimeoutMs = 5000;  // ICE 等待超时 5 秒
+        const int maxRetries = 10;  // 增加重试次数
+        const int baseDelayMs = 300;  // 基础延迟
+        const int iceWaitTimeoutMs = 8000;  // ICE 等待超时
+        const int dtlsWaitTimeoutMs = 10000;  // DTLS 连接等待超时
 
         // 步骤 1：等待 ICE 连接状态就绪
         _logger.LogDebug("Waiting for ICE connection to be ready...");
         try
         {
-            // 如果 ICE 已经处于就绪状态，跳过等待
             if (_iceConnectionState != RTCIceConnectionState.checking && 
                 _iceConnectionState != RTCIceConnectionState.connected)
             {
-                // 等待 ICE ready 信号或超时
                 var iceReady = await _iceReadySignal.WaitAsync(iceWaitTimeoutMs);
                 if (!iceReady)
                 {
@@ -641,66 +655,93 @@ public class MediasoupTransport : IDisposable
             _logger.LogWarning("Error waiting for ICE ready: {Message}", ex.Message);
         }
 
-        // 步骤 2：给 DTLS 初始化一个初始延迟
-        _logger.LogDebug("Waiting for DTLS initialization...");
-        await Task.Delay(baseDelayMs);
-
-        // 步骤 3：使用重试机制启动 PeerConnection
+        // 步骤 2：使用重试机制启动 PeerConnection
+        bool startedSuccessfully = false;
+        
         for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
             try
             {
-                _logger.LogDebug("Starting PeerConnection (attempt {Attempt}/{MaxRetries})...", attempt, maxRetries);
+                // 在每次尝试前等待，给 SIPSorcery 内部状态时间初始化
+                int delayMs = baseDelayMs * attempt;
+                _logger.LogDebug("Waiting {DelayMs}ms before PeerConnection.Start() (attempt {Attempt}/{MaxRetries})...", 
+                    delayMs, attempt, maxRetries);
+                await Task.Delay(delayMs);
                 
-                // 在重试时增加额外延迟
-                if (attempt > 1)
-                {
-                    int delayMs = baseDelayMs * attempt;
-                    _logger.LogDebug("Waiting {DelayMs}ms before retry...", delayMs);
-                    await Task.Delay(delayMs);
-                }
+                _logger.LogDebug("Starting PeerConnection (attempt {Attempt}/{MaxRetries}), ICE={IceState}, DTLS={DtlsState}...", 
+                    attempt, maxRetries, _iceConnectionState, _dtlsConnectionState);
                 
                 await _peerConnection!.Start();
-                _logger.LogInformation("PeerConnection started successfully on attempt {Attempt}", attempt);
-                return;
+                _logger.LogInformation("PeerConnection.Start() succeeded on attempt {Attempt}", attempt);
+                startedSuccessfully = true;
+                break;
             }
             catch (NullReferenceException ex)
             {
-                // 这通常是 DTLS 初始化未完成导致的，特别是在 DoDtlsHandshake 中获取远程证书时
-                _logger.LogWarning("PeerConnection.Start() failed with NullReferenceException (attempt {Attempt}/{MaxRetries}): {Message}", 
+                // 这通常是 DTLS 初始化未完成导致的
+                _logger.LogWarning("PeerConnection.Start() NullReferenceException (attempt {Attempt}/{MaxRetries}): {Message}", 
                     attempt, maxRetries, ex.Message);
 
                 if (attempt == maxRetries)
                 {
-                    _logger.LogError("PeerConnection.Start() failed after {MaxRetries} attempts. DTLS handshake could not complete.", maxRetries);
-                    // 最后一次尝试：等待更长时间后再试一次
-                    _logger.LogInformation("Final attempt: waiting 2 seconds for DTLS to complete...");
-                    await Task.Delay(2000);
+                    // 最后一次尝试：等待更长时间
+                    _logger.LogInformation("Final attempt: waiting 3 seconds for DTLS to initialize...");
+                    await Task.Delay(3000);
                     try
                     {
                         await _peerConnection!.Start();
                         _logger.LogInformation("PeerConnection started successfully on final attempt");
-                        return;
+                        startedSuccessfully = true;
                     }
-                    catch
+                    catch (Exception finalEx)
                     {
-                        _logger.LogWarning("Continuing despite DTLS failure - connection may work later");
-                        return;
+                        _logger.LogWarning("Final attempt failed: {Message}", finalEx.Message);
                     }
                 }
             }
             catch (Exception ex)
             {
-                // 其他异常也尝试重试
-                _logger.LogWarning("PeerConnection.Start() failed with {ExceptionType} (attempt {Attempt}/{MaxRetries}): {Message}", 
+                _logger.LogWarning("PeerConnection.Start() {ExceptionType} (attempt {Attempt}/{MaxRetries}): {Message}", 
                     ex.GetType().Name, attempt, maxRetries, ex.Message);
 
                 if (attempt == maxRetries)
                 {
-                    _logger.LogWarning("Continuing despite failure - connection may work later");
-                    return;
+                    _logger.LogWarning("All retry attempts exhausted");
                 }
             }
+        }
+
+        // 步骤 3：等待 DTLS 连接完成
+        if (startedSuccessfully)
+        {
+            _logger.LogDebug("Waiting for DTLS connection to complete...");
+            try
+            {
+                if (_dtlsConnectionState != RTCPeerConnectionState.connected)
+                {
+                    var dtlsConnected = await _dtlsConnectedSignal.WaitAsync(dtlsWaitTimeoutMs);
+                    if (dtlsConnected)
+                    {
+                        _logger.LogInformation("DTLS connection established successfully");
+                    }
+                    else
+                    {
+                        _logger.LogWarning("DTLS connection did not complete within {Timeout}ms, but may connect later", dtlsWaitTimeoutMs);
+                    }
+                }
+                else
+                {
+                    _logger.LogDebug("DTLS already connected");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning("Error waiting for DTLS connection: {Message}", ex.Message);
+            }
+        }
+        else
+        {
+            _logger.LogWarning("PeerConnection.Start() failed after all retries, connection may work later via ICE callbacks");
         }
     }
 

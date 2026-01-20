@@ -3,8 +3,8 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  Title="选择表情"
-                 Width="360"
-                 Height="400"
+                 Width="420"
+                 Height="450"
                  WindowStartupLocation="CenterOwner"
                  ExtendsContentIntoTitleBar="True"
                  WindowBackdropType="Mica"
@@ -29,12 +29,22 @@
 
         <!-- 表情内容 -->
         <TabControl Grid.Row="1" Margin="8">
+            <!-- Tab 不换行样式 -->
+            <TabControl.Resources>
+                <Style TargetType="TabPanel">
+                    <Setter Property="HorizontalAlignment" Value="Left"/>
+                </Style>
+                <Style TargetType="TabItem">
+                    <Setter Property="Padding" Value="12,6"/>
+                </Style>
+            </TabControl.Resources>
+            
             <!-- 举手/互动 -->
             <TabItem>
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="✋" FontSize="16" Margin="0,0,4,0"/>
-                        <TextBlock Text="举手"/>
+                        <TextBlock Text="✋" FontSize="18" Margin="0,0,4,0"/>
+                        <TextBlock Text="举手" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -47,9 +57,9 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Button Content="{Binding}"
-                                        FontSize="24"
-                                        Width="48" Height="48"
-                                        Margin="2"
+                                        FontSize="32"
+                                        Width="56" Height="56"
+                                        Margin="3"
                                         Background="Transparent"
                                         BorderThickness="0"
                                         Click="EmojiButton_Click"
@@ -75,8 +85,8 @@
             <TabItem>
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="😀" FontSize="16" Margin="0,0,4,0"/>
-                        <TextBlock Text="表情"/>
+                        <TextBlock Text="😀" FontSize="18" Margin="0,0,4,0"/>
+                        <TextBlock Text="表情" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -89,9 +99,9 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Button Content="{Binding}"
-                                        FontSize="24"
-                                        Width="48" Height="48"
-                                        Margin="2"
+                                        FontSize="32"
+                                        Width="56" Height="56"
+                                        Margin="3"
                                         Background="Transparent"
                                         BorderThickness="0"
                                         Click="EmojiButton_Click"
@@ -117,8 +127,8 @@
             <TabItem>
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="👍" FontSize="16" Margin="0,0,4,0"/>
-                        <TextBlock Text="手势"/>
+                        <TextBlock Text="👍" FontSize="18" Margin="0,0,4,0"/>
+                        <TextBlock Text="手势" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -131,9 +141,9 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Button Content="{Binding}"
-                                        FontSize="24"
-                                        Width="48" Height="48"
-                                        Margin="2"
+                                        FontSize="32"
+                                        Width="56" Height="56"
+                                        Margin="3"
                                         Background="Transparent"
                                         BorderThickness="0"
                                         Click="EmojiButton_Click"
@@ -159,8 +169,8 @@
             <TabItem>
                 <TabItem.Header>
                     <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="❤️" FontSize="16" Margin="0,0,4,0"/>
-                        <TextBlock Text="心形"/>
+                        <TextBlock Text="❤️" FontSize="18" Margin="0,0,4,0"/>
+                        <TextBlock Text="心形" VerticalAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -173,9 +183,9 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
                                 <Button Content="{Binding}"
-                                        FontSize="24"
-                                        Width="48" Height="48"
-                                        Margin="2"
+                                        FontSize="32"
+                                        Width="56" Height="56"
+                                        Margin="3"
                                         Background="Transparent"
                                         BorderThickness="0"
                                         Click="EmojiButton_Click"
