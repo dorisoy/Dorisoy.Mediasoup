@@ -25,6 +25,11 @@ public class JoinRoomResponse
     /// 主持人 PeerId
     /// </summary>
     public string? HostPeerId { get; set; }
+
+    /// <summary>
+    /// 当前用户的 PeerId
+    /// </summary>
+    public string? SelfPeerId { get; set; }
 }
 
 /// <summary>

@@ -156,7 +156,8 @@ namespace Dorisoy.Meeting.Server
                 var data = new JoinRoomResponse 
                 { 
                     Peers = joinRoomResult.Peers,
-                    HostPeerId = joinRoomResult.HostPeerId
+                    HostPeerId = joinRoomResult.HostPeerId,
+                    SelfPeerId = joinRoomResult.SelfPeer?.PeerId
                 };
                 return MeetingMessage<JoinRoomResponse>.Success(data, "JoinRoom 成功");
             }

@@ -2345,11 +2345,19 @@ public partial class MainViewModel : ObservableObject
         // 在 UI 线程上更新 Peer 列表和 ChatUsers 列表
         var peersData = result.Data?.Peers;
         var hostPeerId = result.Data?.HostPeerId;
+        var selfPeerId = result.Data?.SelfPeerId;
         var peersCount = peersData?.Length ?? 0;
-        _logger.LogInformation("处理房间内 Peers: Count={Count}, HostPeerId={HostPeerId}", peersCount, hostPeerId);
+        _logger.LogInformation("处理房间内 Peers: Count={Count}, HostPeerId={HostPeerId}, SelfPeerId={SelfPeerId}", peersCount, hostPeerId, selfPeerId);
         
-        // 保存主持人信息
+        // 保存主持人信息和当前用户 PeerId
         HostPeerId = hostPeerId;
+        
+        // 直接使用服务端返回的 SelfPeerId，避免通过 DisplayName 比较的不可靠性
+        if (!string.IsNullOrEmpty(selfPeerId))
+        {
+            CurrentPeerId = selfPeerId;
+            _logger.LogInformation("使用服务端返回的 SelfPeerId: {SelfPeerId}", selfPeerId);
+        }
         
         // 使用 Dispatcher.Invoke 确保在 UI 线程上更新集合
         var dispatcher = Application.Current?.Dispatcher;
@@ -3095,13 +3103,17 @@ public partial class MainViewModel : ObservableObject
         var notification = JsonSerializer.Deserialize<PeerLeaveRoomData>(json, JsonOptions);
         if (notification?.PeerId != null)
         {
+            _logger.LogInformation("处理用户离开通知: PeerId={PeerId}, ChatUsers数量={Count}", 
+                notification.PeerId, ChatUsers.Count);
+            
             var peer = Peers.FirstOrDefault(p => p.PeerId == notification.PeerId);
+            var displayName = peer?.DisplayName ?? notification.PeerId;
+            
             if (peer != null)
             {
                 Peers.Remove(peer);
-                _logger.LogInformation("Peer left: PeerId={PeerId}, DisplayName={DisplayName}", 
+                _logger.LogInformation("移除 Peer: PeerId={PeerId}, DisplayName={DisplayName}", 
                     notification.PeerId, peer.DisplayName);
-                StatusMessage = $"用户 {peer.DisplayName} 离开房间";
             }
 
             // 移除该 peer 对应的所有远端视频
@@ -3116,12 +3128,23 @@ public partial class MainViewModel : ObservableObject
             HasNoRemoteVideos = RemoteVideos.Count == 0;
 
             // 从聊天用户列表移除
+            _logger.LogDebug("当前 ChatUsers 列表: {Users}", 
+                string.Join(", ", ChatUsers.Select(u => $"{u.DisplayName}({u.PeerId})")));
+            
             var chatUser = ChatUsers.FirstOrDefault(u => u.PeerId == notification.PeerId);
             if (chatUser != null)
             {
-                ChatUsers.Remove(chatUser);
-                _logger.LogDebug("移除聊天用户: {DisplayName}", chatUser.DisplayName);
+                var removed = ChatUsers.Remove(chatUser);
+                _logger.LogInformation("移除聊天用户: DisplayName={DisplayName}, PeerId={PeerId}, 移除结果={Result}", 
+                    chatUser.DisplayName, chatUser.PeerId, removed);
             }
+            else
+            {
+                _logger.LogWarning("未找到要移除的聊天用户: PeerId={PeerId}", notification.PeerId);
+            }
+            
+            // 更新状态消息
+            StatusMessage = $"用户 {displayName} 离开房间";
             
             // 手动触发在线人数更新
             OnPropertyChanged(nameof(OnlinePeerCount));
@@ -3140,31 +3163,35 @@ public partial class MainViewModel : ObservableObject
             var json = JsonSerializer.Serialize(data);
             var notification = JsonSerializer.Deserialize<PeerKickedData>(json, JsonOptions);
             
-            _logger.LogInformation("收到踢人通知: PeerId={PeerId}, CurrentPeerId={CurrentPeerId}", 
-                notification?.PeerId, CurrentPeerId);
+            _logger.LogInformation("收到踢人通知: PeerId={PeerId}, DisplayName={DisplayName}, CurrentPeerId={CurrentPeerId}", 
+                notification?.PeerId, notification?.DisplayName, CurrentPeerId);
             
-            // 如果是自己被踢出
+            // 如果是自己被踢出（注意：这个通知只发给被踢的用户）
             if (notification?.PeerId == CurrentPeerId)
             {
-                _logger.LogWarning("你已被主持人踢出房间");
+                _logger.LogWarning("你已被主持人踢出房间，开始强制退出流程...");
                 
-                // 在 UI 线程上显示提示并强制退出
-                await Application.Current.Dispatcher.InvokeAsync(async () =>
-                {
-                    // 显示提示
-                    StatusMessage = "你已被主持人踢出房间";
-                    
-                    // 显示消息框
-                    System.Windows.MessageBox.Show(
-                        "你已被主持人踢出房间",
-                        "提示",
-                        System.Windows.MessageBoxButton.OK,
-                        System.Windows.MessageBoxImage.Warning);
-                    
-                    // 强制离开房间并返回加入房间窗口
-                    await LeaveRoomAsync();
-                    ReturnToJoinRoomRequested?.Invoke();
-                });
+                // 显示提示
+                StatusMessage = "你已被主持人踢出房间";
+                
+                // 显示消息框（已在 UI 线程上，无需再次调度）
+                System.Windows.MessageBox.Show(
+                    "你已被主持人踢出房间",
+                    "提示",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Warning);
+                
+                // 强制离开房间并返回加入房间窗口
+                _logger.LogInformation("调用 LeaveRoomAsync 强制离开房间...");
+                await LeaveRoomAsync();
+                
+                _logger.LogInformation("触发 ReturnToJoinRoomRequested 事件...");
+                ReturnToJoinRoomRequested?.Invoke();
+            }
+            else
+            {
+                _logger.LogWarning("收到踢人通知但 PeerId 不匹配: notification.PeerId={NotifyPeerId}, CurrentPeerId={CurrentPeerId}", 
+                    notification?.PeerId, CurrentPeerId);
             }
         }
         catch (Exception ex)
