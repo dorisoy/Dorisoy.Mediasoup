@@ -61,4 +61,11 @@
         <ProjectReference Include="..\..\UI\Wpf.Ui\Wpf.Ui.csproj" />
     </ItemGroup>
 
+    <!-- 音频资源文件 - 复制到输出目录 -->
+    <ItemGroup>
+        <None Update="Resources\sounds\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
 </Project>

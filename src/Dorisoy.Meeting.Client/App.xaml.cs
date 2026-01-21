@@ -118,6 +118,7 @@ public partial class App : Application
         // 服务 - 单例
         services.AddSingleton<ISignalRService, SignalRService>();
         services.AddSingleton<IWebRtcService, WebRtcService>();
+        services.AddSingleton<SoundService>();
 
         // ViewModels - MainViewModel 必须是单例，确保 UI 绑定和业务逻辑使用同一实例
         services.AddSingleton<MainViewModel>();

@@ -19,6 +19,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ILogger<MainViewModel> _logger;
     private readonly ISignalRService _signalRService;
     private readonly IWebRtcService _webRtcService;
+    private readonly SoundService _soundService;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -369,11 +370,13 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel(
         ILogger<MainViewModel> logger,
         ISignalRService signalRService,
-        IWebRtcService webRtcService)
+        IWebRtcService webRtcService,
+        SoundService soundService)
     {
         _logger = logger;
         _signalRService = signalRService;
         _webRtcService = webRtcService;
+        _soundService = soundService;
 
         // 订阅事件
         _signalRService.OnNotification += HandleNotification;
@@ -1136,6 +1139,9 @@ public partial class MainViewModel : ObservableObject
         {
             CurrentEmojiReaction = reaction;
             IsEmojiReactionVisible = true;
+
+            // 播放表情对应的音效
+            _soundService.PlayEmojiSoundByEmoji(reaction.Emoji);
 
             // 3秒后隐藏
             await Task.Delay(3000);
@@ -3146,6 +3152,9 @@ public partial class MainViewModel : ObservableObject
             AddMessageToCollection(message);
             _logger.LogInformation("收到广播聊天消息: From={From}, Type={Type}, Content={Content}", 
                 message.SenderName, message.MessageType, message.Content);
+
+            // 播放新消息提示音
+            _soundService.PlaySound(SoundService.SoundType.Message);
 
             // 如果不在当前聊天，增加未读数
             if (string.IsNullOrEmpty(message.ReceiverId))
