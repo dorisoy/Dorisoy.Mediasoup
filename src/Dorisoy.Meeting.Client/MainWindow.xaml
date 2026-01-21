@@ -169,7 +169,7 @@
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </ui:Button.Style>
-                                                        <ui:SymbolIcon Symbol="ArrowSwap16" FontSize="14" Foreground="White"/>
+                                                        <ui:SymbolIcon Symbol="FlipHorizontal20" FontSize="14" Foreground="White"/>
                                                     </ui:Button>
                                                     
                                                     <!-- 垂直镜像 -->
@@ -181,21 +181,22 @@
                                                                Command="{Binding DataContext.ToggleVerticalMirrorCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                CommandParameter="{Binding}">
                                                         <ui:Button.Style>
-                                                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
-                                                                <Setter Property="Appearance" Value="Transparent"/>
+                                                            <Style TargetType="ui:Button"
+                                                                   BasedOn="{StaticResource {x:Type ui:Button}}">
+                                                                <Setter Property="Appearance"
+                                                                        Value="Transparent" />
                                                                 <Style.Triggers>
-                                                                    <DataTrigger Binding="{Binding IsVerticallyMirrored}" Value="True">
-                                                                        <Setter Property="Appearance" Value="Info"/>
+                                                                    <DataTrigger Binding="{Binding IsVerticallyMirrored}"
+                                                                                 Value="True">
+                                                                        <Setter Property="Appearance"
+                                                                                Value="Info" />
                                                                     </DataTrigger>
                                                                 </Style.Triggers>
                                                             </Style>
                                                         </ui:Button.Style>
-                                                        <ui:SymbolIcon Symbol="ArrowRotateClockwise16" FontSize="14" Foreground="White"
-                                                                       RenderTransformOrigin="0.5,0.5">
-                                                            <ui:SymbolIcon.RenderTransform>
-                                                                <RotateTransform Angle="90"/>
-                                                            </ui:SymbolIcon.RenderTransform>
-                                                        </ui:SymbolIcon>
+                                                        <ui:SymbolIcon Symbol="FlipVertical20"
+                                                                       FontSize="14"
+                                                                       Foreground="White" />
                                                     </ui:Button>
                                                     
                                                     <!-- 截屏 -->
@@ -207,7 +208,7 @@
                                                                Padding="0"
                                                                Command="{Binding DataContext.ScreenshotRemoteVideoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                CommandParameter="{Binding}">
-                                                        <ui:SymbolIcon Symbol="Screenshot16" FontSize="14" Foreground="White"/>
+                                                        <ui:SymbolIcon Symbol="ScanCamera20" FontSize="14" Foreground="White"/>
                                                     </ui:Button>
                                                     
                                                     <!-- 分隔线 -->
