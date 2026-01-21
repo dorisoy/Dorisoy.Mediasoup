@@ -1638,8 +1638,8 @@ public partial class MainViewModel : ObservableObject
             }
             else
             {
-                // 私聊消息 - 如果不在当前聊天，增加未读数
-                if (!IsChatPanelVisible || (!IsGroupChatMode && SelectedChatUser?.PeerId != message.SenderId))
+                // 私聊消息 - 如果聊天面板不可见，或在群聊模式，或当前私聊对象不是发送者
+                if (!IsChatPanelVisible || IsGroupChatMode || SelectedChatUser?.PeerId != message.SenderId)
                 {
                     var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
                     if (user != null)
@@ -3167,14 +3167,15 @@ public partial class MainViewModel : ObservableObject
             }
             else
             {
-                // 私聊消息
-                if (!IsChatPanelVisible || (!IsGroupChatMode && SelectedChatUser?.PeerId != message.SenderId))
+                // 私聊消息 - 如果聊天面板不可见，或在群聊模式，或当前私聊对象不是发送者
+                if (!IsChatPanelVisible || IsGroupChatMode || SelectedChatUser?.PeerId != message.SenderId)
                 {
                     var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
                     if (user != null)
                     {
                         user.UnreadCount++;
                         user.LastMessage = message;
+                        _logger.LogInformation("私聊未读数增加: User={User}, Count={Count}", user.DisplayName, user.UnreadCount);
                     }
                 }
             }

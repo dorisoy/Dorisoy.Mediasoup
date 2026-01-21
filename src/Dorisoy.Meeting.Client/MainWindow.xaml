@@ -703,7 +703,7 @@
             <!-- 右侧浮动聊天面板 - 覆盖在视频上层 -->
             <Border HorizontalAlignment="Right"
                     VerticalAlignment="Stretch"
-                    Width="580"
+                    Width="650"
                     Margin="0,0,0,91"
                     Background="{DynamicResource ApplicationBackgroundBrush}"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
