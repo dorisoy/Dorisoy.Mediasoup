@@ -255,8 +255,19 @@ public class ChatUser : ObservableObject
     public int UnreadCount
     {
         get => _unreadCount;
-        set => SetProperty(ref _unreadCount, value);
+        set
+        {
+            if (SetProperty(ref _unreadCount, value))
+            {
+                OnPropertyChanged(nameof(HasUnread));
+            }
+        }
     }
+
+    /// <summary>
+    /// 是否有未读消息
+    /// </summary>
+    public bool HasUnread => _unreadCount > 0;
 
     /// <summary>
     /// 最后一条消息
@@ -264,7 +275,31 @@ public class ChatUser : ObservableObject
     public ChatMessage? LastMessage
     {
         get => _lastMessage;
-        set => SetProperty(ref _lastMessage, value);
+        set
+        {
+            if (SetProperty(ref _lastMessage, value))
+            {
+                OnPropertyChanged(nameof(LastMessagePreview));
+            }
+        }
+    }
+
+    /// <summary>
+    /// 最后一条消息预览文本
+    /// </summary>
+    public string LastMessagePreview
+    {
+        get
+        {
+            if (_lastMessage == null) return "";
+            return _lastMessage.MessageType switch
+            {
+                ChatMessageType.Image => "[图片]",
+                ChatMessageType.File => $"[文件] {_lastMessage.FileName}",
+                ChatMessageType.Emoji => _lastMessage.Content,
+                _ => _lastMessage.Content ?? ""
+            };
+        }
     }
 }
 

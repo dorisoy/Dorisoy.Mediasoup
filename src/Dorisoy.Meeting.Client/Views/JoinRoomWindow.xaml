@@ -39,9 +39,7 @@
         <Grid Grid.Row="1"
               Margin="0" Width="900" Height="680">
             <Grid.ColumnDefinitions>
-                <!-- 左侧：摄像头预览 -->
                 <ColumnDefinition Width="*" />
-                <!-- 右侧：设置面板 -->
                 <ColumnDefinition Width="350" />
             </Grid.ColumnDefinitions>
             <Grid.RowDefinitions>
@@ -54,13 +52,14 @@
                     Grid.Column="0"
                     Margin="0,0,12,12"
                     CornerRadius="6"
+                    x:Name="CameraPreviewBorder"
                     Background="{DynamicResource ControlFillColorDefaultBrush}"
                     ClipToBounds="True">
                 <Grid>
                     <!-- 视频预览 -->
-                    <Image Source="{Binding CameraPreviewFrame}"
+                    <Image x:Name="CameraPreview" Source="{Binding CameraPreviewFrame}"
                            Stretch="UniformToFill"
-                           RenderOptions.BitmapScalingMode="HighQuality" />
+                           RenderOptions.BitmapScalingMode="HighQuality" Width="538" Height="326" />
 
                     <!-- 无预览时的占位符 -->
                     <StackPanel HorizontalAlignment="Center"
@@ -75,11 +74,17 @@
                                    FontSize="16"
                                    HorizontalAlignment="Center"
                                    Margin="0,12,0,0" />
-                        <TextBlock Text="点击下方按钮开始预览"
-                                   Opacity="0.3"
-                                   FontSize="12"
-                                   HorizontalAlignment="Center"
-                                   Margin="0,4,0,0" />
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Opacity="0.3"
+                                    Margin="0,4,0,0">
+                            <TextBlock FontSize="12"
+                                       Text="{Binding ElementName=CameraPreviewBorder, Path=ActualWidth, StringFormat='{}{0:F0}'}" />
+                            <TextBlock FontSize="12"
+                                       Text=" x " />
+                            <TextBlock FontSize="12"
+                                       Text="{Binding ElementName=CameraPreviewBorder, Path=ActualHeight, StringFormat='{}{0:F0}'}" />
+                        </StackPanel>
                     </StackPanel>
 
                     <!-- 预览控制按钮 -->

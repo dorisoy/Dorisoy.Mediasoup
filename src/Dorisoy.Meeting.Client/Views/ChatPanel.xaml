@@ -157,19 +157,30 @@
                         <TextBlock Text="{Binding DisplayName}"
                                    FontSize="13"
                                    FontWeight="Medium"/>
-                        <TextBlock Text="{Binding LastMessage.Content}"
+                        <TextBlock Text="{Binding LastMessagePreview}"
                                    FontSize="11"
                                    Opacity="0.6"
                                    TextTrimming="CharacterEllipsis"
                                    MaxWidth="120"/>
                     </StackPanel>
                     
-                    <!-- 未读数 InfoBadge -->
-                    <ui:InfoBadge Grid.Column="2"
-                                  Severity="Attention"
-                                  Value="{Binding UnreadCount}"
-                                  Visibility="{Binding UnreadCount, Converter={StaticResource CountToVisibilityConverter}}"
-                                  VerticalAlignment="Center"/>
+                    <!-- 未读数 -->
+                    <Border Grid.Column="2"
+                            VerticalAlignment="Center"
+                            Visibility="{Binding HasUnread, Converter={StaticResource BoolToVisConverter}}">
+                        <Border Background="#E81123"
+                                CornerRadius="10"
+                                MinWidth="20"
+                                Height="20"
+                                Padding="6,0">
+                            <TextBlock Text="{Binding UnreadCount}"
+                                       Foreground="White"
+                                       FontSize="11"
+                                       FontWeight="Bold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                    </Border>
                 </Grid>
             </Border>
         </DataTemplate>
@@ -232,12 +243,23 @@
                                    FontWeight="Medium"
                                    VerticalAlignment="Center"/>
                         
-                        <!-- 未读消息计数 InfoBadge -->
-                        <ui:InfoBadge Grid.Column="2"
-                                      Severity="Attention"
-                                      Value="{Binding GroupUnreadCount}"
-                                      Visibility="{Binding GroupUnreadCount, Converter={StaticResource CountToVisibilityConverter}}"
-                                      Margin="0,0,4,0"/>
+                        <!-- 未读消息计数 -->
+                        <Border Grid.Column="2"
+                                Visibility="{Binding HasGroupUnread, Converter={StaticResource BoolToVisConverter}}"
+                                Margin="0,0,4,0">
+                            <Border Background="#E81123"
+                                    CornerRadius="10"
+                                    MinWidth="20"
+                                    Height="20"
+                                    Padding="6,0">
+                                <TextBlock Text="{Binding GroupUnreadCount}"
+                                           Foreground="White"
+                                           FontSize="11"
+                                           FontWeight="Bold"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                        </Border>
                     </Grid>
                 </Border>
 

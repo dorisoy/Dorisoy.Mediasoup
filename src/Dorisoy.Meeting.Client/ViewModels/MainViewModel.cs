@@ -262,7 +262,13 @@ public partial class MainViewModel : ObservableObject
     /// 群聊未读消息计数
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGroupUnread))]
     private int _groupUnreadCount;
+
+    /// <summary>
+    /// 是否有群聊未读消息
+    /// </summary>
+    public bool HasGroupUnread => GroupUnreadCount > 0;
 
     /// <summary>
     /// 当前显示的表情反应
