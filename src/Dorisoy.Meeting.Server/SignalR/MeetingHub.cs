@@ -187,35 +187,53 @@ namespace Dorisoy.Meeting.Server
                 var isHost = room?.HostPeerId == UserId;
                 var roomId = room?.RoomId;
                 
-                // FIXME: (alby) 在 Invite 模式下，清除尚未处理的邀请。避免在会议室A受邀请后，离开会议室A进入会议室B，误受邀请。
-                var leaveRoomResult = await _scheduler.LeaveRoomAsync(UserId, ConnectionId);
-
-                if (isHost && leaveRoomResult.OtherPeerIds.Length > 0)
+                if (isHost && room != null)
                 {
-                    // 主持人离开，通知所有其他用户房间解散
-                    _logger.LogInformation("Host {HostId} left room {RoomId}, dismissing room for all users", UserId, roomId);
-                    SendNotification(
-                        leaveRoomResult.OtherPeerIds,
-                        "roomDismissed",
-                        new RoomDismissedNotification 
-                        { 
-                            RoomId = roomId ?? "",
-                            HostPeerId = UserId,
-                            Reason = "主持人已离开房间"
-                        }
-                    );
+                    // 主持人离开，调用 DismissRoomAsync 正确清理所有用户的资源
+                    _logger.LogInformation("Host {HostId} leaving room {RoomId}, dismissing room for all users", UserId, roomId);
+                    
+                    // 先获取所有其他用户的 ID，用于发送通知
+                    var allPeerIds = await room.GetPeerIdsAsync();
+                    var otherPeerIds = allPeerIds.Where(id => id != UserId).ToArray();
+                    
+                    // 先发送 roomDismissed 通知给所有其他用户
+                    if (otherPeerIds.Length > 0)
+                    {
+                        _logger.LogInformation("Sending roomDismissed notification to {Count} users", otherPeerIds.Length);
+                        SendNotification(
+                            otherPeerIds,
+                            "roomDismissed",
+                            new RoomDismissedNotification 
+                            { 
+                                RoomId = roomId ?? "",
+                                HostPeerId = UserId,
+                                Reason = "主持人已离开房间"
+                            }
+                        );
+                    }
+                    
+                    // 等待一小段时间，确保通知发送出去
+                    await Task.Delay(200);
+                    
+                    // 然后调用 DismissRoomAsync 按正确顺序清理资源
+                    await _scheduler.DismissRoomAsync(UserId, ConnectionId, room);
+                    
+                    return MeetingMessage.Success("LeaveRoom 成功");
                 }
                 else
                 {
-                    // 普通用户离开，只通知其他用户
+                    // 普通用户离开，使用普通的 LeaveRoomAsync
+                    var leaveRoomResult = await _scheduler.LeaveRoomAsync(UserId, ConnectionId);
+                    
+                    // 通知其他用户
                     SendNotification(
                         leaveRoomResult.OtherPeerIds,
                         "peerLeaveRoom",
                         new PeerLeaveRoomNotification { PeerId = UserId }
                     );
-                }
 
-                return MeetingMessage.Success("LeaveRoom 成功");
+                    return MeetingMessage.Success("LeaveRoom 成功");
+                }
             }
             catch (MeetingException ex)
             {
