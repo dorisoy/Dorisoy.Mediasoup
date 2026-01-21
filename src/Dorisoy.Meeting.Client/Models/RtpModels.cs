@@ -356,15 +356,11 @@ public static class RtpParametersFactory
     /// 创建视频 ProduceRequest (使用服务器端共享类型)
     /// </summary>
     /// <param name="ssrc">视频 SSRC，如果为 0 则自动生成</param>
-    /// <param name="codecType">视频编解码器类型</param>
-    public static MediasoupTypes.ProduceRequest CreateVideoProduceRequest(uint ssrc = 0, VideoCodecType codecType = VideoCodecType.VP8)
+    public static MediasoupTypes.ProduceRequest CreateVideoProduceRequest(uint ssrc = 0)
     {
         if (ssrc == 0)
             ssrc = (uint)_random.Next(100000000, 999999999);
         var rtxSsrc = ssrc + 1;
-
-        // 根据编解码器类型获取参数
-        var (mimeType, payloadType, rtxPayloadType, parameters) = GetVideoCodecParameters(codecType);
 
         return new MediasoupTypes.ProduceRequest
         {
@@ -378,10 +374,9 @@ public static class RtpParametersFactory
                 {
                     new MediasoupTypes.RtpCodecParameters
                     {
-                        MimeType = mimeType,
-                        PayloadType = payloadType,
+                        MimeType = "video/VP8",
+                        PayloadType = 96,
                         ClockRate = 90000,
-                        Parameters = parameters,
                         RtcpFeedback = new List<RtcpFeedbackT>
                         {
                             new RtcpFeedbackT { Type = "nack", Parameter = "" },
@@ -394,9 +389,9 @@ public static class RtpParametersFactory
                     new MediasoupTypes.RtpCodecParameters
                     {
                         MimeType = "video/rtx",
-                        PayloadType = rtxPayloadType,
+                        PayloadType = 97,
                         ClockRate = 90000,
-                        Parameters = new Dictionary<string, object> { { "apt", payloadType } }
+                        Parameters = new Dictionary<string, object> { { "apt", 96 } }
                     }
                 },
                 HeaderExtensions = new List<MediasoupTypes.RtpHeaderExtensionParameters>
@@ -421,25 +416,6 @@ public static class RtpParametersFactory
                     ReducedSize = true
                 }
             }
-        };
-    }
-
-    /// <summary>
-    /// 获取视频编解码器参数
-    /// </summary>
-    private static (string mimeType, byte payloadType, byte rtxPayloadType, Dictionary<string, object>? parameters) GetVideoCodecParameters(VideoCodecType codecType)
-    {
-        return codecType switch
-        {
-            VideoCodecType.VP8 => ("video/VP8", 96, 97, null),
-            VideoCodecType.VP9 => ("video/VP9", 103, 104, new Dictionary<string, object> { { "profile-id", 0 } }),
-            VideoCodecType.H264 => ("video/H264", 105, 106, new Dictionary<string, object>
-            {
-                { "level-asymmetry-allowed", 1 },
-                { "packetization-mode", 1 },
-                { "profile-level-id", "42e01f" }
-            }),
-            _ => ("video/VP8", 96, 97, null)
         };
     }
 

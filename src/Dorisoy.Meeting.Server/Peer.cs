@@ -185,35 +185,14 @@ namespace Dorisoy.Meeting.Server
                     var transport = await _room!.Router.CreateWebRtcTransportAsync(webRtcTransportOptions);
                     await using (await _transportsLock.WriteLockAsync())
                     {
-                        // 幂等操作：如果已存在则返回现有的 transport
                         if (!isSend && HasConsumingTransport())
                         {
-                            // 关闭新创建的 transport
-                            await transport.CloseAsync();
-                            // 返回现有的 consuming transport
-                            var existingTransport = _transports.Values.FirstOrDefault(t => 
-                                t.AppData.TryGetValue("Consuming", out var consuming) && consuming is true);
-                            if (existingTransport is WebRtcTransport webRtcTransport)
-                            {
-                                _logger.LogWarning("CreateWebRtcTransportAsync() | 返回现有的 Consuming transport: {TransportId}", webRtcTransport.TransportId);
-                                return webRtcTransport;
-                            }
-                            throw new Exception("CreateWebRtcTransportAsync() | Consuming transport exists but not found");
+                            throw new Exception("CreateWebRtcTransportAsync() | Consuming transport exists");
                         }
 
                         if (isSend && HasProducingTransport())
                         {
-                            // 关闭新创建的 transport
-                            await transport.CloseAsync();
-                            // 返回现有的 producing transport
-                            var existingTransport = _transports.Values.FirstOrDefault(t => 
-                                t.AppData.TryGetValue("Producing", out var producing) && producing is true);
-                            if (existingTransport is WebRtcTransport webRtcTransport)
-                            {
-                                _logger.LogWarning("CreateWebRtcTransportAsync() | 返回现有的 Producing transport: {TransportId}", webRtcTransport.TransportId);
-                                return webRtcTransport;
-                            }
-                            throw new Exception("CreateWebRtcTransportAsync() | Producing transport exists but not found");
+                            throw new Exception("CreateWebRtcTransportAsync() | Producing transport exists");
                         }
 
                         // Store the WebRtcTransport into the Peer data Object.
@@ -1087,30 +1066,23 @@ namespace Dorisoy.Meeting.Server
         }
 
         /// <summary>
-        /// 加入房间
+        /// 进入房间
         /// </summary>
         public async Task<JoinRoomResult> JoinRoomAsync(Room room)
         {
             await using (await _joinedLock.ReadLockAsync())
             {
                 CheckJoined("JoinRoomAsync()");
-        
+
                 await using (await _roomLock.WriteLockAsync())
                 {
-                    // 如果已经在同一个房间中，返回当前房间的信息（幂等操作）
                     if (_room != null)
                     {
-                        if (_room.RoomId == room.RoomId)
-                        {
-                            // 已在同一个房间，返回当前状态（幂等）
-                            return await _room.GetJoinRoomResultAsync(this);
-                        }
-                        // 在不同的房间中，抛出异常
                         throw new PeerInRoomException("JoinRoomAsync()", PeerId, room.RoomId);
                     }
-        
+
                     _room = room;
-        
+
                     return await _room.PeerJoinAsync(this);
                 }
             }

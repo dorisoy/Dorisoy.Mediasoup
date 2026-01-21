@@ -5,7 +5,6 @@ using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Collections.Concurrent;
-using Dorisoy.Meeting.Client.Models;
 
 namespace Dorisoy.Meeting.Client.WebRtc;
 
@@ -513,8 +512,7 @@ public class MediasoupTransport : IDisposable
             var remoteSdp = MediasoupSdpBuilder.BuildSendTransportRemoteOffer(
                 IceParameters,
                 IceCandidates,
-                DtlsParameters,
-                _currentVideoCodec);
+                DtlsParameters);
 
             _logger.LogDebug("Generated remote SDP for Send Transport (length={Length}):\n{Sdp}", remoteSdp.Length, remoteSdp);
 
@@ -577,8 +575,6 @@ public class MediasoupTransport : IDisposable
 
     /// <summary>
     /// 为 Send Transport 添加本地发送 track - 这是让 Answer 方向变成 sendonly 的关键
-    /// 注意：SIPSorcery 库对 VP9/H264 的 SDP 支持不完善，因此 SDP 协商层统一使用 VP8 名称
-    /// 实际 RTP 发送时会使用正确的 Payload Type 和打包格式
     /// </summary>
     private void AddSendTracks()
     {
@@ -589,20 +585,11 @@ public class MediasoupTransport : IDisposable
             // 添加视频发送 track
             if (!_hasAddedSendVideoTrack)
             {
-                // SDP 协商层统一使用 VP8 名称（SIPSorcery 原生支持）
-                // 使用实际编解码器的 Payload Type，这样 RTP 发送时会使用正确的 PT
-                var videoPayloadType = GetVideoPayloadType();
-                var videoCodecName = GetVideoCodecName();
-                
-                // SIPSorcery 对 VP9/H264 的 SDP 处理可能有问题，因此 SDP 层统一使用 VP8
-                // 但保留实际的 Payload Type、这样 SendRtpRaw 会使用正确的 PT
-                var sdpCodecName = "VP8"; // SDP 协商统一用 VP8
-                
-                // 创建视频格式 - PT 使用实际编解码器的 Payload Type
+                // 创建 VP8 视频格式 - PT 必须与 Producer 注册和 RTP 发送一致
                 var videoFormat = new SDPAudioVideoMediaFormat(
                     SDPMediaTypesEnum.video,
-                    videoPayloadType,
-                    sdpCodecName,
+                    VIDEO_PAYLOAD_TYPE,  // VP8 payload type = 96，与 CreateVideoProduceRequest 一致
+                    "VP8",
                     VIDEO_CLOCK_RATE);
 
                 // 创建 SendOnly 的视频 track
@@ -614,8 +601,7 @@ public class MediasoupTransport : IDisposable
 
                 _peerConnection.addTrack(videoTrack);
                 _hasAddedSendVideoTrack = true;
-                _logger.LogInformation("Added video track for sending (SendOnly), ActualCodec={Codec}, SdpCodec={SdpCodec}, PT={PayloadType}", 
-                    videoCodecName, sdpCodecName, videoPayloadType);
+                _logger.LogInformation("Added video track for sending (SendOnly), PT={PayloadType}", VIDEO_PAYLOAD_TYPE);
             }
 
             // 添加音频发送 track
@@ -645,20 +631,6 @@ public class MediasoupTransport : IDisposable
         {
             _logger.LogError(ex, "Failed to add send tracks");
         }
-    }
-
-    /// <summary>
-    /// 获取当前编解码器的名称
-    /// </summary>
-    private string GetVideoCodecName()
-    {
-        return _currentVideoCodec switch
-        {
-            VideoCodecType.VP8 => "VP8",
-            VideoCodecType.VP9 => "VP9",
-            VideoCodecType.H264 => "H264",
-            _ => "VP8"
-        };
     }
 
     /// <summary>
@@ -987,18 +959,12 @@ public class MediasoupTransport : IDisposable
                 var videoCodec = videoConsumer.RtpParameters?.Codecs?.FirstOrDefault();
                 int payloadType = videoCodec?.PayloadType ?? 101;
                 int clockRate = videoCodec?.ClockRate ?? 90000;
-                
-                // 从 MimeType 提取编解码器名称，但 SIPSorcery 对 VP9/H264 支持有限，需要使用 VP8
-                // 注意：这仅影响 SDP 协商层的名称，实际 PayloadType 仍然正确
-                var codecName = GetCodecNameFromMimeType(videoCodec?.MimeType ?? "video/VP8");
-                _logger.LogDebug("Creating video track: PT={PT}, Codec={Codec}, ClockRate={Rate}", 
-                    payloadType, codecName, clockRate);
 
                 // 创建 SDP 格式的视频 track
                 var videoFormat = new SDPAudioVideoMediaFormat(
                     SDPMediaTypesEnum.video,
                     payloadType,
-                    codecName,  // 使用从 MimeType 提取的编解码器名称
+                    "VP8",
                     clockRate);
 
                 var videoTrack = new MediaStreamTrack(
@@ -1078,59 +1044,16 @@ public class MediasoupTransport : IDisposable
             return new Dictionary<string, RemoteConsumerInfo>(_remoteConsumers);
         }
     }
-    
-    /// <summary>
-    /// 移除指定 Consumer
-    /// 当用户离开房间或 Consumer 关闭时调用
-    /// </summary>
-    /// <param name="consumerId">Consumer ID</param>
-    public void RemoveConsumer(string consumerId)
-    {
-        lock (_consumersLock)
-        {
-            if (_consumers.TryRemove(consumerId, out _))
-            {
-                _logger.LogDebug("已移除 Consumer 信息: {ConsumerId}", consumerId);
-            }
-            
-            if (_remoteConsumers.TryRemove(consumerId, out _))
-            {
-                _logger.LogDebug("已移除远端 Consumer 信息: {ConsumerId}", consumerId);
-            }
-        }
-        
-        _logger.LogInformation("Consumer 已从 Transport 移除: {ConsumerId}", consumerId);
-    }
 
     /// <summary>
-    /// 从 MimeType 提取编解码器名称（用于 SDP 协商）
-    /// SIPSorcery 对 VP9/H264 的 SDP 支持有限，统一使用 VP8 名称以确保兼容性
+    /// 为轨道创建 RTP 参数
     /// </summary>
-    private static string GetCodecNameFromMimeType(string mimeType)
-    {
-        // SIPSorcery 对 VP9/H264 处理有问题，SDP 层统一使用 VP8 名称
-        // 但实际的 PayloadType 是正确的，这不影响 RTP 传输
-        return "VP8";
-    }
-
-    /// <summary>
-    /// 为轨道创建 RTP 参数（支持多编解码器）
-    /// </summary>
-    private object CreateRtpParametersForTrack(MediaStreamTrack track, string kind)
+    private static object CreateRtpParametersForTrack(MediaStreamTrack track, string kind)
     {
         var ssrc = (uint)Random.Shared.Next(100000000, 999999999);
 
         if (kind == "video")
         {
-            // 根据当前编解码器类型选择正确的参数
-            var (mimeType, payloadType) = _currentVideoCodec switch
-            {
-                VideoCodecType.VP8 => ("video/VP8", 96),
-                VideoCodecType.VP9 => ("video/VP9", 103),
-                VideoCodecType.H264 => ("video/H264", 105),
-                _ => ("video/VP8", 96)
-            };
-
             return new
             {
                 mid = "0",
@@ -1138,8 +1061,8 @@ public class MediasoupTransport : IDisposable
                 {
                     new
                     {
-                        mimeType = mimeType,
-                        payloadType = payloadType,
+                        mimeType = "video/VP8",
+                        payloadType = 96,
                         clockRate = 90000,
                         rtcpFeedback = new object[]
                         {
@@ -1153,7 +1076,7 @@ public class MediasoupTransport : IDisposable
                 },
                 encodings = new object[]
                 {
-                    new { ssrc, maxBitrate = VideoBitrate }
+                    new { ssrc, maxBitrate = 1500000 }
                 },
                 rtcp = new
                 {
@@ -1196,59 +1119,15 @@ public class MediasoupTransport : IDisposable
     // RTP 配置常量
     private const int MTU_SIZE = 1200; // 安全的 MTU 大小，留有余量
     private const int VP8_PAYLOAD_DESCRIPTOR_SIZE = 1; // 简化版 VP8 负载描述符大小
-    private const int VP9_PAYLOAD_DESCRIPTOR_SIZE = 1; // 简化版 VP9 负载描述符大小
     private const int RTP_HEADER_SIZE = 12; // RTP 头固定大小
     private const int MAX_VP8_PAYLOAD_SIZE = MTU_SIZE - RTP_HEADER_SIZE - VP8_PAYLOAD_DESCRIPTOR_SIZE;
-    private const int MAX_VP9_PAYLOAD_SIZE = MTU_SIZE - RTP_HEADER_SIZE - VP9_PAYLOAD_DESCRIPTOR_SIZE;
-    private const int MAX_H264_PAYLOAD_SIZE = MTU_SIZE - RTP_HEADER_SIZE - 2; // NAL unit header
     
     // PayloadType 必须与 Producer 注册时使用的 PT 一致
     // 参见 RtpModels.cs 中的 CreateVideoProduceRequest 和 CreateAudioProduceRequest
-    private const int VP8_PAYLOAD_TYPE = 96;   // VP8
-    private const int VP9_PAYLOAD_TYPE = 103;  // VP9
-    private const int H264_PAYLOAD_TYPE = 105; // H264
+    private const int VIDEO_PAYLOAD_TYPE = 96; // VP8 - 与 CreateVideoProduceRequest 一致
     private const int AUDIO_PAYLOAD_TYPE = 100; // Opus - 与 CreateAudioProduceRequest 一致
     private const int VIDEO_CLOCK_RATE = 90000; // 90kHz
     private const int AUDIO_CLOCK_RATE = 48000; // 48kHz
-
-    // 当前视频编解码器类型
-    private VideoCodecType _currentVideoCodec = VideoCodecType.VP8;
-    
-    /// <summary>
-    /// 视频目标比特率 (bps)，用于 RTP 参数协商
-    /// </summary>
-    public int VideoBitrate { get; set; } = 5_000_000;
-
-    /// <summary>
-    /// 设置当前视频编解码器类型
-    /// </summary>
-    public void SetVideoCodecType(VideoCodecType codecType)
-    {
-        if (_currentVideoCodec != codecType)
-        {
-            _logger.LogInformation("Transport 编解码器类型切换: {Old} -> {New}", _currentVideoCodec, codecType);
-            _currentVideoCodec = codecType;
-        }
-    }
-
-    /// <summary>
-    /// 获取当前视频编解码器类型
-    /// </summary>
-    public VideoCodecType CurrentVideoCodec => _currentVideoCodec;
-
-    /// <summary>
-    /// 获取当前编解码器的 Payload Type
-    /// </summary>
-    private int GetVideoPayloadType()
-    {
-        return _currentVideoCodec switch
-        {
-            VideoCodecType.VP8 => VP8_PAYLOAD_TYPE,
-            VideoCodecType.VP9 => VP9_PAYLOAD_TYPE,
-            VideoCodecType.H264 => H264_PAYLOAD_TYPE,
-            _ => VP8_PAYLOAD_TYPE
-        };
-    }
 
     // RTP 发送状态
     private uint _videoSsrc = (uint)Random.Shared.Next(100000000, 999999999);
@@ -1261,9 +1140,9 @@ public class MediasoupTransport : IDisposable
     private long _audioFrameCount;
 
     /// <summary>
-    /// 发送视频 RTP 包 - 支持 MTU 分片，自动选择编解码器
+    /// 发送视频 RTP 包 - 支持 MTU 分片
     /// </summary>
-    public void SendVideoRtpPacketAsync(byte[] videoData, bool isKeyFrame)
+    public void SendVideoRtpPacketAsync(byte[] vp8Data, bool isKeyFrame)
     {
         if (_peerConnection == null || !_connected)
             return;
@@ -1272,274 +1151,43 @@ public class MediasoupTransport : IDisposable
         {
             _videoFrameCount++;
 
-            // 根据当前编解码器类型选择打包方法
-            switch (_currentVideoCodec)
+            // 记录关键帧发送信息
+            if (isKeyFrame || _videoFrameCount <= 3)
             {
-                case VideoCodecType.VP8:
-                    SendVp8Frame(videoData, isKeyFrame);
-                    break;
-                case VideoCodecType.VP9:
-                    SendVp9Frame(videoData, isKeyFrame);
-                    break;
-                case VideoCodecType.H264:
-                    SendH264Frame(videoData, isKeyFrame);
-                    break;
-                default:
-                    SendVp8Frame(videoData, isKeyFrame);
-                    break;
+                // 检查 VP8 帧数据的 P 位
+                bool isVp8KeyFrame = vp8Data.Length > 0 && (vp8Data[0] & 0x01) == 0;
+                _logger.LogInformation("VP8 RTP send: frame={Frame}, size={Size}, isKeyFrame={Key}, vp8PBit={PBit}, pictureId={PicId}",
+                    _videoFrameCount, vp8Data.Length, isKeyFrame, isVp8KeyFrame ? 0 : 1, _vp8PictureId);
             }
+
+            // 检查是否需要分片
+            if (vp8Data.Length <= MAX_VP8_PAYLOAD_SIZE)
+            {
+                // 单包发送
+                SendSingleVp8Packet(vp8Data, isKeyFrame, isFirstPacket: true, isLastPacket: true);
+            }
+            else
+            {
+                // 分片发送
+                SendFragmentedVp8Frame(vp8Data, isKeyFrame);
+            }
+
+            // 更新 PictureID（每帧增加，7-bit 范围 0-127 循环）
+            _vp8PictureId = (ushort)((_vp8PictureId + 1) & 0x7F);
 
             // 更新时间戳 (90kHz 时钟，30fps = 3000 增量)
             _videoTimestamp += VIDEO_CLOCK_RATE / 30; // 假设 30fps
 
             if (_videoFrameCount % 100 == 0)
             {
-                _logger.LogDebug("Video stats: codec={Codec}, frames={Frames}, ssrc={Ssrc}, seq={Seq}", 
-                    _currentVideoCodec, _videoFrameCount, _videoSsrc, _videoSeqNum);
+                _logger.LogDebug("Video stats: frames={Frames}, ssrc={Ssrc}, seq={Seq}, pictureId={PicId}", 
+                    _videoFrameCount, _videoSsrc, _videoSeqNum, _vp8PictureId);
             }
         }
         catch (Exception ex)
         {
             _logger.LogTrace(ex, "Error sending video RTP packet");
         }
-    }
-
-    /// <summary>
-    /// 发送 VP8 帧
-    /// </summary>
-    private void SendVp8Frame(byte[] vp8Data, bool isKeyFrame)
-    {
-        // 记录关键帧发送信息
-        if (isKeyFrame || _videoFrameCount <= 3)
-        {
-            bool isVp8KeyFrame = vp8Data.Length > 0 && (vp8Data[0] & 0x01) == 0;
-            _logger.LogInformation("VP8 RTP send: frame={Frame}, size={Size}, isKeyFrame={Key}, vp8PBit={PBit}, pictureId={PicId}",
-                _videoFrameCount, vp8Data.Length, isKeyFrame, isVp8KeyFrame ? 0 : 1, _vp8PictureId);
-        }
-
-        // 检查是否需要分片
-        if (vp8Data.Length <= MAX_VP8_PAYLOAD_SIZE)
-        {
-            SendSingleVp8Packet(vp8Data, isKeyFrame, isFirstPacket: true, isLastPacket: true);
-        }
-        else
-        {
-            SendFragmentedVp8Frame(vp8Data, isKeyFrame);
-        }
-
-        // 更新 PictureID（每帧增加，7-bit 范围 0-127 循环）
-        _vp8PictureId = (ushort)((_vp8PictureId + 1) & 0x7F);
-    }
-
-    /// <summary>
-    /// 发送 VP9 帧
-    /// </summary>
-    private void SendVp9Frame(byte[] vp9Data, bool isKeyFrame)
-    {
-        // 记录关键帧发送信息
-        if (isKeyFrame || _videoFrameCount <= 3)
-        {
-            _logger.LogInformation("VP9 RTP send: frame={Frame}, size={Size}, isKeyFrame={Key}, pictureId={PicId}",
-                _videoFrameCount, vp9Data.Length, isKeyFrame, _vp9PictureId);
-        }
-
-        // 检查是否需要分片
-        if (vp9Data.Length <= MAX_VP9_PAYLOAD_SIZE)
-        {
-            SendSingleVp9Packet(vp9Data, isKeyFrame, isFirstPacket: true, isLastPacket: true);
-        }
-        else
-        {
-            SendFragmentedVp9Frame(vp9Data, isKeyFrame);
-        }
-
-        // 更新 PictureID（每帧增加）
-        _vp9PictureId = (ushort)((_vp9PictureId + 1) & 0x7FFF);
-    }
-
-    /// <summary>
-    /// 发送 H264 帧 - 正确处理 Annex B 格式
-    /// FFmpeg H264 编码器输出 Annex B 格式，包含 NAL 起始码 (00 00 00 01 或 00 00 01)
-    /// 需要分离每个 NAL 单元并分别发送
-    /// </summary>
-    private void SendH264Frame(byte[] h264Data, bool isKeyFrame)
-    {
-        // 记录关键帧发送信息
-        if (isKeyFrame || _videoFrameCount <= 3)
-        {
-            _logger.LogInformation("H264 RTP send: frame={Frame}, size={Size}, isKeyFrame={Key}",
-                _videoFrameCount, h264Data.Length, isKeyFrame);
-        }
-
-        // 解析 Annex B 格式，提取所有 NAL 单元
-        var nalUnits = ExtractNalUnits(h264Data);
-        
-        if (nalUnits.Count == 0)
-        {
-            _logger.LogWarning("H264: No NAL units found in frame data");
-            return;
-        }
-        
-        _logger.LogDebug("H264: Found {Count} NAL units in frame", nalUnits.Count);
-        
-        // 发送每个 NAL 单元
-        for (int i = 0; i < nalUnits.Count; i++)
-        {
-            var nalUnit = nalUnits[i];
-            bool isLastNal = (i == nalUnits.Count - 1);
-            
-            if (nalUnit.Length == 0) continue;
-            
-            // 获取 NAL 类型用于日志
-            int nalType = nalUnit[0] & 0x1F;
-            _logger.LogDebug("H264: NAL[{Index}] type={Type}, size={Size}", i, nalType, nalUnit.Length);
-            
-            // 根据大小决定是单包发送还是分片发送
-            if (nalUnit.Length <= MAX_H264_PAYLOAD_SIZE)
-            {
-                // 单包发送 (Single NAL Unit Packet)
-                SendSingleH264NalUnit(nalUnit, isLastNal);
-            }
-            else
-            {
-                // 分片发送 (FU-A)
-                SendFragmentedH264NalUnit(nalUnit, isLastNal);
-            }
-        }
-    }
-    
-    /// <summary>
-    /// 从 Annex B 格式数据中提取 NAL 单元
-    /// Annex B 格式使用起始码 00 00 00 01 或 00 00 01 分隔 NAL 单元
-    /// </summary>
-    private List<byte[]> ExtractNalUnits(byte[] h264Data)
-    {
-        var nalUnits = new List<byte[]>();
-        int offset = 0;
-        int length = h264Data.Length;
-        
-        while (offset < length)
-        {
-            // 查找起始码
-            int startCodeLength = 0;
-            int startPos = FindStartCode(h264Data, offset, out startCodeLength);
-            
-            if (startPos < 0)
-            {
-                // 没有找到起始码
-                if (offset == 0 && length > 0)
-                {
-                    // 可能是不带起始码的裸 NAL 数据
-                    nalUnits.Add(h264Data);
-                }
-                break;
-            }
-            
-            // NAL 单元开始位置（跳过起始码）
-            int nalStart = startPos + startCodeLength;
-            
-            // 查找下一个起始码或数据结束
-            int nextStartCodeLength = 0;
-            int nextStartPos = FindStartCode(h264Data, nalStart, out nextStartCodeLength);
-            
-            int nalEnd = (nextStartPos >= 0) ? nextStartPos : length;
-            int nalLength = nalEnd - nalStart;
-            
-            if (nalLength > 0)
-            {
-                var nalUnit = new byte[nalLength];
-                Array.Copy(h264Data, nalStart, nalUnit, 0, nalLength);
-                nalUnits.Add(nalUnit);
-            }
-            
-            offset = nalEnd;
-        }
-        
-        return nalUnits;
-    }
-    
-    /// <summary>
-    /// 在数据中查找 NAL 起始码 (00 00 00 01 或 00 00 01)
-    /// </summary>
-    private int FindStartCode(byte[] data, int offset, out int startCodeLength)
-    {
-        startCodeLength = 0;
-        
-        for (int i = offset; i < data.Length - 3; i++)
-        {
-            // 检查 4 字节起始码: 00 00 00 01
-            if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 0 && data[i + 3] == 1)
-            {
-                startCodeLength = 4;
-                return i;
-            }
-            // 检查 3 字节起始码: 00 00 01
-            if (data[i] == 0 && data[i + 1] == 0 && data[i + 2] == 1)
-            {
-                startCodeLength = 3;
-                return i;
-            }
-        }
-        
-        return -1;
-    }
-    
-    /// <summary>
-    /// 发送单个 H264 NAL 单元 (Single NAL Unit Packet)
-    /// RFC 6184: 单包模式，NAL 数据直接作为 RTP 负载
-    /// </summary>
-    private void SendSingleH264NalUnit(byte[] nalUnit, bool isLastInFrame)
-    {
-        var seqNum = _videoSeqNum++;
-        var marker = isLastInFrame ? 1 : 0;  // 帧的最后一个 NAL 设置 marker
-        
-        // 单包模式：NAL 数据直接作为 RTP 负载（不需要额外封装）
-        SendRtpPacket(SDPMediaTypesEnum.video, H264_PAYLOAD_TYPE, seqNum, _videoTimestamp, _videoSsrc, marker, nalUnit);
-        
-        int nalType = nalUnit.Length > 0 ? (nalUnit[0] & 0x1F) : 0;
-        _logger.LogTrace("H264: Sent single NAL: type={Type}, size={Size}, marker={Marker}", 
-            nalType, nalUnit.Length, marker);
-    }
-    
-    /// <summary>
-    /// 分片发送 H264 NAL 单元 (FU-A Fragmentation Unit)
-    /// RFC 6184: 当 NAL 单元大于 MTU 时使用
-    /// </summary>
-    private void SendFragmentedH264NalUnit(byte[] nalUnit, bool isLastInFrame)
-    {
-        if (nalUnit.Length < 1) return;
-        
-        // NAL header 是第一个字节
-        byte nalHeader = nalUnit[0];
-        byte nalType = (byte)(nalHeader & 0x1F);
-        byte nalNri = (byte)(nalHeader & 0x60);  // NRI bits
-        
-        int offset = 1;  // 跳过 NAL header
-        int remaining = nalUnit.Length - 1;
-        int packetCount = 0;
-        bool isFirst = true;
-        
-        while (remaining > 0)
-        {
-            int chunkSize = Math.Min(remaining, MAX_H264_PAYLOAD_SIZE);
-            bool isLast = (offset + chunkSize >= nalUnit.Length);
-            
-            var payload = CreateH264FuAPayload(nalUnit, offset, chunkSize, nalNri, nalType, isFirst, isLast);
-            var seqNum = _videoSeqNum++;
-            
-            // 只有最后一个 NAL 的最后一个分片才设置 marker
-            var marker = (isLast && isLastInFrame) ? 1 : 0;
-            
-            SendRtpPacket(SDPMediaTypesEnum.video, H264_PAYLOAD_TYPE, seqNum, _videoTimestamp, _videoSsrc, marker, payload);
-            
-            offset += chunkSize;
-            remaining -= chunkSize;
-            packetCount++;
-            isFirst = false;
-        }
-        
-        _logger.LogTrace("H264: Sent fragmented NAL: type={Type}, size={Size}, packets={Packets}", 
-            nalType, nalUnit.Length, packetCount);
     }
 
     /// <summary>
@@ -1552,7 +1200,7 @@ public class MediasoupTransport : IDisposable
         var marker = isLastPacket ? 1 : 0;
 
         // 实际发送 RTP 包
-        SendRtpPacket(SDPMediaTypesEnum.video, VP8_PAYLOAD_TYPE, seqNum, _videoTimestamp, _videoSsrc, marker, payload);
+        SendRtpPacket(SDPMediaTypesEnum.video, VIDEO_PAYLOAD_TYPE, seqNum, _videoTimestamp, _videoSsrc, marker, payload);
 
         _logger.LogTrace("Sent VP8 packet: seq={Seq}, size={Size}, keyFrame={Key}, marker={Marker}", 
             seqNum, payload.Length, isKeyFrame, marker);
@@ -1579,7 +1227,7 @@ public class MediasoupTransport : IDisposable
             var marker = isLastPacket ? 1 : 0;
 
             // 发送 RTP 包
-            SendRtpPacket(SDPMediaTypesEnum.video, VP8_PAYLOAD_TYPE, seqNum, _videoTimestamp, _videoSsrc, marker, payload);
+            SendRtpPacket(SDPMediaTypesEnum.video, VIDEO_PAYLOAD_TYPE, seqNum, _videoTimestamp, _videoSsrc, marker, payload);
 
             offset += chunkSize;
             remaining -= chunkSize;
@@ -1589,55 +1237,6 @@ public class MediasoupTransport : IDisposable
         _logger.LogTrace("Sent fragmented VP8 frame: size={Size}, packets={Packets}, keyFrame={Key}", 
             vp8Data.Length, packetCount, isKeyFrame);
     }
-
-    // VP9 PictureID 计数器
-    private ushort _vp9PictureId;
-
-    /// <summary>
-    /// 发送单个 VP9 RTP 包
-    /// </summary>
-    private void SendSingleVp9Packet(byte[] vp9Data, bool isKeyFrame, bool isFirstPacket, bool isLastPacket)
-    {
-        var payload = CreateVp9RtpPayload(vp9Data, 0, vp9Data.Length, isFirstPacket, isLastPacket, isKeyFrame);
-        var seqNum = _videoSeqNum++;
-        var marker = isLastPacket ? 1 : 0;
-
-        SendRtpPacket(SDPMediaTypesEnum.video, VP9_PAYLOAD_TYPE, seqNum, _videoTimestamp, _videoSsrc, marker, payload);
-
-        _logger.LogTrace("Sent VP9 packet: seq={Seq}, size={Size}, keyFrame={Key}, marker={Marker}", 
-            seqNum, payload.Length, isKeyFrame, marker);
-    }
-
-    /// <summary>
-    /// 分片发送 VP9 帧 - 按 draft-ietf-payload-vp9
-    /// </summary>
-    private void SendFragmentedVp9Frame(byte[] vp9Data, bool isKeyFrame)
-    {
-        int offset = 0;
-        int remaining = vp9Data.Length;
-        int packetCount = 0;
-
-        while (remaining > 0)
-        {
-            int chunkSize = Math.Min(remaining, MAX_VP9_PAYLOAD_SIZE);
-            bool isFirstPacket = (offset == 0);
-            bool isLastPacket = (offset + chunkSize >= vp9Data.Length);
-
-            var payload = CreateVp9RtpPayload(vp9Data, offset, chunkSize, isFirstPacket, isLastPacket, isKeyFrame);
-            var seqNum = _videoSeqNum++;
-            var marker = isLastPacket ? 1 : 0;
-
-            SendRtpPacket(SDPMediaTypesEnum.video, VP9_PAYLOAD_TYPE, seqNum, _videoTimestamp, _videoSsrc, marker, payload);
-
-            offset += chunkSize;
-            remaining -= chunkSize;
-            packetCount++;
-        }
-
-        _logger.LogTrace("Sent fragmented VP9 frame: size={Size}, packets={Packets}, keyFrame={Key}", 
-            vp9Data.Length, packetCount, isKeyFrame);
-    }
-
 
     /// <summary>
     /// 发送音频 RTP 包
@@ -1753,124 +1352,6 @@ public class MediasoupTransport : IDisposable
         payload[1] = extensionByte;
         payload[2] = pictureIdByte;
         Array.Copy(vp8Data, offset, payload, 3, length);
-
-        return payload;
-    }
-
-    /// <summary>
-    /// 创建 VP9 RTP 负载（添加 VP9 负载描述符）- draft-ietf-payload-vp9
-    /// </summary>
-    /// <param name="vp9Data">VP9 原始数据</param>
-    /// <param name="offset">数据偏移</param>
-    /// <param name="length">数据长度</param>
-    /// <param name="isFirstPacket">是否是帧的第一个包</param>
-    /// <param name="isLastPacket">是否是帧的最后一个包</param>
-    /// <param name="isKeyFrame">是否是关键帧</param>
-    private byte[] CreateVp9RtpPayload(byte[] vp9Data, int offset, int length, bool isFirstPacket, bool isLastPacket, bool isKeyFrame)
-    {
-        // VP9 RTP Payload Descriptor (draft-ietf-payload-vp9)
-        //
-        //  0 1 2 3 4 5 6 7
-        // +-+-+-+-+-+-+-+-+
-        // |I|P|L|F|B|E|V|Z|  <- 第一个字节（必需）
-        // +-+-+-+-+-+-+-+-+
-        // |M| PictureID   |  <- I=1 时的 PictureID (M=0: 7-bit, M=1: 15-bit)
-        // +-+-+-+-+-+-+-+-+
-        // |  [PictureID]  |  <- M=1 时的 PictureID 高位
-        // +-+-+-+-+-+-+-+-+
-        //
-        // I: PictureID present (1 = 有 PictureID)
-        // P: Inter-picture predicted (0 = 关键帧, 1 = 预测帧)
-        // L: Layer indices present
-        // F: Flexible mode (1 = 灵活模式)
-        // B: Start of frame (1 = 帧开始)
-        // E: End of frame (1 = 帧结束)
-        // V: Scalability Structure present
-        // Z: Not a reference frame for upper spatial layers
-
-        // 使用简化的 2 字节描述符（含 7-bit PictureID）
-        // 或 3 字节（含 15-bit PictureID）
-        
-        // 使用 15-bit PictureID 以支持更大范围
-        byte firstByte = 0x80; // I=1 (有 PictureID)
-        
-        if (!isKeyFrame)
-        {
-            firstByte |= 0x40; // P=1 (预测帧，非关键帧)
-        }
-        
-        if (isFirstPacket)
-        {
-            firstByte |= 0x08; // B=1 (帧开始)
-        }
-        
-        if (isLastPacket)
-        {
-            firstByte |= 0x04; // E=1 (帧结束)
-        }
-
-        // 使用 15-bit PictureID (M=1)
-        byte pictureIdHigh = (byte)(0x80 | ((_vp9PictureId >> 8) & 0x7F)); // M=1 + 高 7 位
-        byte pictureIdLow = (byte)(_vp9PictureId & 0xFF); // 低 8 位
-
-        var payload = new byte[3 + length];
-        payload[0] = firstByte;
-        payload[1] = pictureIdHigh;
-        payload[2] = pictureIdLow;
-        Array.Copy(vp9Data, offset, payload, 3, length);
-
-        return payload;
-    }
-
-    /// <summary>
-    /// 创建 H264 FU-A 分片负载 (RFC 6184)
-    /// </summary>
-    /// <param name="h264Data">H264 NAL 数据（含 NAL header）</param>
-    /// <param name="offset">数据偏移（不含 NAL header）</param>
-    /// <param name="length">分片长度</param>
-    /// <param name="nalNri">NAL NRI 值</param>
-    /// <param name="nalType">NAL Type 值</param>
-    /// <param name="isFirst">是否是第一个分片</param>
-    /// <param name="isLast">是否是最后一个分片</param>
-    private byte[] CreateH264FuAPayload(byte[] h264Data, int offset, int length, byte nalNri, byte nalType, bool isFirst, bool isLast)
-    {
-        // H264 FU-A (Fragmentation Unit A) - RFC 6184
-        //
-        // FU indicator:
-        //  0 1 2 3 4 5 6 7
-        // +-+-+-+-+-+-+-+-+
-        // |F|NRI|  Type   |  <- Type = 28 (FU-A)
-        // +-+-+-+-+-+-+-+-+
-        //
-        // FU header:
-        //  0 1 2 3 4 5 6 7
-        // +-+-+-+-+-+-+-+-+
-        // |S|E|R|  Type   |  <- 原始 NAL Type
-        // +-+-+-+-+-+-+-+-+
-        //
-        // S: Start bit (1 = 第一个分片)
-        // E: End bit (1 = 最后一个分片)
-        // R: Reserved (must be 0)
-        // Type: 原始 NAL unit type
-
-        // FU indicator: F=0, NRI=原始值, Type=28
-        byte fuIndicator = (byte)(nalNri | 28); // Type 28 = FU-A
-
-        // FU header
-        byte fuHeader = nalType;
-        if (isFirst)
-        {
-            fuHeader |= 0x80; // S=1
-        }
-        if (isLast)
-        {
-            fuHeader |= 0x40; // E=1
-        }
-
-        var payload = new byte[2 + length];
-        payload[0] = fuIndicator;
-        payload[1] = fuHeader;
-        Array.Copy(h264Data, offset, payload, 2, length);
 
         return payload;
     }

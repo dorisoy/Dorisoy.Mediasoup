@@ -9,7 +9,6 @@ using System.Windows.Media.Imaging;
 using Dorisoy.Meeting.Client.Models;
 using Dorisoy.Meeting.Client.WebRtc;
 using Dorisoy.Meeting.Client.WebRtc.Encoder;
-using Dorisoy.Meeting.Client.WebRtc.Decoder;
 
 namespace Dorisoy.Meeting.Client.Services;
 
@@ -29,12 +28,9 @@ public class WebRtcService : IWebRtcService
     // RTP 媒体解码器
     private RtpMediaDecoder? _rtpDecoder;
     
-    // 视频编码器 - 支持 VP8/VP9/H264
-    private IVideoEncoder? _videoEncoder;
+    // 视频/音频编码器
+    private Vp8Encoder? _videoEncoder;
     private AudioFramePacketizer? _audioPacketizer;
-    
-    // 当前视频编解码器类型
-    private VideoCodecType _currentVideoCodec = VideoCodecType.VP8;
 
     // 视频采集
     private VideoCapture? _videoCapture;
@@ -118,36 +114,6 @@ public class WebRtcService : IWebRtcService
     /// 当前视频质量配置
     /// </summary>
     public VideoQualitySettings? VideoQuality { get; set; }
-    
-    /// <summary>
-    /// 当前视频编解码器类型
-    /// </summary>
-    public VideoCodecType CurrentVideoCodec
-    {
-        get => _currentVideoCodec;
-        set
-        {
-            if (_currentVideoCodec != value)
-            {
-                _logger.LogInformation("视频编解码器切换: {OldCodec} -> {NewCodec}", _currentVideoCodec, value);
-                _currentVideoCodec = value;
-                
-                // 如果正在采集视频，需要重新初始化编码器
-                if (_isVideoCaptureRunning && _videoEncoder != null)
-                {
-                    // 释放旧编码器
-                    _videoEncoder.Dispose();
-                    _videoEncoder = null;
-                }
-                
-                // 通知 RTP 解码器切换解码器类型
-                _rtpDecoder?.SetVideoCodecType(value);
-                
-                // 同步更新 SendTransport 的编解码器类型（用于 RTP 打包）
-                _sendTransport?.SetVideoCodecType(value);
-            }
-        }
-    }
 
     /// <summary>
     /// Mediasoup 设备
@@ -654,48 +620,6 @@ public class WebRtcService : IWebRtcService
         return Task.CompletedTask;
     }
 
-    /// <summary>
-    /// 开始屏幕共享
-    /// </summary>
-    public async Task StartScreenShareAsync()
-    {
-        _logger.LogInformation("开始屏幕共享");
-
-        // 屏幕共享使用现有的视频捕获逻辑，只需要切换到屏幕捕获源
-        // 这里使用 Windows Graphics Capture API 捕获屏幕
-        try
-        {
-            // 如果摄像头正在运行，先停止
-            if (_isVideoCaptureRunning)
-            {
-                await StopCameraAsync();
-            }
-
-            // 开始屏幕捕获（模拟实现 - 实际需要集成屏幕捕获API）
-            // 目前使用摄像头作为占位符
-            _logger.LogWarning("屏幕共享功能需要集成 Windows Graphics Capture API");
-
-            OnConnectionStateChanged?.Invoke("screen_share_started");
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "开始屏幕共享失败");
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// 停止屏幕共享
-    /// </summary>
-    public Task StopScreenShareAsync()
-    {
-        _logger.LogInformation("停止屏幕共享");
-
-        OnConnectionStateChanged?.Invoke("screen_share_stopped");
-
-        return Task.CompletedTask;
-    }
-
     #endregion
 
     #region 消费者管理
@@ -721,14 +645,6 @@ public class WebRtcService : IWebRtcService
             {
                 await _recvTransport.ConsumeAsync(consumerId, kind, rtpParameters);
                 _logger.LogInformation("Consumer {ConsumerId} added to recv transport", consumerId);
-                
-                // 对于视频 Consumer，根据远端 MimeType 设置解码器类型
-                if (kind == "video" && _rtpDecoder != null)
-                {
-                    var remoteCodecType = ExtractCodecTypeFromRtpParameters(rtpParameters);
-                    _rtpDecoder.SetConsumerVideoCodecType(consumerId, remoteCodecType);
-                    _logger.LogInformation("Consumer {ConsumerId} 远端编解码器: {Codec}", consumerId, remoteCodecType);
-                }
             }
             catch (Exception ex)
             {
@@ -740,36 +656,6 @@ public class WebRtcService : IWebRtcService
             _logger.LogWarning("No recv transport available for consumer {ConsumerId}", consumerId);
         }
     }
-    
-    /// <summary>
-    /// 从 RTP 参数中提取编解码器类型
-    /// </summary>
-    private VideoCodecType ExtractCodecTypeFromRtpParameters(object rtpParameters)
-    {
-        try
-        {
-            var json = JsonSerializer.Serialize(rtpParameters);
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-            
-            if (root.TryGetProperty("codecs", out var codecsElement) && 
-                codecsElement.GetArrayLength() > 0)
-            {
-                var firstCodec = codecsElement[0];
-                if (firstCodec.TryGetProperty("mimeType", out var mimeTypeElement))
-                {
-                    var mimeType = mimeTypeElement.GetString();
-                    return RtpMediaDecoder.GetCodecTypeFromMimeType(mimeType);
-                }
-            }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "解析 RTP 参数获取编解码器类型失败");
-        }
-        
-        return VideoCodecType.VP8;
-    }
 
     /// <summary>
     /// 移除远端消费者
@@ -779,12 +665,6 @@ public class WebRtcService : IWebRtcService
         _logger.LogInformation("Removing consumer: {ConsumerId}", consumerId);
 
         _consumers.TryRemove(consumerId, out _);
-        
-        // 清理 RTP 解码器中该 Consumer 的资源
-        _rtpDecoder?.RemoveConsumer(consumerId);
-        
-        // 清理 Transport 中该 Consumer 的资源
-        _recvTransport?.RemoveConsumer(consumerId);
 
         return Task.CompletedTask;
     }
@@ -834,18 +714,11 @@ public class WebRtcService : IWebRtcService
         // 订阅关键帧请求事件 - 当服务器发送 PLI/FIR 请求时，强制编码器生成关键帧
         _sendTransport.OnKeyFrameRequested += () =>
         {
-            _logger.LogInformation("Keyframe requested by server, forcing encoder to generate keyframe");
+            _logger.LogInformation("Keyframe requested by server, forcing VP8 encoder to generate keyframe");
             _videoEncoder?.ForceKeyFrame();
         };
 
-        // 设置初始编解码器类型
-        _sendTransport.SetVideoCodecType(_currentVideoCodec);
-        
-        // 设置视频比特率
-        var quality = VideoQuality ?? VideoQualitySettings.GetPreset(VideoQualityPreset.High);
-        _sendTransport.VideoBitrate = quality.Bitrate;
-
-        _logger.LogInformation("Send transport created: {TransportId}, codec={Codec}", transportId, _currentVideoCodec);
+        _logger.LogInformation("Send transport created: {TransportId}", transportId);
     }
 
     /// <summary>
@@ -1192,7 +1065,7 @@ public class WebRtcService : IWebRtcService
     #region 编码和发送
 
     /// <summary>
-    /// 初始化视频编码器 - 根据当前编解码器类型创建对应编码器
+    /// 初始化视频编码器
     /// </summary>
     private bool EnsureVideoEncoderInitialized(int width, int height)
     {
@@ -1208,19 +1081,13 @@ public class WebRtcService : IWebRtcService
             var targetWidth = quality.Width > 0 ? quality.Width : width;
             var targetHeight = quality.Height > 0 ? quality.Height : height;
             
-            // 根据当前编解码器类型创建对应的编码器
-            _videoEncoder = CreateVideoEncoder(_currentVideoCodec, targetWidth, targetHeight);
-            
-            if (_videoEncoder == null)
+            _videoEncoder = new Vp8Encoder(_loggerFactory.CreateLogger<Vp8Encoder>(), targetWidth, targetHeight)
             {
-                _logger.LogWarning("创建视频编码器失败: {Codec}", _currentVideoCodec);
-                return false;
-            }
-            
-            // 设置编码参数
-            _videoEncoder.Bitrate = quality.Bitrate;
-            _videoEncoder.FrameRate = quality.FrameRate;
-            _videoEncoder.KeyFrameInterval = quality.KeyFrameInterval;
+                Bitrate = quality.Bitrate,
+                FrameRate = quality.FrameRate,
+                CpuUsed = quality.CpuUsed,
+                KeyFrameInterval = quality.KeyFrameInterval
+            };
             
             _videoEncoder.OnFrameEncoded += (data, isKeyFrame) =>
             {
@@ -1231,34 +1098,20 @@ public class WebRtcService : IWebRtcService
             
             if (!_videoEncoder.Initialize())
             {
-                _logger.LogWarning("初始化视频编码器失败: {Codec}", _currentVideoCodec);
+                _logger.LogWarning("Failed to initialize VP8 encoder");
                 _videoEncoder = null;
                 return false;
             }
             
-            _logger.LogInformation("{Codec} 编码器已初始化: {Width}x{Height} @ {Fps}fps, {Bitrate}bps (Quality: {Quality})",
-                _currentVideoCodec, targetWidth, targetHeight, quality.FrameRate, quality.Bitrate, quality.DisplayName);
+            _logger.LogInformation("VP8 encoder initialized: {Width}x{Height} @ {Fps}fps, {Bitrate}bps (Quality: {Quality})",
+                targetWidth, targetHeight, quality.FrameRate, quality.Bitrate, quality.DisplayName);
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "创建视频编码器异常: {Codec}", _currentVideoCodec);
+            _logger.LogError(ex, "Error creating VP8 encoder");
             return false;
         }
-    }
-    
-    /// <summary>
-    /// 根据编解码器类型创建对应的编码器
-    /// </summary>
-    private IVideoEncoder? CreateVideoEncoder(VideoCodecType codecType, int width, int height)
-    {
-        return codecType switch
-        {
-            VideoCodecType.VP8 => new Vp8Encoder(_loggerFactory.CreateLogger<Vp8Encoder>(), width, height),
-            VideoCodecType.VP9 => new Vp9Encoder(_loggerFactory.CreateLogger<Vp9Encoder>(), width, height),
-            VideoCodecType.H264 => new H264Encoder(_loggerFactory.CreateLogger<H264Encoder>(), width, height),
-            _ => new Vp8Encoder(_loggerFactory.CreateLogger<Vp8Encoder>(), width, height)
-        };
     }
 
     /// <summary>

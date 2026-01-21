@@ -43,11 +43,6 @@ public interface IWebRtcService : IDisposable
     /// 当前视频质量配置
     /// </summary>
     VideoQualitySettings? VideoQuality { get; set; }
-    
-    /// <summary>
-    /// 当前视频编解码器类型
-    /// </summary>
-    VideoCodecType CurrentVideoCodec { get; set; }
 
     /// <summary>
     /// Mediasoup 设备
@@ -100,16 +95,6 @@ public interface IWebRtcService : IDisposable
     /// 停止麦克风采集
     /// </summary>
     Task StopMicrophoneAsync();
-
-    /// <summary>
-    /// 开始屏幕共享
-    /// </summary>
-    Task StartScreenShareAsync();
-
-    /// <summary>
-    /// 停止屏幕共享
-    /// </summary>
-    Task StopScreenShareAsync();
 
     /// <summary>
     /// 加载设备能力

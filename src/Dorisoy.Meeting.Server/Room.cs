@@ -110,25 +110,6 @@ namespace Dorisoy.Meeting.Server
             }
         }
 
-        /// <summary>
-        /// 获取当前加入房间结果（用于幂等操作）
-        /// </summary>
-        public async Task<JoinRoomResult> GetJoinRoomResultAsync(Peer peer)
-        {
-            await using (await _closeLock.ReadLockAsync())
-            {
-                if (_closed)
-                {
-                    throw new Exception($"GetJoinRoomResultAsync() | RoomId:{RoomId} was closed.");
-                }
-
-                await using (await _peersLock.ReadLockAsync())
-                {
-                    return new JoinRoomResult { SelfPeer = peer, Peers = _peers.Values.ToArray() };
-                }
-            }
-        }
-
         public async Task<LeaveRoomResult> PeerLeaveAsync(string peerId)
         {
             await using (await _closeLock.ReadLockAsync())
