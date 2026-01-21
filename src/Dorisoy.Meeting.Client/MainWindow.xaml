@@ -143,6 +143,7 @@
                                                     <ui:Button Width="32" Height="32"
                                                                CornerRadius="4"
                                                                Margin="2,0"
+                                                               Padding="0"
                                                                Appearance="Transparent"
                                                                ToolTip="最大化"
                                                                Command="{Binding DataContext.ToggleMaximizeRemoteVideoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
@@ -154,6 +155,7 @@
                                                     <ui:Button Width="32" Height="32"
                                                                CornerRadius="4"
                                                                Margin="2,0"
+                                                               Padding="0"
                                                                ToolTip="水平镜像"
                                                                Command="{Binding DataContext.ToggleHorizontalMirrorCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                CommandParameter="{Binding}">
@@ -174,6 +176,7 @@
                                                     <ui:Button Width="32" Height="32"
                                                                CornerRadius="4"
                                                                Margin="2,0"
+                                                               Padding="0"
                                                                ToolTip="垂直镜像"
                                                                Command="{Binding DataContext.ToggleVerticalMirrorCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                CommandParameter="{Binding}">
@@ -201,6 +204,7 @@
                                                                Margin="2,0"
                                                                Appearance="Transparent"
                                                                ToolTip="截屏"
+                                                               Padding="0"
                                                                Command="{Binding DataContext.ScreenshotRemoteVideoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                CommandParameter="{Binding}">
                                                         <ui:SymbolIcon Symbol="Screenshot16" FontSize="14" Foreground="White"/>
@@ -215,6 +219,7 @@
                                                     <ui:Button Width="32" Height="32"
                                                                CornerRadius="4"
                                                                Margin="2,0"
+                                                               Padding="0"
                                                                ToolTip="{Binding IsMuted, Converter={StaticResource RemoteVideoMuteTooltipConverter}}"
                                                                Command="{Binding DataContext.ToggleRemoteVideoMuteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                                CommandParameter="{Binding}">

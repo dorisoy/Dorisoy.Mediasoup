@@ -296,9 +296,16 @@ public partial class MainViewModel : ObservableObject
     private string? _hostPeerId;
 
     /// <summary>
+    /// 当前用户的 PeerId（SignalR 连接 ID）
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsHost))]
+    private string? _currentPeerId;
+
+    /// <summary>
     /// 当前用户是否是主持人
     /// </summary>
-    public bool IsHost => !string.IsNullOrEmpty(HostPeerId) && HostPeerId == SelectedPeerIndex.ToString();
+    public bool IsHost => !string.IsNullOrEmpty(HostPeerId) && !string.IsNullOrEmpty(CurrentPeerId) && HostPeerId == CurrentPeerId;
 
     #endregion
 
@@ -1900,14 +1907,17 @@ public partial class MainViewModel : ObservableObject
             }
             else
             {
-                // 私聊消息 - 如果聊天面板不可见，或在群聊模式，或当前私聊对象不是发送者
-                if (!IsChatPanelVisible || IsGroupChatMode || SelectedChatUser?.PeerId != message.SenderId)
+                // 私聊消息 - 始终更新 LastMessage，但只在不在当前聊天时增加未读数
+                var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
+                if (user != null)
                 {
-                    var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
-                    if (user != null)
+                    // 始终更新最后一条消息
+                    user.LastMessage = message;
+                    
+                    // 如果聊天面板不可见，或在群聊模式，或当前私聊对象不是发送者，增加未读数
+                    if (!IsChatPanelVisible || IsGroupChatMode || SelectedChatUser?.PeerId != message.SenderId)
                     {
                         user.UnreadCount++;
-                        user.LastMessage = message;
                     }
                 }
             }
@@ -2407,6 +2417,14 @@ public partial class MainViewModel : ObservableObject
                 // 同步到聊天用户列表（排除自己 - 使用 DisplayName 比较，因为 PeerId 是连接ID）
                 bool isSelf = string.Equals(peer.DisplayName, CurrentUserName, StringComparison.OrdinalIgnoreCase);
                 
+                if (isSelf)
+                {
+                    // 找到自己，保存当前用户的 PeerId
+                    CurrentPeerId = peer.PeerId;
+                    _logger.LogInformation("设置当前用户 PeerId: CurrentPeerId={PeerId}, DisplayName={DisplayName}", 
+                        peer.PeerId, peer.DisplayName);
+                }
+                
                 if (!isSelf && !string.IsNullOrEmpty(peer.PeerId))
                 {
                     _logger.LogDebug("添加聊天用户: PeerId={PeerId}, DisplayName={DisplayName}", 
@@ -2525,6 +2543,10 @@ public partial class MainViewModel : ObservableObject
         HasNoRemoteVideos = true;
         LocalVideoFrame = null;
         
+        // 清理主持人和当前用户 ID
+        HostPeerId = null;
+        CurrentPeerId = null;
+        
         // 清理 Transport ID
         _sendTransportId = null;
         _recvTransportId = null;
@@ -2576,6 +2598,10 @@ public partial class MainViewModel : ObservableObject
         ChatUsers.Clear();
         HasNoRemoteVideos = true;
         LocalVideoFrame = null;
+        
+        // 清理主持人和当前用户 ID
+        HostPeerId = null;
+        CurrentPeerId = null;
         
         // 清理 Transport ID
         _sendTransportId = null;
@@ -3520,14 +3546,17 @@ public partial class MainViewModel : ObservableObject
             }
             else
             {
-                // 私聊消息 - 如果聊天面板不可见，或在群聊模式，或当前私聊对象不是发送者
-                if (!IsChatPanelVisible || IsGroupChatMode || SelectedChatUser?.PeerId != message.SenderId)
+                // 私聊消息 - 始终更新 LastMessage，但只在不在当前聊天时增加未读数
+                var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
+                if (user != null)
                 {
-                    var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
-                    if (user != null)
+                    // 始终更新最后一条消息
+                    user.LastMessage = message;
+                    
+                    // 如果聊天面板不可见，或在群聊模式，或当前私聊对象不是发送者，增加未读数
+                    if (!IsChatPanelVisible || IsGroupChatMode || SelectedChatUser?.PeerId != message.SenderId)
                     {
                         user.UnreadCount++;
-                        user.LastMessage = message;
                         _logger.LogInformation("私聊未读数增加: User={User}, Count={Count}", user.DisplayName, user.UnreadCount);
                     }
                 }
