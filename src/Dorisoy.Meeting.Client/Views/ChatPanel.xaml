@@ -364,18 +364,36 @@
                     Padding="12,10"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                     BorderThickness="0,0,0,1">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock x:Name="ChatTargetName"
-                               Text="群聊"
-                               FontWeight="SemiBold"
-                               FontSize="14"/>
-                    <TextBlock x:Name="ChatTargetStatus"
-                               Text=""
-                               FontSize="12"
-                               Opacity="0.6"
-                               Margin="8,0,0,0"
-                               VerticalAlignment="Center"/>
-                </StackPanel>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <!-- 左侧：聊天对象名称和状态 -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="ChatTargetName"
+                                   Text="群聊"
+                                   FontWeight="SemiBold"
+                                   FontSize="14"/>
+                        <TextBlock x:Name="ChatTargetStatus"
+                                   Text=""
+                                   FontSize="12"
+                                   Opacity="0.6"
+                                   Margin="8,0,0,0"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    
+                    <!-- 右侧：图钉按钮（折叠聊天面板） -->
+                    <ui:Button Grid.Column="1"
+                               Appearance="Transparent"
+                               ToolTip="折叠聊天面板"
+                               Padding="6"
+                               VerticalAlignment="Center"
+                               Command="{Binding ChatCommand}">
+                        <ui:SymbolIcon Symbol="Pin24" FontSize="16"/>
+                    </ui:Button>
+                </Grid>
             </Border>
 
             <!-- 消息列表 -->
