@@ -180,6 +180,7 @@
                                        Visibility="{Binding IsMutedByHost, Converter={StaticResource BoolToVisConverter}}"/>
                         </StackPanel>
                         <TextBlock Text="{Binding LastMessagePreview}"
+                                   HorizontalAlignment="Left"
                                    FontSize="11"
                                    Opacity="0.6"
                                    TextTrimming="CharacterEllipsis"
@@ -201,12 +202,12 @@
                                    CommandParameter="{Binding}">
                             <Grid>
                                 <!-- 静音图标（当前未静音） -->
-                                <ui:SymbolIcon Symbol="MicOff16" FontSize="14" 
-                                               Foreground="#F57C00"
+                                <ui:SymbolIcon Symbol="MicOff16" FontSize="14"
+                                               Foreground="#FFA500"
                                                Visibility="{Binding IsMutedByHost, Converter={StaticResource InverseBoolToVisConverter}}"/>
                                 <!-- 取消静音图标（当前已静音） -->
-                                <ui:SymbolIcon Symbol="Mic16" FontSize="14" 
-                                               Foreground="#4CAF50"
+                                <ui:SymbolIcon Symbol="Mic16" FontSize="14"
+                                               Foreground="#FFA500"
                                                Visibility="{Binding IsMutedByHost, Converter={StaticResource BoolToVisConverter}}"/>
                             </Grid>
                         </ui:Button>
@@ -217,7 +218,9 @@
                                    ToolTip="踢出房间"
                                    Command="{Binding DataContext.KickUserCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                    CommandParameter="{Binding}">
-                            <ui:SymbolIcon Symbol="PersonDelete16" FontSize="14" Foreground="#E81123"/>
+                            <ui:SymbolIcon Symbol="PersonDelete16"
+                                           FontSize="14"
+                                           Foreground="#FFA500"/>
                         </ui:Button>
                     </StackPanel>
                     
@@ -225,7 +228,7 @@
                     <Border Grid.Column="3"
                             VerticalAlignment="Center"
                             Visibility="{Binding HasUnread, Converter={StaticResource BoolToVisConverter}}">
-                        <Border Background="#E81123"
+                        <Border Background="#FFA500"
                                 CornerRadius="10"
                                 MinWidth="20"
                                 Height="20"

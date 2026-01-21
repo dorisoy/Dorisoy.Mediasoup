@@ -3140,15 +3140,31 @@ public partial class MainViewModel : ObservableObject
             var json = JsonSerializer.Serialize(data);
             var notification = JsonSerializer.Deserialize<PeerKickedData>(json, JsonOptions);
             
+            _logger.LogInformation("收到踢人通知: PeerId={PeerId}, CurrentPeerId={CurrentPeerId}", 
+                notification?.PeerId, CurrentPeerId);
+            
             // 如果是自己被踢出
-            if (notification?.PeerId == SelectedPeerIndex.ToString())
+            if (notification?.PeerId == CurrentPeerId)
             {
                 _logger.LogWarning("你已被主持人踢出房间");
-                StatusMessage = "你已被主持人踢出房间";
                 
-                // 断开连接并返回加入房间窗口
-                await LeaveRoomAsync();
-                ReturnToJoinRoomRequested?.Invoke();
+                // 在 UI 线程上显示提示并强制退出
+                await Application.Current.Dispatcher.InvokeAsync(async () =>
+                {
+                    // 显示提示
+                    StatusMessage = "你已被主持人踢出房间";
+                    
+                    // 显示消息框
+                    System.Windows.MessageBox.Show(
+                        "你已被主持人踢出房间",
+                        "提示",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Warning);
+                    
+                    // 强制离开房间并返回加入房间窗口
+                    await LeaveRoomAsync();
+                    ReturnToJoinRoomRequested?.Invoke();
+                });
             }
         }
         catch (Exception ex)
@@ -3170,8 +3186,11 @@ public partial class MainViewModel : ObservableObject
             var notification = JsonSerializer.Deserialize<PeerMutedData>(json, JsonOptions);
             if (notification == null) return;
             
+            _logger.LogInformation("收到静音通知: PeerId={PeerId}, IsMuted={IsMuted}, CurrentPeerId={CurrentPeerId}", 
+                notification.PeerId, notification.IsMuted, CurrentPeerId);
+            
             // 如果是自己被静音
-            if (notification.PeerId == SelectedPeerIndex.ToString())
+            if (notification.PeerId == CurrentPeerId)
             {
                 if (notification.IsMuted)
                 {
