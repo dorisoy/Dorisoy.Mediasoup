@@ -215,6 +215,26 @@ namespace Dorisoy.Meeting.Server
             }
         }
 
+        /// <summary>
+        /// 强制从房间中移除 Peer（用于房间解散场景，不抛出异常）
+        /// </summary>
+        public async Task ForceRemovePeerAsync(string peerId)
+        {
+            await using (await _closeLock.ReadLockAsync())
+            {
+                if (_closed)
+                {
+                    return;
+                }
+
+                await using (await _peersLock.WriteLockAsync())
+                {
+                    _peers.Remove(peerId);
+                    _logger.LogDebug("ForceRemovePeerAsync() | Peer:{PeerId} removed from Room:{RoomId}", peerId, RoomId);
+                }
+            }
+        }
+
         public async Task<string[]> GetPeerIdsAsync()
         {
             await using (await _closeLock.ReadLockAsync())

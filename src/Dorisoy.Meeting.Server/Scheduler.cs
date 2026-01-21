@@ -192,7 +192,8 @@ namespace Dorisoy.Meeting.Server
         /// </summary>
         public async Task<DismissRoomResult> DismissRoomAsync(string hostPeerId, string connectionId, Room room)
         {
-            await using (await _peersLock.ReadLockAsync())
+            // 使用写锁，因为我们需要从 _peers 中移除 Peer
+            await using (await _peersLock.WriteLockAsync())
             {
                 if (!_peers.TryGetValue(hostPeerId, out var hostPeer))
                 {
@@ -218,13 +219,29 @@ namespace Dorisoy.Meeting.Server
                 _logger.LogInformation("DismissRoomAsync() | 房间 {RoomId} 解散，清理 {Count} 个其他用户的资源", 
                     room.RoomId, otherPeers.Count);
 
-                // 1. 先清理所有其他用户的 Transport（这会自动关闭他们的 Consumer 和 Producer）
+                // 1. 清理所有其他用户：先清理 Transport，再从 Room 和 Scheduler 中移除
                 foreach (var peer in otherPeers)
                 {
                     try
                     {
                         _logger.LogDebug("DismissRoomAsync() | 清理 Peer:{PeerId} 的资源", peer.PeerId);
+                        
+                        // 清理 Transport（关闭 Consumer 和 Producer）
                         await peer.ForceLeaveRoomAsync();
+                        
+                        // 从 Room 中移除 Peer（重要！）
+                        try
+                        {
+                            await room.ForceRemovePeerAsync(peer.PeerId);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogDebug(ex, "DismissRoomAsync() | 从房间移除 Peer:{PeerId} 时出错（可能已移除）", peer.PeerId);
+                        }
+                        
+                        // 从 Scheduler 的 _peers 中移除（让用户可以重新 Join）
+                        _peers.Remove(peer.PeerId);
+                        _logger.LogDebug("DismissRoomAsync() | 已从 Scheduler 移除 Peer:{PeerId}", peer.PeerId);
                     }
                     catch (Exception ex)
                     {
@@ -237,24 +254,20 @@ namespace Dorisoy.Meeting.Server
 
                 // 3. 最后清理主持人的资源
                 _logger.LogDebug("DismissRoomAsync() | 清理主持人 {HostPeerId} 的资源", hostPeerId);
-                var leaveResult = await hostPeer.LeaveRoomAsync();
+                await hostPeer.LeaveRoomAsync();
+                _peers.Remove(hostPeerId);
 
                 // 4. 从房间列表中移除空房间
                 await _roomsLock.WaitAsync();
                 try
                 {
-                    // 检查房间是否还有人，如果没有则移除
-                    var remainingPeerIds = await room.GetPeerIdsAsync();
-                    if (remainingPeerIds.Length == 0)
-                    {
-                        _rooms.Remove(room.RoomId);
-                        _logger.LogInformation("DismissRoomAsync() | 房间 {RoomId} 已清空并移除", room.RoomId);
-                    }
+                    // 直接移除房间，因为所有用户都已经被清理
+                    _rooms.Remove(room.RoomId);
+                    _logger.LogInformation("DismissRoomAsync() | 房间 {RoomId} 已清空并移除", room.RoomId);
                 }
                 catch (Exception ex)
                 {
-                    // 房间可能已经关闭，忽略错误
-                    _logger.LogDebug(ex, "DismissRoomAsync() | 检查房间状态时出错");
+                    _logger.LogDebug(ex, "DismissRoomAsync() | 移除房间时出错");
                 }
                 finally
                 {
