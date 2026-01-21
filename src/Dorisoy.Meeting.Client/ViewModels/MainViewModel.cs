@@ -2571,6 +2571,49 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 被踢出房间后的强制离开（只清理本地状态，不调用服务端，完全断开连接）
+    /// 用于被踢出场景：服务端已经移除了用户，不需要再调用 LeaveRoom
+    /// </summary>
+    private async Task ForceLeaveRoomLocalAsync()
+    {
+        _logger.LogInformation("被踢出房间，开始强制清理本地状态...");
+        
+        // 完全关闭 WebRTC 服务
+        await _webRtcService.CloseAsync();
+        
+        // 断开 SignalR 连接（被踢用户不应保持连接）
+        await _signalRService.DisconnectAsync();
+        
+        // 重置所有状态
+        IsJoinedRoom = false;
+        IsInLobby = false;
+        IsConnected = false;
+        IsCameraEnabled = false;
+        IsMicrophoneEnabled = false;
+        
+        // 清空所有集合
+        Peers.Clear();
+        RemoteVideos.Clear();
+        ChatUsers.Clear();
+        HasNoRemoteVideos = true;
+        LocalVideoFrame = null;
+        
+        // 清理主持人和当前用户 ID
+        HostPeerId = null;
+        CurrentPeerId = null;
+        
+        // 清理 Transport ID
+        _sendTransportId = null;
+        _recvTransportId = null;
+        _videoProducerId = null;
+        _audioProducerId = null;
+        _currentAccessToken = string.Empty;
+        
+        StatusMessage = "已被踢出房间";
+        _logger.LogInformation("被踢出房间，本地状态清理完成，已断开连接");
+    }
+
+    /// <summary>
     /// 完全退出会议（断开SignalR连接，返回JoinRoomWindow）
     /// </summary>
     [RelayCommand]
@@ -3176,16 +3219,21 @@ public partial class MainViewModel : ObservableObject
                 // 显示提示
                 StatusMessage = "你已被主持人踢出房间";
                 
-                // 显示消息框（已在 UI 线程上，无需再次调度）
-                System.Windows.MessageBox.Show(
-                    "你已被主持人踢出房间",
-                    "提示",
-                    System.Windows.MessageBoxButton.OK,
-                    System.Windows.MessageBoxImage.Warning);
+                // 使用 WPF UI 风格的消息框
+                var messageBox = new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = "已被踢出房间",
+                    Content = "你已被主持人踢出房间，将返回加入房间界面。",
+                    CloseButtonText = "确定",
+                    CloseButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Primary,
+                };
                 
-                // 强制离开房间并返回加入房间窗口
-                _logger.LogInformation("调用 LeaveRoomAsync 强制离开房间...");
-                await LeaveRoomAsync();
+                await messageBox.ShowDialogAsync();
+                
+                // 使用 ForceLeaveRoomLocalAsync 只清理本地状态，不调用服务端
+                // 因为服务端已经通过 KickPeerAsync 移除了用户
+                _logger.LogInformation("调用 ForceLeaveRoomLocalAsync 强制清理本地状态...");
+                await ForceLeaveRoomLocalAsync();
                 
                 _logger.LogInformation("触发 ReturnToJoinRoomRequested 事件...");
                 ReturnToJoinRoomRequested?.Invoke();
