@@ -789,10 +789,10 @@ namespace Dorisoy.Meeting.Server
                 // 踢出用户
                 var result = await room.KickPeerAsync(hostPeerId, targetPeerId);
 
-                // 让被踢用户离开房间
+                // 让被踢用户强制离开房间（关闭 transports，但不再调用 Room.PeerLeaveAsync）
                 if (result != null)
                 {
-                    await targetPeer.LeaveRoomAsync();
+                    await targetPeer.ForceLeaveRoomAsync();
                 }
 
                 return result;

@@ -2422,15 +2422,17 @@ public partial class MainViewModel : ObservableObject
                     
                 Peers.Add(peer);
                 
-                // 同步到聊天用户列表（排除自己 - 使用 DisplayName 比较，因为 PeerId 是连接ID）
-                bool isSelf = string.Equals(peer.DisplayName, CurrentUserName, StringComparison.OrdinalIgnoreCase);
+                // 同步到聊天用户列表（排除自己）
+                // 优先使用 CurrentPeerId 比较，回退到 DisplayName 比较
+                bool isSelf = !string.IsNullOrEmpty(CurrentPeerId) 
+                    ? peer.PeerId == CurrentPeerId
+                    : string.Equals(peer.DisplayName, CurrentUserName, StringComparison.OrdinalIgnoreCase);
                 
-                if (isSelf)
+                if (isSelf && string.IsNullOrEmpty(CurrentPeerId))
                 {
-                    // 找到自己，保存当前用户的 PeerId
+                    // 如果 CurrentPeerId 未设置（服务端未返回 SelfPeerId），通过 DisplayName 查找并设置
                     CurrentPeerId = peer.PeerId;
-                    _logger.LogInformation("设置当前用户 PeerId: CurrentPeerId={PeerId}, DisplayName={DisplayName}", 
-                        peer.PeerId, peer.DisplayName);
+                    _logger.LogInformation("通过 DisplayName 设置 CurrentPeerId: {PeerId}", peer.PeerId);
                 }
                 
                 if (!isSelf && !string.IsNullOrEmpty(peer.PeerId))
