@@ -160,7 +160,8 @@ public class SoundService : IDisposable
             _ => "notify.wav"
         };
 
-        PlaySoundFile($"sounds/{fileName}");
+        _logger.LogInformation("播放系统音效: {FileName}", fileName);
+        PlaySoundFile(fileName);
     }
 
     /// <summary>
@@ -187,7 +188,8 @@ public class SoundService : IDisposable
             _ => "smile.mp3"
         };
 
-        PlaySoundFile($"sounds/emoji/{fileName}");
+        _logger.LogInformation("播放表情音效: {FileName}", fileName);
+        PlaySoundFile($"emoji/{fileName}");
     }
 
     /// <summary>
@@ -251,6 +253,8 @@ public class SoundService : IDisposable
     {
         if (_disposed) return;
 
+        _logger.LogInformation("开始播放音频: {RelativePath}, 基础路径: {BasePath}", relativePath, _soundsBasePath);
+
         // 使用线程池异步播放，避免阻塞 UI
         Task.Run(() =>
         {
@@ -262,11 +266,14 @@ public class SoundService : IDisposable
                 if (_audioCache.TryGetValue(relativePath, out var cached))
                 {
                     audioData = cached;
+                    _logger.LogDebug("从缓存加载音频: {Path}", relativePath);
                 }
                 else
                 {
                     // 缓存未命中，从文件加载
                     var fullPath = Path.Combine(_soundsBasePath, relativePath);
+                    _logger.LogInformation("尝试从文件加载音频: {FullPath}", fullPath);
+                    
                     if (!File.Exists(fullPath))
                     {
                         _logger.LogWarning("音频文件不存在: {Path}", fullPath);
@@ -274,6 +281,7 @@ public class SoundService : IDisposable
                     }
                     audioData = File.ReadAllBytes(fullPath);
                     _audioCache.TryAdd(relativePath, audioData);
+                    _logger.LogDebug("从文件加载音频成功: {Path}, 大小: {Size} bytes", fullPath, audioData.Length);
                 }
 
                 // 使用 NAudio 播放
@@ -287,6 +295,8 @@ public class SoundService : IDisposable
                 outputDevice.Volume = 0.5f; // 50% 音量
                 outputDevice.Play();
 
+                _logger.LogInformation("音频播放已启动: {Path}", relativePath);
+
                 // 等待播放完成
                 while (outputDevice.PlaybackState == PlaybackState.Playing)
                 {
@@ -297,7 +307,7 @@ public class SoundService : IDisposable
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "播放音效失败: {Path}", relativePath);
+                _logger.LogError(ex, "播放音效失败: {Path}", relativePath);
             }
         });
     }
