@@ -407,7 +407,16 @@ public static class CommonEmojis
     ];
 
     /// <summary>
+    /// 声音类表情（播放对应音效）
+    /// </summary>
+    public static readonly string[] SoundEmojis =
+    [
+        "👍", "👎", "👌", "😀", "😃", "😂", "😘", "❤️",
+        "🎺", "🎉", "😮", "👏", "✨", "⭐", "🌟", "💫", "🚀"
+    ];
+
+    /// <summary>
     /// 所有常用表情
     /// </summary>
-    public static string[] All => [.. HandEmojis, .. FaceEmojis, .. GestureEmojis, .. HeartEmojis];
+    public static string[] All => [.. HandEmojis, .. FaceEmojis, .. GestureEmojis, .. HeartEmojis, .. SoundEmojis];
 }

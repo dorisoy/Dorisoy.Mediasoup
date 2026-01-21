@@ -47,6 +47,10 @@ public partial class EmojiPickerWindow
         {
             EmojisControl.ItemsSource = CommonEmojis.HeartEmojis;
         }
+        else if (radioButton == BtnSound)
+        {
+            EmojisControl.ItemsSource = CommonEmojis.SoundEmojis;
+        }
     }
 
     /// <summary>

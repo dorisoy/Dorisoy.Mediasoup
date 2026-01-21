@@ -3,7 +3,7 @@
                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                  xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
                  Title="选择表情"
-                 Width="400"
+                 Width="480"
                  Height="420"
                  WindowStartupLocation="CenterOwner"
                  ExtendsContentIntoTitleBar="True"
@@ -78,6 +78,7 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
                 <!-- 举手按钮 -->
@@ -126,6 +127,18 @@
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                         <TextBlock Text="❤️" FontSize="20" VerticalAlignment="Center"/>
                         <TextBlock Text="心形" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </RadioButton>
+
+                <!-- 声音按钮 -->
+                <RadioButton x:Name="BtnSound" 
+                             Grid.Column="4"
+                             GroupName="EmojiCategory"
+                             Checked="CategoryButton_Checked"
+                             Style="{StaticResource EmojiCategoryButtonStyle}">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                        <TextBlock Text="🔊" FontSize="20" VerticalAlignment="Center"/>
+                        <TextBlock Text="声音" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
                 </RadioButton>
             </Grid>

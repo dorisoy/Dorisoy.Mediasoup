@@ -1,19 +1,21 @@
 using Microsoft.Extensions.Logging;
+using NAudio.Wave;
+using System.Collections.Concurrent;
 using System.IO;
-using System.Windows.Media;
 
 namespace Dorisoy.Meeting.Client.Services;
 
 /// <summary>
-/// 系统音效服务 - 播放各种提示音
+/// 系统音效服务 - 使用 NAudio 实现低延迟播放
 /// </summary>
 public class SoundService : IDisposable
 {
     private readonly ILogger<SoundService> _logger;
-    private readonly Dictionary<string, MediaPlayer> _cachedPlayers = new();
-    private readonly object _lock = new();
+    private readonly ConcurrentDictionary<string, byte[]> _audioCache = new();
+    private readonly string _soundsBasePath;
     private bool _isMuted;
     private bool _disposed;
+    private bool _isInitialized;
 
     /// <summary>
     /// 音效类型
@@ -81,6 +83,61 @@ public class SoundService : IDisposable
     public SoundService(ILogger<SoundService> logger)
     {
         _logger = logger;
+        _soundsBasePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "sounds");
+        
+        // 异步预加载常用音频
+        Task.Run(PreloadCommonSoundsAsync);
+    }
+
+    /// <summary>
+    /// 预加载常用音频到内存
+    /// </summary>
+    private async Task PreloadCommonSoundsAsync()
+    {
+        try
+        {
+            // 预加载系统音效
+            var systemSounds = new[] { "message.wav", "joined.wav", "left.wav", "raiseHand.wav", "notify.wav" };
+            foreach (var sound in systemSounds)
+            {
+                await PreloadSoundAsync(sound);
+            }
+
+            // 预加载表情音效
+            var emojiSounds = new[] { "applause.mp3", "boo.mp3", "congrats.mp3", "heart.mp3", "laughs.mp3", 
+                                      "ok.mp3", "rocket.mp3", "smile.mp3", "trombone.mp3", "woah.mp3" };
+            foreach (var sound in emojiSounds)
+            {
+                await PreloadSoundAsync($"emoji/{sound}");
+            }
+
+            _isInitialized = true;
+            _logger.LogInformation("音频预加载完成, 缓存了 {Count} 个文件", _audioCache.Count);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "音频预加载失败");
+        }
+    }
+
+    /// <summary>
+    /// 预加载单个音频文件
+    /// </summary>
+    private async Task PreloadSoundAsync(string relativePath)
+    {
+        try
+        {
+            var fullPath = Path.Combine(_soundsBasePath, relativePath);
+            if (File.Exists(fullPath) && !_audioCache.ContainsKey(relativePath))
+            {
+                var data = await File.ReadAllBytesAsync(fullPath);
+                _audioCache.TryAdd(relativePath, data);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "预加载音频失败: {Path}", relativePath);
+        }
     }
 
     /// <summary>
@@ -171,11 +228,14 @@ public class SoundService : IDisposable
             // 火箭/庆祝
             "🚀" or "🎉" or "🎊" or "🥳" => EmojiSoundType.Rocket,
             
-            // 祝贺
-            "🎆" or "🎇" or "✨" or "🌟" or "⭐" => EmojiSoundType.Congrats,
+            // 祝贺/星星
+            "🎆" or "🎇" or "✨" or "🌟" or "⭐" or "💫" => EmojiSoundType.Congrats,
             
             // 哇/惊讶
             "😮" or "😯" or "😲" or "🤯" or "😱" => EmojiSoundType.Woah,
+            
+            // 喇叭（长号）
+            "🎺" => EmojiSoundType.Trombone,
             
             // 默认微笑
             _ => EmojiSoundType.Smile
@@ -185,64 +245,67 @@ public class SoundService : IDisposable
     }
 
     /// <summary>
-    /// 播放音频文件
+    /// 播放音频文件 - 使用 NAudio 实现低延迟播放
     /// </summary>
     private void PlaySoundFile(string relativePath)
     {
-        try
+        if (_disposed) return;
+
+        // 使用线程池异步播放，避免阻塞 UI
+        Task.Run(() =>
         {
-            // 获取应用程序目录
-            var baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            var soundPath = Path.Combine(baseDir, "Resources", relativePath);
-
-            if (!File.Exists(soundPath))
+            try
             {
-                _logger.LogWarning("音频文件不存在: {Path}", soundPath);
-                return;
-            }
+                byte[]? audioData = null;
 
-            // 使用 MediaPlayer 异步播放（支持 wav 和 mp3）
-            System.Windows.Application.Current?.Dispatcher.InvokeAsync(() =>
-            {
-                try
+                // 优先从缓存获取
+                if (_audioCache.TryGetValue(relativePath, out var cached))
                 {
-                    var player = new MediaPlayer();
-                    player.Open(new Uri(soundPath));
-                    player.Volume = 0.5; // 50% 音量
-                    player.Play();
-
-                    // 播放完成后释放
-                    player.MediaEnded += (s, e) =>
+                    audioData = cached;
+                }
+                else
+                {
+                    // 缓存未命中，从文件加载
+                    var fullPath = Path.Combine(_soundsBasePath, relativePath);
+                    if (!File.Exists(fullPath))
                     {
-                        player.Close();
-                    };
+                        _logger.LogWarning("音频文件不存在: {Path}", fullPath);
+                        return;
+                    }
+                    audioData = File.ReadAllBytes(fullPath);
+                    _audioCache.TryAdd(relativePath, audioData);
+                }
 
-                    _logger.LogDebug("播放音效: {Path}", relativePath);
-                }
-                catch (Exception ex)
+                // 使用 NAudio 播放
+                using var ms = new MemoryStream(audioData);
+                using var reader = relativePath.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase)
+                    ? (WaveStream)new Mp3FileReader(ms)
+                    : new WaveFileReader(ms);
+                using var outputDevice = new WaveOutEvent();
+                
+                outputDevice.Init(reader);
+                outputDevice.Volume = 0.5f; // 50% 音量
+                outputDevice.Play();
+
+                // 等待播放完成
+                while (outputDevice.PlaybackState == PlaybackState.Playing)
                 {
-                    _logger.LogWarning(ex, "播放音效失败: {Path}", relativePath);
+                    Thread.Sleep(50);
                 }
-            });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "播放音效失败: {Path}", relativePath);
-        }
+
+                _logger.LogDebug("播放音效完成: {Path}", relativePath);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "播放音效失败: {Path}", relativePath);
+            }
+        });
     }
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-
-        lock (_lock)
-        {
-            foreach (var player in _cachedPlayers.Values)
-            {
-                player.Close();
-            }
-            _cachedPlayers.Clear();
-        }
+        _audioCache.Clear();
     }
 }
