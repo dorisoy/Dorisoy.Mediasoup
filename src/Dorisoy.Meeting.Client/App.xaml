@@ -46,6 +46,7 @@
             <converters:FileMessageVisibilityConverter x:Key="FileMessageVisibilityConverter"/>
             <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter"/>
             <converters:InverseBoolToVisConverter x:Key="InverseBoolToVisConverter"/>
+            <converters:MuteTooltipConverter x:Key="MuteTooltipConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

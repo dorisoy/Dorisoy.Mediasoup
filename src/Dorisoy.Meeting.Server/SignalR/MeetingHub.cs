@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Dorisoy.Mediasoup;
+using Dorisoy.Mediasoup.Common;
 
 namespace Dorisoy.Meeting.Server
 {
@@ -151,8 +152,12 @@ namespace Dorisoy.Meeting.Server
                 // Notification: peerJoinRoom
                 SendNotification(otherPeerIds, "peerJoinRoom", new PeerJoinRoomNotification { Peer = joinRoomResult.SelfPeer });
 
-                // 返回包括自身的房间内的所有人的信息
-                var data = new JoinRoomResponse { Peers = joinRoomResult.Peers };
+                // 返回包括自身的房间内的所有人的信息和主持人信息
+                var data = new JoinRoomResponse 
+                { 
+                    Peers = joinRoomResult.Peers,
+                    HostPeerId = joinRoomResult.HostPeerId
+                };
                 return MeetingMessage<JoinRoomResponse>.Success(data, "JoinRoom 成功");
             }
             catch (MeetingException ex)
@@ -1280,6 +1285,135 @@ namespace Dorisoy.Meeting.Server
             }
 
             return MeetingMessage.Failure("UnsetPeerAppData 失败");
+        }
+
+        #endregion
+
+        #region Host Control - 主持人控制
+
+        /// <summary>
+        /// 踢出用户（主持人操作）
+        /// </summary>
+        public async Task<MeetingMessage> KickPeer(KickPeerRequest request)
+        {
+            try
+            {
+                var result = await _scheduler.KickPeerAsync(UserId, ConnectionId, request.TargetPeerId);
+                if (result == null)
+                {
+                    return MeetingMessage.Failure("KickPeer 失败: 未找到目标用户");
+                }
+
+                // 通知被踢的用户
+                SendNotification(
+                    request.TargetPeerId,
+                    "peerKicked",
+                    new PeerKickedNotification
+                    {
+                        PeerId = request.TargetPeerId,
+                        DisplayName = result.KickedPeer.DisplayName,
+                        HostPeerId = UserId
+                    }
+                );
+
+                // 通知房间内其他用户
+                SendNotification(
+                    result.OtherPeerIds,
+                    "peerLeaveRoom",
+                    new PeerLeaveRoomNotification { PeerId = request.TargetPeerId }
+                );
+
+                _logger.LogInformation("Host {HostId} kicked peer {TargetId}", UserId, request.TargetPeerId);
+                return MeetingMessage.Success("KickPeer 成功");
+            }
+            catch (MeetingException ex)
+            {
+                _logger.LogError("KickPeer 调用失败: {Message}", ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "KickPeer 调用失败.");
+            }
+
+            return MeetingMessage.Failure("KickPeer 失败");
+        }
+
+        /// <summary>
+        /// 远程静音用户（主持人操作）
+        /// </summary>
+        public async Task<MeetingMessage> RemoteMutePeer(RemoteMutePeerRequest request)
+        {
+            try
+            {
+                // 获取当前用户信息，验证主持人权限
+                var hostPeer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+                if (hostPeer == null)
+                {
+                    return MeetingMessage.Failure("RemoteMutePeer 失败: 未找到主持人");
+                }
+
+                // 获取房间信息验证主持人权限
+                var room = await hostPeer.GetRoomAsync();
+                if (room == null)
+                {
+                    return MeetingMessage.Failure("RemoteMutePeer 失败: 主持人不在房间中");
+                }
+
+                if (room.HostPeerId != UserId)
+                {
+                    return MeetingMessage.Failure("RemoteMutePeer 失败: 无主持人权限");
+                }
+
+                // 获取目标用户信息
+                var targetPeer = await _scheduler.GetTargetPeerAsync(request.TargetPeerId);
+                if (targetPeer == null)
+                {
+                    return MeetingMessage.Failure("RemoteMutePeer 失败: 未找到目标用户");
+                }
+
+                // 获取房间内其他用户
+                var otherPeerIds = await _scheduler.GetOtherPeerIdsAsync(UserId, ConnectionId);
+
+                // 通知被静音的用户
+                SendNotification(
+                    request.TargetPeerId,
+                    "peerMuted",
+                    new PeerMutedNotification
+                    {
+                        PeerId = request.TargetPeerId,
+                        DisplayName = targetPeer.DisplayName,
+                        IsMuted = request.IsMuted,
+                        HostPeerId = UserId
+                    }
+                );
+
+                // 通知房间内其他用户
+                SendNotification(
+                    otherPeerIds,
+                    "peerMuted",
+                    new PeerMutedNotification
+                    {
+                        PeerId = request.TargetPeerId,
+                        DisplayName = targetPeer.DisplayName,
+                        IsMuted = request.IsMuted,
+                        HostPeerId = UserId
+                    }
+                );
+
+                _logger.LogInformation("Host {HostId} {Action} peer {TargetId}", 
+                    UserId, request.IsMuted ? "muted" : "unmuted", request.TargetPeerId);
+                return MeetingMessage.Success("RemoteMutePeer 成功");
+            }
+            catch (MeetingException ex)
+            {
+                _logger.LogError("RemoteMutePeer 调用失败: {Message}", ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "RemoteMutePeer 调用失败.");
+            }
+
+            return MeetingMessage.Failure("RemoteMutePeer 失败");
         }
 
         /// <summary>

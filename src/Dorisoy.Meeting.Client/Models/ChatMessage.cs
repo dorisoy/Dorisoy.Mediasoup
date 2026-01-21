@@ -221,6 +221,7 @@ public class ChatUser : ObservableObject
     private bool _isOnline = true;
     private int _unreadCount;
     private ChatMessage? _lastMessage;
+    private bool _isMutedByHost;
 
     /// <summary>
     /// 用户ID
@@ -247,6 +248,15 @@ public class ChatUser : ObservableObject
     {
         get => _isOnline;
         set => SetProperty(ref _isOnline, value);
+    }
+
+    /// <summary>
+    /// 是否被主持人静音
+    /// </summary>
+    public bool IsMutedByHost
+    {
+        get => _isMutedByHost;
+        set => SetProperty(ref _isMutedByHost, value);
     }
 
     /// <summary>

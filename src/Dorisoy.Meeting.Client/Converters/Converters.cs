@@ -562,3 +562,23 @@ public class FileMessageVisibilityConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
+
+/// <summary>
+/// 静音状态工具提示转换器 - 根据是否静音显示不同提示
+/// </summary>
+public class MuteTooltipConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isMuted)
+        {
+            return isMuted ? "取消静音" : "静音用户";
+        }
+        return "静音用户";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}

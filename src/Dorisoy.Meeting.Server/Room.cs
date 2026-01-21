@@ -14,6 +14,11 @@ namespace Dorisoy.Meeting.Server
 
         public string Name { get; }
 
+        /// <summary>
+        /// 主持人 PeerId（房间创建者）
+        /// </summary>
+        public string? HostPeerId { get; private set; }
+
         #region IEquatable<T>
 
         public bool Equals(Room? other)
@@ -105,7 +110,19 @@ namespace Dorisoy.Meeting.Server
                         throw new Exception($"PeerJoinAsync() | Peer:{peer.PeerId} was in RoomId:{RoomId} already.");
                     }
 
-                    return new JoinRoomResult { SelfPeer = peer, Peers = _peers.Values.ToArray() };
+                    // 第一个加入房间的人成为主持人
+                    if (HostPeerId == null)
+                    {
+                        HostPeerId = peer.PeerId;
+                        _logger.LogInformation("Room {RoomId}: Host set to {PeerId}", RoomId, peer.PeerId);
+                    }
+
+                    return new JoinRoomResult 
+                    { 
+                        SelfPeer = peer, 
+                        Peers = _peers.Values.ToArray(),
+                        HostPeerId = HostPeerId
+                    };
                 }
             }
         }
@@ -124,7 +141,55 @@ namespace Dorisoy.Meeting.Server
 
                 await using (await _peersLock.ReadLockAsync())
                 {
-                    return new JoinRoomResult { SelfPeer = peer, Peers = _peers.Values.ToArray() };
+                    return new JoinRoomResult 
+                    { 
+                        SelfPeer = peer, 
+                        Peers = _peers.Values.ToArray(),
+                        HostPeerId = HostPeerId
+                    };
+                }
+            }
+        }
+
+        /// <summary>
+        /// 踢出用户（主持人操作）
+        /// </summary>
+        public async Task<KickPeerResult?> KickPeerAsync(string hostPeerId, string targetPeerId)
+        {
+            await using (await _closeLock.ReadLockAsync())
+            {
+                if (_closed)
+                {
+                    throw new Exception($"KickPeerAsync() | RoomId:{RoomId} was closed.");
+                }
+
+                // 验证主持人权限
+                if (HostPeerId != hostPeerId)
+                {
+                    throw new Exception($"KickPeerAsync() | Peer:{hostPeerId} is not the host of RoomId:{RoomId}.");
+                }
+
+                // 不能踢自己
+                if (hostPeerId == targetPeerId)
+                {
+                    throw new Exception($"KickPeerAsync() | Host cannot kick themselves.");
+                }
+
+                await using (await _peersLock.WriteLockAsync())
+                {
+                    if (!_peers.Remove(targetPeerId, out var peer))
+                    {
+                        throw new Exception($"KickPeerAsync() | Peer:{targetPeerId} is not in RoomId:{RoomId}.");
+                    }
+
+                    _logger.LogInformation("Room {RoomId}: Peer {TargetPeerId} was kicked by host {HostPeerId}", 
+                        RoomId, targetPeerId, hostPeerId);
+
+                    return new KickPeerResult 
+                    { 
+                        KickedPeer = peer, 
+                        OtherPeerIds = _peers.Keys.ToArray() 
+                    };
                 }
             }
         }

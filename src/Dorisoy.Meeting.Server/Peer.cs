@@ -1463,5 +1463,20 @@ namespace Dorisoy.Meeting.Server
         }
 
         #endregion Private Methods
+
+        #region Public Room Access
+
+        /// <summary>
+        /// 获取 Peer 所在的房间
+        /// </summary>
+        public async Task<Room?> GetRoomAsync()
+        {
+            await using (await _roomLock.ReadLockAsync())
+            {
+                return _room;
+            }
+        }
+
+        #endregion
     }
 }

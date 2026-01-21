@@ -155,6 +155,53 @@ namespace Dorisoy.Meeting.Server
         public object Data { get; set; }
     }
 
+    /// <summary>
+    /// 用户被踢出房间通知
+    /// </summary>
+    public class PeerKickedNotification
+    {
+        /// <summary>
+        /// 被踢出的用户 PeerId
+        /// </summary>
+        public string PeerId { get; set; }
+
+        /// <summary>
+        /// 被踢出的用户名称
+        /// </summary>
+        public string DisplayName { get; set; }
+
+        /// <summary>
+        /// 踢人的主持人 PeerId
+        /// </summary>
+        public string HostPeerId { get; set; }
+    }
+
+    /// <summary>
+    /// 用户被远程静音通知
+    /// </summary>
+    public class PeerMutedNotification
+    {
+        /// <summary>
+        /// 被静音的用户 PeerId
+        /// </summary>
+        public string PeerId { get; set; }
+
+        /// <summary>
+        /// 被静音的用户名称
+        /// </summary>
+        public string DisplayName { get; set; }
+
+        /// <summary>
+        /// 是否静音
+        /// </summary>
+        public bool IsMuted { get; set; }
+
+        /// <summary>
+        /// 操作的主持人 PeerId
+        /// </summary>
+        public string HostPeerId { get; set; }
+    }
+
     #endregion
 
     #region Consumer

@@ -760,6 +760,56 @@ namespace Dorisoy.Meeting.Server
             }
         }
 
+        /// <summary>
+        /// 踢出用户（主持人操作）
+        /// </summary>
+        public async Task<KickPeerResult?> KickPeerAsync(string hostPeerId, string connectionId, string targetPeerId)
+        {
+            await using (await _peersLock.ReadLockAsync())
+            {
+                if (!_peers.TryGetValue(hostPeerId, out var hostPeer))
+                {
+                    throw new PeerNotExistsException("KickPeerAsync()", hostPeerId);
+                }
+
+                CheckConnection(hostPeer, connectionId);
+
+                if (!_peers.TryGetValue(targetPeerId, out var targetPeer))
+                {
+                    throw new PeerNotExistsException("KickPeerAsync()", targetPeerId);
+                }
+
+                // 通过 Peer 获取 Room
+                var room = await hostPeer.GetRoomAsync();
+                if (room == null)
+                {
+                    throw new Exception("KickPeerAsync() | Host peer is not in any room.");
+                }
+
+                // 踢出用户
+                var result = await room.KickPeerAsync(hostPeerId, targetPeerId);
+
+                // 让被踢用户离开房间
+                if (result != null)
+                {
+                    await targetPeer.LeaveRoomAsync();
+                }
+
+                return result;
+            }
+        }
+
+        /// <summary>
+        /// 获取目标 Peer 信息
+        /// </summary>
+        public async Task<Peer?> GetTargetPeerAsync(string peerId)
+        {
+            await using (await _peersLock.ReadLockAsync())
+            {
+                return _peers.TryGetValue(peerId, out var peer) ? peer : null;
+            }
+        }
+
         private static void CheckConnection(Peer peer, string connectionId)
         {
             if (peer.ConnectionId != connectionId)

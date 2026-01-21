@@ -137,6 +137,7 @@
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     
                     <!-- 头像 -->
@@ -145,27 +146,83 @@
                             CornerRadius="18"
                             Background="{DynamicResource ControlFillColorTertiaryBrush}"
                             Margin="0,0,10,0">
-                        <TextBlock Text="{Binding DisplayName[0]}"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center"
-                                   FontSize="14"
-                                   FontWeight="SemiBold"/>
+                        <Grid>
+                            <TextBlock Text="{Binding DisplayName[0]}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"/>
+                            <!-- 被主持人静音标识 -->
+                            <Border HorizontalAlignment="Right"
+                                    VerticalAlignment="Bottom"
+                                    Margin="0,0,-2,-2"
+                                    Background="#E81123"
+                                    CornerRadius="7"
+                                    Width="14" Height="14"
+                                    Visibility="{Binding IsMutedByHost, Converter={StaticResource BoolToVisConverter}}">
+                                <ui:SymbolIcon Symbol="MicOff16" FontSize="8" Foreground="White"/>
+                            </Border>
+                        </Grid>
                     </Border>
                     
                     <!-- 名称 -->
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                        <TextBlock Text="{Binding DisplayName}"
-                                   FontSize="13"
-                                   FontWeight="Medium"/>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding DisplayName}"
+                                       FontSize="13"
+                                       FontWeight="Medium"/>
+                            <!-- 静音状态文字 -->
+                            <TextBlock Text="(已静音)"
+                                       FontSize="11"
+                                       Foreground="#E81123"
+                                       Margin="4,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Visibility="{Binding IsMutedByHost, Converter={StaticResource BoolToVisConverter}}"/>
+                        </StackPanel>
                         <TextBlock Text="{Binding LastMessagePreview}"
                                    FontSize="11"
                                    Opacity="0.6"
                                    TextTrimming="CharacterEllipsis"
-                                   MaxWidth="120"/>
+                                   MaxWidth="100"/>
+                    </StackPanel>
+                    
+                    <!-- 主持人控制按钮（仅主持人可见） -->
+                    <StackPanel Grid.Column="2"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="4,0"
+                                Visibility="{Binding DataContext.IsHost, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisConverter}}">
+                        <!-- 静音/取消静音按钮 -->
+                        <ui:Button Appearance="Transparent"
+                                   Padding="4"
+                                   Margin="0,0,2,0"
+                                   ToolTip="{Binding IsMutedByHost, Converter={StaticResource MuteTooltipConverter}}"
+                                   Command="{Binding DataContext.MuteUserCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}">
+                            <Grid>
+                                <!-- 静音图标（当前未静音） -->
+                                <ui:SymbolIcon Symbol="MicOff16" FontSize="14" 
+                                               Foreground="#F57C00"
+                                               Visibility="{Binding IsMutedByHost, Converter={StaticResource InverseBoolToVisConverter}}"/>
+                                <!-- 取消静音图标（当前已静音） -->
+                                <ui:SymbolIcon Symbol="Mic16" FontSize="14" 
+                                               Foreground="#4CAF50"
+                                               Visibility="{Binding IsMutedByHost, Converter={StaticResource BoolToVisConverter}}"/>
+                            </Grid>
+                        </ui:Button>
+                        
+                        <!-- 踢出按钮 -->
+                        <ui:Button Appearance="Transparent"
+                                   Padding="4"
+                                   ToolTip="踢出房间"
+                                   Command="{Binding DataContext.KickUserCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                   CommandParameter="{Binding}">
+                            <ui:SymbolIcon Symbol="PersonDelete16" FontSize="14" Foreground="#E81123"/>
+                        </ui:Button>
                     </StackPanel>
                     
                     <!-- 未读数 -->
-                    <Border Grid.Column="2"
+                    <Border Grid.Column="3"
                             VerticalAlignment="Center"
                             Visibility="{Binding HasUnread, Converter={StaticResource BoolToVisConverter}}">
                         <Border Background="#E81123"

@@ -285,6 +285,20 @@ public partial class MainViewModel : ObservableObject
 
     #endregion
 
+    #region 主持人相关属性
+
+    /// <summary>
+    /// 主持人 PeerId
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsHost))]
+    private string? _hostPeerId;
+
+    /// <summary>
+    /// 当前用户是否是主持人
+    /// </summary>
+    public bool IsHost => !string.IsNullOrEmpty(HostPeerId) && HostPeerId == SelectedPeerIndex.ToString();
+
     #region 屏幕共享相关属性
 
     /// <summary>
@@ -901,6 +915,86 @@ public partial class MainViewModel : ObservableObject
     {
         _logger.LogInformation("屏幕截图");
         StatusMessage = "屏幕截图功能待实现";
+    }
+
+    #endregion
+
+    #region 主持人命令
+
+    /// <summary>
+    /// 踢出用户
+    /// </summary>
+    [RelayCommand]
+    private async Task KickUser(ChatUser? user)
+    {
+        if (user == null || !IsHost)
+        {
+            _logger.LogWarning("踢出用户失败: 用户为空或非主持人");
+            return;
+        }
+
+        try
+        {
+            _logger.LogInformation("主持人踢出用户: {PeerId}, {DisplayName}", user.PeerId, user.DisplayName);
+            
+            var result = await _signalRService.InvokeAsync("KickPeer", new { targetPeerId = user.PeerId });
+            if (result.IsSuccess)
+            {
+                StatusMessage = $"已踢出用户 {user.DisplayName}";
+            }
+            else
+            {
+                _logger.LogError("踢出用户失败: {Message}", result.Message);
+                StatusMessage = $"踢出失败: {result.Message}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "踢出用户异常");
+            StatusMessage = $"踢出失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 远程静音用户
+    /// </summary>
+    [RelayCommand]
+    private async Task MuteUser(ChatUser? user)
+    {
+        if (user == null || !IsHost)
+        {
+            _logger.LogWarning("静音用户失败: 用户为空或非主持人");
+            return;
+        }
+
+        try
+        {
+            var shouldMute = !user.IsMutedByHost;
+            _logger.LogInformation("主持人{Action}用户: {PeerId}, {DisplayName}", 
+                shouldMute ? "静音" : "取消静音", user.PeerId, user.DisplayName);
+            
+            var result = await _signalRService.InvokeAsync("RemoteMutePeer", new 
+            { 
+                targetPeerId = user.PeerId,
+                isMuted = shouldMute
+            });
+            
+            if (result.IsSuccess)
+            {
+                user.IsMutedByHost = shouldMute;
+                StatusMessage = shouldMute ? $"已静音 {user.DisplayName}" : $"已取消静音 {user.DisplayName}";
+            }
+            else
+            {
+                _logger.LogError("静音用户失败: {Message}", result.Message);
+                StatusMessage = $"操作失败: {result.Message}";
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "静音用户异常");
+            StatusMessage = $"操作失败: {ex.Message}";
+        }
     }
 
     #endregion
@@ -2072,8 +2166,12 @@ public partial class MainViewModel : ObservableObject
 
         // 在 UI 线程上更新 Peer 列表和 ChatUsers 列表
         var peersData = result.Data?.Peers;
+        var hostPeerId = result.Data?.HostPeerId;
         var peersCount = peersData?.Length ?? 0;
-        _logger.LogInformation("处理房间内 Peers: Count={Count}", peersCount);
+        _logger.LogInformation("处理房间内 Peers: Count={Count}, HostPeerId={HostPeerId}", peersCount, hostPeerId);
+        
+        // 保存主持人信息
+        HostPeerId = hostPeerId;
         
         // 使用 Dispatcher.Invoke 确保在 UI 线程上更新集合
         var dispatcher = Application.Current?.Dispatcher;
@@ -2086,8 +2184,8 @@ public partial class MainViewModel : ObservableObject
             UpdatePeersCollection(peersData, roomIdToJoin);
         }
         
-        _logger.LogInformation("加入房间成功: RoomId={RoomId}, PeerCount={PeerCount}, ChatUserCount={ChatUserCount}", 
-            roomIdToJoin, Peers.Count, ChatUsers.Count);
+        _logger.LogInformation("加入房间成功: RoomId={RoomId}, PeerCount={PeerCount}, ChatUserCount={ChatUserCount}, IsHost={IsHost}", 
+            roomIdToJoin, Peers.Count, ChatUsers.Count, IsHost);
 
         // 创建 WebRTC Transport
         await CreateTransportsAsync();
@@ -2222,6 +2320,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(OnlinePeerCount));
         OnPropertyChanged(nameof(CanJoinRoom));
         OnPropertyChanged(nameof(CanToggleMedia));
+        OnPropertyChanged(nameof(IsHost));
         
         _logger.LogInformation("房间状态同步完成: IsJoinedRoom={IsJoinedRoom}, OnlinePeerCount={OnlinePeerCount}", 
             IsJoinedRoom, OnlinePeerCount);
@@ -2738,6 +2837,12 @@ public partial class MainViewModel : ObservableObject
                     case "broadcastMessage":
                         HandleBroadcastMessage(notification.Data);
                         break;
+                    case "peerKicked":
+                        HandlePeerKicked(notification.Data);
+                        break;
+                    case "peerMuted":
+                        HandlePeerMuted(notification.Data);
+                        break;
                     default:
                         _logger.LogDebug("Unhandled notification: {Type}", notification.Type);
                         break;
@@ -2826,6 +2931,86 @@ public partial class MainViewModel : ObservableObject
             
             // 手动触发在线人数更新
             OnPropertyChanged(nameof(OnlinePeerCount));
+        }
+    }
+
+    /// <summary>
+    /// 处理被踢出房间通知
+    /// </summary>
+    private async void HandlePeerKicked(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var notification = JsonSerializer.Deserialize<PeerKickedData>(json, JsonOptions);
+            
+            // 如果是自己被踢出
+            if (notification?.PeerId == SelectedPeerIndex.ToString())
+            {
+                _logger.LogWarning("你已被主持人踢出房间");
+                StatusMessage = "你已被主持人踢出房间";
+                
+                // 断开连接并返回加入房间窗口
+                await LeaveRoomAsync();
+                ReturnToJoinRoomRequested?.Invoke();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理被踢出通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理被静音通知
+    /// </summary>
+    private async void HandlePeerMuted(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var notification = JsonSerializer.Deserialize<PeerMutedData>(json, JsonOptions);
+            if (notification == null) return;
+            
+            // 如果是自己被静音
+            if (notification.PeerId == SelectedPeerIndex.ToString())
+            {
+                if (notification.IsMuted)
+                {
+                    _logger.LogWarning("你已被主持人静音");
+                    StatusMessage = "你已被主持人静音";
+                    
+                    // 关闭麦克风
+                    if (IsMicrophoneEnabled)
+                    {
+                        await ToggleMicrophoneAsync();
+                    }
+                }
+                else
+                {
+                    _logger.LogInformation("主持人已取消你的静音");
+                    StatusMessage = "主持人已取消你的静音，你可以开始说话了";
+                }
+            }
+            else
+            {
+                // 其他用户被静音，更新 ChatUser 状态
+                var mutedUser = ChatUsers.FirstOrDefault(u => u.PeerId == notification.PeerId);
+                if (mutedUser != null)
+                {
+                    mutedUser.IsMutedByHost = notification.IsMuted;
+                    _logger.LogInformation("用户 {DisplayName} {Action}", 
+                        mutedUser.DisplayName, notification.IsMuted ? "被静音" : "取消静音");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理静音通知失败");
         }
     }
 

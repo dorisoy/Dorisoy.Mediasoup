@@ -283,3 +283,50 @@ public class BroadcastMessageData
     /// </summary>
     public object? Data { get; set; }
 }
+
+/// <summary>
+/// 用户被踢出通知数据
+/// </summary>
+public class PeerKickedData
+{
+    /// <summary>
+    /// 被踢出的用户 ID
+    /// </summary>
+    public string? PeerId { get; set; }
+
+    /// <summary>
+    /// 被踢出的用户名称
+    /// </summary>
+    public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// 主持人 ID
+    /// </summary>
+    public string? HostPeerId { get; set; }
+}
+
+/// <summary>
+/// 用户被静音通知数据
+/// </summary>
+public class PeerMutedData
+{
+    /// <summary>
+    /// 被静音/取消静音的用户 ID
+    /// </summary>
+    public string? PeerId { get; set; }
+
+    /// <summary>
+    /// 用户名称
+    /// </summary>
+    public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// 是否静音
+    /// </summary>
+    public bool IsMuted { get; set; }
+
+    /// <summary>
+    /// 主持人 ID
+    /// </summary>
+    public string? HostPeerId { get; set; }
+}
