@@ -306,6 +306,27 @@ public class PeerKickedData
 }
 
 /// <summary>
+/// 房间解散通知数据（主持人离开时）
+/// </summary>
+public class RoomDismissedData
+{
+    /// <summary>
+    /// 房间 ID
+    /// </summary>
+    public string? RoomId { get; set; }
+
+    /// <summary>
+    /// 主持人 ID
+    /// </summary>
+    public string? HostPeerId { get; set; }
+
+    /// <summary>
+    /// 解散原因
+    /// </summary>
+    public string? Reason { get; set; }
+}
+
+/// <summary>
 /// 用户被静音通知数据
 /// </summary>
 public class PeerMutedData

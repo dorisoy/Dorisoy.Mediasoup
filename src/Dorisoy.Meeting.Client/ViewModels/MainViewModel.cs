@@ -1194,6 +1194,180 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 清空聊天记录
+    /// </summary>
+    [RelayCommand]
+    private async Task ClearChatHistoryAsync()
+    {
+        // 确认对话框
+        var messageBox = new Wpf.Ui.Controls.MessageBox
+        {
+            Title = "清空聊天记录",
+            Content = "确定要清空当前聊天记录吗？此操作不可恢复。",
+            PrimaryButtonText = "清空",
+            CloseButtonText = "取消",
+            PrimaryButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Danger,
+        };
+        
+        var result = await messageBox.ShowDialogAsync();
+        if (result != Wpf.Ui.Controls.MessageBoxResult.Primary)
+        {
+            return;
+        }
+        
+        // 清空当前显示的消息
+        CurrentMessages.Clear();
+        
+        // 清空对应的消息存储
+        if (IsGroupChatMode)
+        {
+            _groupMessages.Clear();
+            _logger.LogInformation("已清空群聊记录");
+        }
+        else if (SelectedChatUser != null)
+        {
+            var peerId = SelectedChatUser.PeerId;
+            if (_privateMessages.ContainsKey(peerId))
+            {
+                _privateMessages[peerId].Clear();
+            }
+            _logger.LogInformation("已清空与 {DisplayName} 的私聊记录", SelectedChatUser.DisplayName);
+        }
+        
+        StatusMessage = "聊天记录已清空";
+    }
+
+    /// <summary>
+    /// 导出聊天记录
+    /// </summary>
+    [RelayCommand]
+    private async Task ExportChatHistoryAsync()
+    {
+        if (CurrentMessages.Count == 0)
+        {
+            StatusMessage = "没有聊天记录可导出";
+            return;
+        }
+        
+        try
+        {
+            var chatName = IsGroupChatMode ? "群聊" : SelectedChatUser?.DisplayName ?? "聊天";
+            var saveDialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "文本文件|*.txt|HTML 文件|*.html",
+                DefaultExt = ".txt",
+                FileName = $"聊天记录_{chatName}_{DateTime.Now:yyyyMMdd_HHmmss}"
+            };
+
+            if (saveDialog.ShowDialog() == true)
+            {
+                var isHtml = saveDialog.FileName.EndsWith(".html", StringComparison.OrdinalIgnoreCase);
+                var content = isHtml ? BuildHtmlChatHistory(chatName) : BuildTextChatHistory(chatName);
+                
+                await File.WriteAllTextAsync(saveDialog.FileName, content);
+                
+                StatusMessage = $"聊天记录已导出: {saveDialog.FileName}";
+                _logger.LogInformation("聊天记录已导出: {Path}", saveDialog.FileName);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "导出聊天记录失败");
+            StatusMessage = $"导出失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 构建文本格式的聊天记录
+    /// </summary>
+    private string BuildTextChatHistory(string chatName)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"========== {chatName} 聊天记录 ==========");
+        sb.AppendLine($"导出时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"房间号: {RoomId}");
+        sb.AppendLine(new string('=', 40));
+        sb.AppendLine();
+        
+        foreach (var msg in CurrentMessages)
+        {
+            var sender = msg.IsFromSelf ? $"{CurrentUserName}(我)" : msg.SenderName;
+            var time = msg.Timestamp.ToString("HH:mm:ss");
+            
+            switch (msg.MessageType)
+            {
+                case ChatMessageType.Text:
+                    sb.AppendLine($"[{time}] {sender}:");
+                    sb.AppendLine($"  {msg.Content}");
+                    break;
+                case ChatMessageType.Image:
+                    sb.AppendLine($"[{time}] {sender}:");
+                    sb.AppendLine($"  [图片] {msg.FileName}");
+                    break;
+                case ChatMessageType.File:
+                    sb.AppendLine($"[{time}] {sender}:");
+                    sb.AppendLine($"  [文件] {msg.FileName} ({msg.FormattedFileSize})");
+                    break;
+            }
+            sb.AppendLine();
+        }
+        
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// 构建 HTML 格式的聊天记录
+    /// </summary>
+    private string BuildHtmlChatHistory(string chatName)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("<!DOCTYPE html>");
+        sb.AppendLine("<html><head><meta charset='utf-8'>");
+        sb.AppendLine($"<title>{chatName} 聊天记录</title>");
+        sb.AppendLine("<style>");
+        sb.AppendLine("body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; background: #f5f5f5; }");
+        sb.AppendLine("h1 { color: #333; border-bottom: 2px solid #0078D4; padding-bottom: 10px; }");
+        sb.AppendLine(".info { color: #666; margin-bottom: 20px; }");
+        sb.AppendLine(".message { margin: 10px 0; padding: 10px; border-radius: 8px; }");
+        sb.AppendLine(".message.self { background: #0078D4; color: white; margin-left: 20%; text-align: right; }");
+        sb.AppendLine(".message.other { background: white; margin-right: 20%; }");
+        sb.AppendLine(".sender { font-weight: bold; font-size: 12px; opacity: 0.8; }");
+        sb.AppendLine(".time { font-size: 11px; opacity: 0.6; }");
+        sb.AppendLine(".content { margin-top: 5px; }");
+        sb.AppendLine(".file-info { font-style: italic; }");
+        sb.AppendLine("</style></head><body>");
+        sb.AppendLine($"<h1>{chatName} 聊天记录</h1>");
+        sb.AppendLine($"<div class='info'>导出时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss} | 房间号: {RoomId}</div>");
+        
+        foreach (var msg in CurrentMessages)
+        {
+            var cssClass = msg.IsFromSelf ? "self" : "other";
+            var sender = msg.IsFromSelf ? $"{CurrentUserName}(我)" : msg.SenderName;
+            var time = msg.Timestamp.ToString("HH:mm:ss");
+            
+            sb.AppendLine($"<div class='message {cssClass}'>");
+            sb.AppendLine($"<div class='sender'>{sender} <span class='time'>{time}</span></div>");
+            
+            switch (msg.MessageType)
+            {
+                case ChatMessageType.Text:
+                    sb.AppendLine($"<div class='content'>{System.Web.HttpUtility.HtmlEncode(msg.Content)}</div>");
+                    break;
+                case ChatMessageType.Image:
+                    sb.AppendLine($"<div class='content file-info'>[图片] {msg.FileName}</div>");
+                    break;
+                case ChatMessageType.File:
+                    sb.AppendLine($"<div class='content file-info'>[文件] {msg.FileName} ({msg.FormattedFileSize})</div>");
+                    break;
+            }
+            sb.AppendLine("</div>");
+        }
+        
+        sb.AppendLine("</body></html>");
+        return sb.ToString();
+    }
+
+    /// <summary>
     /// 举手/发送表情
     /// </summary>
     [RelayCommand]
@@ -3090,6 +3264,9 @@ public partial class MainViewModel : ObservableObject
                     case "peerMuted":
                         HandlePeerMuted(notification.Data);
                         break;
+                    case "roomDismissed":
+                        HandleRoomDismissed(notification.Data);
+                        break;
                     default:
                         _logger.LogDebug("Unhandled notification: {Type}", notification.Type);
                         break;
@@ -3301,6 +3478,49 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "处理静音通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理房间解散通知（主持人离开）
+    /// </summary>
+    private async void HandleRoomDismissed(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var notification = JsonSerializer.Deserialize<RoomDismissedData>(json, JsonOptions);
+            
+            _logger.LogWarning("收到房间解散通知: RoomId={RoomId}, HostPeerId={HostPeerId}, Reason={Reason}", 
+                notification?.RoomId, notification?.HostPeerId, notification?.Reason);
+            
+            // 显示提示
+            StatusMessage = "主持人已离开，房间已解散";
+            
+            // 使用 WPF UI 风格的消息框
+            var messageBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "会议已结束",
+                Content = $"主持人已离开房间，会议已结束。\n{notification?.Reason ?? ""}",
+                CloseButtonText = "确定",
+                CloseButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Primary,
+            };
+            
+            await messageBox.ShowDialogAsync();
+            
+            // 使用 ForceLeaveRoomLocalAsync 只清理本地状态，不调用服务端
+            // 因为主持人离开后，房间已经被服务端清理
+            _logger.LogInformation("调用 ForceLeaveRoomLocalAsync 强制清理本地状态...");
+            await ForceLeaveRoomLocalAsync();
+            
+            _logger.LogInformation("触发 ReturnToJoinRoomRequested 事件...");
+            ReturnToJoinRoomRequested?.Invoke();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理房间解散通知失败");
         }
     }
 

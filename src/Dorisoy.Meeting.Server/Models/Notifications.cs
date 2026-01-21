@@ -202,6 +202,27 @@ namespace Dorisoy.Meeting.Server
         public string HostPeerId { get; set; }
     }
 
+    /// <summary>
+    /// 房间解散通知（主持人离开时）
+    /// </summary>
+    public class RoomDismissedNotification
+    {
+        /// <summary>
+        /// 房间 ID
+        /// </summary>
+        public string RoomId { get; set; }
+
+        /// <summary>
+        /// 主持人 PeerId
+        /// </summary>
+        public string HostPeerId { get; set; }
+
+        /// <summary>
+        /// 解散原因
+        /// </summary>
+        public string Reason { get; set; }
+    }
+
     #endregion
 
     #region Consumer

@@ -181,15 +181,39 @@ namespace Dorisoy.Meeting.Server
         {
             try
             {
+                // 获取当前 Peer 和 Room 信息，用于检查是否是主持人
+                var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+                var room = peer != null ? await peer.GetRoomAsync() : null;
+                var isHost = room?.HostPeerId == UserId;
+                var roomId = room?.RoomId;
+                
                 // FIXME: (alby) 在 Invite 模式下，清除尚未处理的邀请。避免在会议室A受邀请后，离开会议室A进入会议室B，误受邀请。
                 var leaveRoomResult = await _scheduler.LeaveRoomAsync(UserId, ConnectionId);
 
-                // Notification: peerLeaveRoom
-                SendNotification(
-                    leaveRoomResult.OtherPeerIds,
-                    "peerLeaveRoom",
-                    new PeerLeaveRoomNotification { PeerId = UserId }
-                );
+                if (isHost && leaveRoomResult.OtherPeerIds.Length > 0)
+                {
+                    // 主持人离开，通知所有其他用户房间解散
+                    _logger.LogInformation("Host {HostId} left room {RoomId}, dismissing room for all users", UserId, roomId);
+                    SendNotification(
+                        leaveRoomResult.OtherPeerIds,
+                        "roomDismissed",
+                        new RoomDismissedNotification 
+                        { 
+                            RoomId = roomId ?? "",
+                            HostPeerId = UserId,
+                            Reason = "主持人已离开房间"
+                        }
+                    );
+                }
+                else
+                {
+                    // 普通用户离开，只通知其他用户
+                    SendNotification(
+                        leaveRoomResult.OtherPeerIds,
+                        "peerLeaveRoom",
+                        new PeerLeaveRoomNotification { PeerId = UserId }
+                    );
+                }
 
                 return MeetingMessage.Success("LeaveRoom 成功");
             }

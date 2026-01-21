@@ -368,6 +368,8 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     
                     <!-- 左侧：聊天对象名称和状态 -->
@@ -384,8 +386,31 @@
                                    VerticalAlignment="Center"/>
                     </StackPanel>
                     
-                    <!-- 右侧：图钉按钮（折叠聊天面板） -->
+                    <!-- 右侧按钮组 -->
+                    <!-- 删除按钮（清空聊天记录） -->
                     <ui:Button Grid.Column="1"
+                               Appearance="Transparent"
+                               ToolTip="清空聊天记录"
+                               Padding="6"
+                               Margin="0,0,4,0"
+                               VerticalAlignment="Center"
+                               Command="{Binding ClearChatHistoryCommand}">
+                        <ui:SymbolIcon Symbol="Delete24" FontSize="16"/>
+                    </ui:Button>
+                    
+                    <!-- 保存按钮（导出聊天记录） -->
+                    <ui:Button Grid.Column="2"
+                               Appearance="Transparent"
+                               ToolTip="导出聊天记录"
+                               Padding="6"
+                               Margin="0,0,4,0"
+                               VerticalAlignment="Center"
+                               Command="{Binding ExportChatHistoryCommand}">
+                        <ui:SymbolIcon Symbol="Save24" FontSize="16"/>
+                    </ui:Button>
+                    
+                    <!-- 图钉按钮（折叠聊天面板） -->
+                    <ui:Button Grid.Column="3"
                                Appearance="Transparent"
                                ToolTip="折叠聊天面板"
                                Padding="6"
