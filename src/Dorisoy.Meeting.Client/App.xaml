@@ -47,6 +47,7 @@
             <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter"/>
             <converters:InverseBoolToVisConverter x:Key="InverseBoolToVisConverter"/>
             <converters:MuteTooltipConverter x:Key="MuteTooltipConverter"/>
+            <converters:RemoteVideoMuteTooltipConverter x:Key="RemoteVideoMuteTooltipConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

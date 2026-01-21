@@ -582,3 +582,23 @@ public class MuteTooltipConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
+
+/// <summary>
+/// 远程视频静音状态提示转换器
+/// </summary>
+public class RemoteVideoMuteTooltipConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isMuted)
+        {
+            return isMuted ? "取消静音" : "静音";
+        }
+        return "静音";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}

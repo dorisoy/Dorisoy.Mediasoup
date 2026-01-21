@@ -59,12 +59,36 @@
                                             Padding="0"
                                             CornerRadius="8"
                                             Background="{DynamicResource ControlFillColorDefaultBrush}"
-                                            ClipToBounds="True">
+                                            ClipToBounds="True"
+                                            BorderThickness="2"
+                                            Cursor="Hand">
+                                        <Border.Style>
+                                            <Style TargetType="Border">
+                                                <Setter Property="BorderBrush" Value="Transparent"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                                        <Setter Property="BorderBrush" Value="#0078D4"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Border.Style>
+                                        <Border.InputBindings>
+                                            <MouseBinding MouseAction="LeftClick"
+                                                          Command="{Binding DataContext.SelectRemoteVideoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                          CommandParameter="{Binding}"/>
+                                        </Border.InputBindings>
                                         <Grid MinWidth="200"
                                               MinHeight="150">
+                                            <!-- 视频画面，支持镜像 -->
                                             <Image Source="{Binding VideoFrame}"
                                                    Stretch="UniformToFill"
-                                                   RenderOptions.BitmapScalingMode="HighQuality" />
+                                                   RenderOptions.BitmapScalingMode="HighQuality"
+                                                   RenderTransformOrigin="0.5,0.5">
+                                                <Image.RenderTransform>
+                                                    <ScaleTransform ScaleX="{Binding HorizontalScale}" 
+                                                                    ScaleY="{Binding VerticalScale}"/>
+                                                </Image.RenderTransform>
+                                            </Image>
 
                                             <!-- 无视频时的占位符 -->
                                             <StackPanel HorizontalAlignment="Center"
@@ -97,6 +121,130 @@
                                                     <TextBlock Text="{Binding DisplayName}"
                                                                Foreground="White"
                                                                FontSize="12" />
+                                                    <!-- 静音指示 -->
+                                                    <ui:SymbolIcon Symbol="SpeakerOff16"
+                                                                   FontSize="12"
+                                                                   Foreground="#FF5722"
+                                                                   Margin="6,0,0,0"
+                                                                   Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisConverter}}"/>
+                                                </StackPanel>
+                                            </Border>
+
+                                            <!-- 右上角工具栏 - 仅选中时显示 -->
+                                            <Border HorizontalAlignment="Right"
+                                                    VerticalAlignment="Top"
+                                                    Margin="8"
+                                                    Background="#CC000000"
+                                                    CornerRadius="6"
+                                                    Padding="4"
+                                                    Visibility="{Binding IsSelected, Converter={StaticResource BoolToVisConverter}}">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <!-- 最大化 -->
+                                                    <ui:Button Width="32" Height="32"
+                                                               CornerRadius="4"
+                                                               Margin="2,0"
+                                                               Appearance="Transparent"
+                                                               ToolTip="最大化"
+                                                               Command="{Binding DataContext.ToggleMaximizeRemoteVideoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                               CommandParameter="{Binding}">
+                                                        <ui:SymbolIcon Symbol="FullScreenMaximize16" FontSize="14" Foreground="White"/>
+                                                    </ui:Button>
+                                                    
+                                                    <!-- 水平镜像 -->
+                                                    <ui:Button Width="32" Height="32"
+                                                               CornerRadius="4"
+                                                               Margin="2,0"
+                                                               ToolTip="水平镜像"
+                                                               Command="{Binding DataContext.ToggleHorizontalMirrorCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                               CommandParameter="{Binding}">
+                                                        <ui:Button.Style>
+                                                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                                                <Setter Property="Appearance" Value="Transparent"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsHorizontallyMirrored}" Value="True">
+                                                                        <Setter Property="Appearance" Value="Info"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </ui:Button.Style>
+                                                        <ui:SymbolIcon Symbol="ArrowSwap16" FontSize="14" Foreground="White"/>
+                                                    </ui:Button>
+                                                    
+                                                    <!-- 垂直镜像 -->
+                                                    <ui:Button Width="32" Height="32"
+                                                               CornerRadius="4"
+                                                               Margin="2,0"
+                                                               ToolTip="垂直镜像"
+                                                               Command="{Binding DataContext.ToggleVerticalMirrorCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                               CommandParameter="{Binding}">
+                                                        <ui:Button.Style>
+                                                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                                                <Setter Property="Appearance" Value="Transparent"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsVerticallyMirrored}" Value="True">
+                                                                        <Setter Property="Appearance" Value="Info"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </ui:Button.Style>
+                                                        <ui:SymbolIcon Symbol="ArrowRotateClockwise16" FontSize="14" Foreground="White"
+                                                                       RenderTransformOrigin="0.5,0.5">
+                                                            <ui:SymbolIcon.RenderTransform>
+                                                                <RotateTransform Angle="90"/>
+                                                            </ui:SymbolIcon.RenderTransform>
+                                                        </ui:SymbolIcon>
+                                                    </ui:Button>
+                                                    
+                                                    <!-- 截屏 -->
+                                                    <ui:Button Width="32" Height="32"
+                                                               CornerRadius="4"
+                                                               Margin="2,0"
+                                                               Appearance="Transparent"
+                                                               ToolTip="截屏"
+                                                               Command="{Binding DataContext.ScreenshotRemoteVideoCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                               CommandParameter="{Binding}">
+                                                        <ui:SymbolIcon Symbol="Screenshot16" FontSize="14" Foreground="White"/>
+                                                    </ui:Button>
+                                                    
+                                                    <!-- 分隔线 -->
+                                                    <Border Width="1" Height="20" 
+                                                            Background="#40FFFFFF" 
+                                                            Margin="4,0"/>
+                                                    
+                                                    <!-- 静音 -->
+                                                    <ui:Button Width="32" Height="32"
+                                                               CornerRadius="4"
+                                                               Margin="2,0"
+                                                               ToolTip="{Binding IsMuted, Converter={StaticResource RemoteVideoMuteTooltipConverter}}"
+                                                               Command="{Binding DataContext.ToggleRemoteVideoMuteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                               CommandParameter="{Binding}">
+                                                        <ui:Button.Style>
+                                                            <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                                                <Setter Property="Appearance" Value="Transparent"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsMuted}" Value="True">
+                                                                        <Setter Property="Appearance" Value="Caution"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </ui:Button.Style>
+                                                        <Grid>
+                                                            <ui:SymbolIcon Symbol="Speaker216" FontSize="14" Foreground="White"
+                                                                           Visibility="{Binding IsMuted, Converter={StaticResource InverseBoolToVisConverter}}"/>
+                                                            <ui:SymbolIcon Symbol="SpeakerOff16" FontSize="14" Foreground="White"
+                                                                           Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisConverter}}"/>
+                                                        </Grid>
+                                                    </ui:Button>
+                                                    
+                                                    <!-- 音量滑动条 -->
+                                                    <Slider Width="80"
+                                                            Minimum="0"
+                                                            Maximum="100"
+                                                            Value="{Binding Volume, Mode=TwoWay}"
+                                                            VerticalAlignment="Center"
+                                                            Margin="4,0,8,0"
+                                                            IsEnabled="{Binding IsMuted, Converter={StaticResource InverseBoolConverter}}"
+                                                            ToolTip="{Binding Volume, StringFormat='音量: {0:F0}%'}"/>
                                                 </StackPanel>
                                             </Border>
                                         </Grid>

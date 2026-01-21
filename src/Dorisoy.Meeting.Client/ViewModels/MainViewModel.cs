@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Media.Imaging;
@@ -298,6 +299,24 @@ public partial class MainViewModel : ObservableObject
     /// 当前用户是否是主持人
     /// </summary>
     public bool IsHost => !string.IsNullOrEmpty(HostPeerId) && HostPeerId == SelectedPeerIndex.ToString();
+
+    #endregion
+
+    #region 远程视频控制属性
+
+    /// <summary>
+    /// 当前选中的远程视频
+    /// </summary>
+    [ObservableProperty]
+    private RemoteVideoItem? _selectedRemoteVideo;
+
+    /// <summary>
+    /// 最大化的远程视频
+    /// </summary>
+    [ObservableProperty]
+    private RemoteVideoItem? _maximizedRemoteVideo;
+
+    #endregion
 
     #region 屏幕共享相关属性
 
@@ -994,6 +1013,155 @@ public partial class MainViewModel : ObservableObject
         {
             _logger.LogError(ex, "静音用户异常");
             StatusMessage = $"操作失败: {ex.Message}";
+        }
+    }
+
+    #endregion
+
+    #region 远程视频控制命令
+
+    /// <summary>
+    /// 选中远程视频
+    /// </summary>
+    [RelayCommand]
+    private void SelectRemoteVideo(RemoteVideoItem? video)
+    {
+        if (video == null) return;
+        
+        // 取消之前选中的视频
+        if (SelectedRemoteVideo != null && SelectedRemoteVideo != video)
+        {
+            SelectedRemoteVideo.IsSelected = false;
+        }
+        
+        // 切换选中状态
+        video.IsSelected = !video.IsSelected;
+        SelectedRemoteVideo = video.IsSelected ? video : null;
+        
+        _logger.LogInformation("选中远程视频: {DisplayName}, IsSelected={IsSelected}", 
+            video.DisplayName, video.IsSelected);
+    }
+
+    /// <summary>
+    /// 最大化/还原远程视频
+    /// </summary>
+    [RelayCommand]
+    private void ToggleMaximizeRemoteVideo(RemoteVideoItem? video)
+    {
+        if (video == null) return;
+        
+        if (MaximizedRemoteVideo == video)
+        {
+            // 还原
+            video.IsMaximized = false;
+            MaximizedRemoteVideo = null;
+            _logger.LogInformation("还原远程视频: {DisplayName}", video.DisplayName);
+        }
+        else
+        {
+            // 取消之前的最大化
+            if (MaximizedRemoteVideo != null)
+            {
+                MaximizedRemoteVideo.IsMaximized = false;
+            }
+            // 最大化当前视频
+            video.IsMaximized = true;
+            MaximizedRemoteVideo = video;
+            _logger.LogInformation("最大化远程视频: {DisplayName}", video.DisplayName);
+        }
+    }
+
+    /// <summary>
+    /// 切换远程视频水平镜像
+    /// </summary>
+    [RelayCommand]
+    private void ToggleHorizontalMirror(RemoteVideoItem? video)
+    {
+        if (video == null) return;
+        video.IsHorizontallyMirrored = !video.IsHorizontallyMirrored;
+        _logger.LogInformation("切换远程视频水平镜像: {DisplayName}, IsMirrored={IsMirrored}", 
+            video.DisplayName, video.IsHorizontallyMirrored);
+    }
+
+    /// <summary>
+    /// 切换远程视频垂直镜像
+    /// </summary>
+    [RelayCommand]
+    private void ToggleVerticalMirror(RemoteVideoItem? video)
+    {
+        if (video == null) return;
+        video.IsVerticallyMirrored = !video.IsVerticallyMirrored;
+        _logger.LogInformation("切换远程视频垂直镜像: {DisplayName}, IsMirrored={IsMirrored}", 
+            video.DisplayName, video.IsVerticallyMirrored);
+    }
+
+    /// <summary>
+    /// 截取远程视频截图
+    /// </summary>
+    [RelayCommand]
+    private async Task ScreenshotRemoteVideo(RemoteVideoItem? video)
+    {
+        if (video?.VideoFrame == null)
+        {
+            StatusMessage = "没有可截取的视频帧";
+            return;
+        }
+
+        try
+        {
+            var saveDialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "PNG 图片|*.png|JPEG 图片|*.jpg",
+                DefaultExt = ".png",
+                FileName = $"{video.DisplayName}_截图_{DateTime.Now:yyyyMMdd_HHmmss}"
+            };
+
+            if (saveDialog.ShowDialog() == true)
+            {
+                await Application.Current.Dispatcher.InvokeAsync(() =>
+                {
+                    using var fileStream = new FileStream(saveDialog.FileName, FileMode.Create);
+                    BitmapEncoder encoder = saveDialog.FileName.EndsWith(".jpg", StringComparison.OrdinalIgnoreCase)
+                        ? new JpegBitmapEncoder()
+                        : new PngBitmapEncoder();
+                    encoder.Frames.Add(BitmapFrame.Create(video.VideoFrame));
+                    encoder.Save(fileStream);
+                });
+                
+                StatusMessage = $"截图已保存: {saveDialog.FileName}";
+                _logger.LogInformation("远程视频截图已保存: {Path}", saveDialog.FileName);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "截图保存失败");
+            StatusMessage = $"截图失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 切换远程视频静音
+    /// </summary>
+    [RelayCommand]
+    private void ToggleRemoteVideoMute(RemoteVideoItem? video)
+    {
+        if (video == null) return;
+        video.IsMuted = !video.IsMuted;
+        _logger.LogInformation("切换远程视频静音: {DisplayName}, IsMuted={IsMuted}", 
+            video.DisplayName, video.IsMuted);
+        StatusMessage = video.IsMuted ? $"已静音 {video.DisplayName}" : $"已取消静音 {video.DisplayName}";
+    }
+
+    /// <summary>
+    /// 取消选中远程视频（点击空白区域）
+    /// </summary>
+    [RelayCommand]
+    private void DeselectRemoteVideo()
+    {
+        if (SelectedRemoteVideo != null)
+        {
+            SelectedRemoteVideo.IsSelected = false;
+            SelectedRemoteVideo = null;
         }
     }
 
@@ -3474,6 +3642,12 @@ public class RemoteVideoItem : ObservableObject
     private string _peerId = string.Empty;
     private string _displayName = string.Empty;
     private WriteableBitmap? _videoFrame;
+    private bool _isSelected;
+    private bool _isHorizontallyMirrored;
+    private bool _isVerticallyMirrored;
+    private bool _isMuted;
+    private double _volume = 100;
+    private bool _isMaximized;
 
     public string ConsumerId
     {
@@ -3507,4 +3681,80 @@ public class RemoteVideoItem : ObservableObject
         get => _videoFrame;
         set => SetProperty(ref _videoFrame, value);
     }
+
+    /// <summary>
+    /// 是否被选中
+    /// </summary>
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set => SetProperty(ref _isSelected, value);
+    }
+
+    /// <summary>
+    /// 是否水平镜像
+    /// </summary>
+    public bool IsHorizontallyMirrored
+    {
+        get => _isHorizontallyMirrored;
+        set
+        {
+            if (SetProperty(ref _isHorizontallyMirrored, value))
+            {
+                OnPropertyChanged(nameof(HorizontalScale));
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否垂直镜像
+    /// </summary>
+    public bool IsVerticallyMirrored
+    {
+        get => _isVerticallyMirrored;
+        set
+        {
+            if (SetProperty(ref _isVerticallyMirrored, value))
+            {
+                OnPropertyChanged(nameof(VerticalScale));
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否静音
+    /// </summary>
+    public bool IsMuted
+    {
+        get => _isMuted;
+        set => SetProperty(ref _isMuted, value);
+    }
+
+    /// <summary>
+    /// 音量 (0-100)
+    /// </summary>
+    public double Volume
+    {
+        get => _volume;
+        set => SetProperty(ref _volume, Math.Clamp(value, 0, 100));
+    }
+
+    /// <summary>
+    /// 是否最大化
+    /// </summary>
+    public bool IsMaximized
+    {
+        get => _isMaximized;
+        set => SetProperty(ref _isMaximized, value);
+    }
+
+    /// <summary>
+    /// 获取水平镜像的 ScaleTransform 值
+    /// </summary>
+    public double HorizontalScale => _isHorizontallyMirrored ? -1 : 1;
+
+    /// <summary>
+    /// 获取垂直镜像的 ScaleTransform 值
+    /// </summary>
+    public double VerticalScale => _isVerticallyMirrored ? -1 : 1;
 }
