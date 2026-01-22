@@ -43,6 +43,9 @@ public partial class MainWindow : FluentWindow
         // 订阅打开分享房间窗口事件
         _viewModel.OpenShareRoomWindowRequested += OnOpenShareRoomWindowRequested;
         
+        // 订阅打开同步转译窗口事件
+        _viewModel.OpenTranslateWindowRequested += OnOpenTranslateWindowRequested;
+        
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
         
@@ -129,6 +132,25 @@ public partial class MainWindow : FluentWindow
     }
     
     /// <summary>
+    /// 打开同步转译窗口
+    /// </summary>
+    private void OnOpenTranslateWindowRequested()
+    {
+        var translateWindow = new TranslateWindow
+        {
+            Owner = this
+        };
+        
+        // 窗口关闭时重置转译状态
+        translateWindow.Closed += (s, e) =>
+        {
+            _viewModel.IsTranslateEnabled = false;
+        };
+        
+        translateWindow.Show();
+    }
+    
+    /// <summary>
     /// 返回加入房间窗口
     /// </summary>
     private void OnReturnToJoinRoomRequested()
@@ -179,6 +201,7 @@ public partial class MainWindow : FluentWindow
             _viewModel.ReturnToJoinRoomRequested -= OnReturnToJoinRoomRequested;
             _viewModel.FullScreenRequested -= OnFullScreenRequested;
             _viewModel.OpenShareRoomWindowRequested -= OnOpenShareRoomWindowRequested;
+            _viewModel.OpenTranslateWindowRequested -= OnOpenTranslateWindowRequested;
             KeyDown -= OnWindowKeyDown;
             
             // 异步清理资源

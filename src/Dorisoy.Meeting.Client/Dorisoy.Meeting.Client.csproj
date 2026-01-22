@@ -55,6 +55,9 @@
 
         <!-- 二维码生成 -->
         <PackageReference Include="QRCoder" />
+
+        <!-- 语音识别 -->
+        <PackageReference Include="System.Speech" />
     </ItemGroup>
 
     <ItemGroup>

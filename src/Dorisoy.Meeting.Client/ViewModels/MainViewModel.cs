@@ -1047,12 +1047,19 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// 是否启用同步转译
+    /// <summary>
+    /// 请求打开同步转译窗口事件
+    /// </summary>
+    public event Action? OpenTranslateWindowRequested;
+
+    /// <summary>
+    /// 同步转译状态
     /// </summary>
     [ObservableProperty]
     private bool _isTranslateEnabled;
 
     /// <summary>
-    /// 同步转译 - 语音转文字功能（需要集成语音识别 API）
+    /// 同步转译 - 语音转文字功能
     /// </summary>
     [RelayCommand]
     private void Translate()
@@ -1061,8 +1068,9 @@ public partial class MainViewModel : ObservableObject
         
         if (IsTranslateEnabled)
         {
-            _logger.LogInformation("启用同步转译");
-            StatusMessage = "同步转译功能需要集成语音识别 API，暂未实现";
+            _logger.LogInformation("启用同步转译，打开转译窗口");
+            OpenTranslateWindowRequested?.Invoke();
+            StatusMessage = "已打开同步转译窗口";
         }
         else
         {
