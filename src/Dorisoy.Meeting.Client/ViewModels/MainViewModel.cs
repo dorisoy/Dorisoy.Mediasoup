@@ -2618,7 +2618,8 @@ public partial class MainViewModel : ObservableObject
                     {
                         PeerId = peer.PeerId,
                         DisplayName = peer.DisplayName ?? "Unknown",
-                        IsOnline = true
+                        IsOnline = true,
+                        IsHost = peer.PeerId == HostPeerId
                     });
                 }
                 else
@@ -3307,9 +3308,11 @@ public partial class MainViewModel : ObservableObject
                 {
                     PeerId = notification.Peer.PeerId ?? "",
                     DisplayName = notification.Peer.DisplayName ?? "Unknown",
-                    IsOnline = true
+                    IsOnline = true,
+                    IsHost = notification.Peer.PeerId == HostPeerId
                 });
-                _logger.LogDebug("添加新聊天用户: {DisplayName}", notification.Peer.DisplayName);
+                _logger.LogDebug("添加新聊天用户: {DisplayName}, IsHost={IsHost}", 
+                    notification.Peer.DisplayName, notification.Peer.PeerId == HostPeerId);
             }
             
             // 手动触发在线人数更新

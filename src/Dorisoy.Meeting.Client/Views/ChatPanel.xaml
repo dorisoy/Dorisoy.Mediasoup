@@ -171,6 +171,15 @@
                             <TextBlock Text="{Binding DisplayName}"
                                        FontSize="13"
                                        FontWeight="Medium"/>
+                            <!-- 主持人标识图标 -->
+                            <Border Margin="4,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Visibility="{Binding IsHost, Converter={StaticResource BoolToVisConverter}}">
+                                <ui:SymbolIcon Symbol="Star12" 
+                                               FontSize="12" 
+                                               Foreground="#FFD700"
+                                               ToolTip="主持人"/>
+                            </Border>
                             <!-- 静音状态文字 -->
                             <TextBlock Text="(已静音)"
                                        FontSize="11"
@@ -450,6 +459,8 @@
                         <ui:Button Appearance="Transparent"
                                    ToolTip="表情"
                                    Padding="8"
+                                   CornerRadius="4,0,0,4"
+                                   BorderThickness="1,1,0,1"
                                    Click="EmojiButton_Click">
                             <ui:SymbolIcon Symbol="Emoji24" FontSize="18"/>
                         </ui:Button>
@@ -458,6 +469,7 @@
                         <ui:Button Appearance="Transparent"
                                    ToolTip="发送图片"
                                    Padding="8"
+                                   CornerRadius="0,0,0,0"
                                    Click="ImageButton_Click">
                             <ui:SymbolIcon Symbol="Image24" FontSize="18"/>
                         </ui:Button>
@@ -466,6 +478,8 @@
                         <ui:Button Appearance="Transparent"
                                    ToolTip="发送文件"
                                    Padding="8"
+                                   CornerRadius="0,4,4,0"
+                                   BorderThickness="0,1,1,1"
                                    Click="FileButton_Click">
                             <ui:SymbolIcon Symbol="Attach24" FontSize="18"/>
                         </ui:Button>

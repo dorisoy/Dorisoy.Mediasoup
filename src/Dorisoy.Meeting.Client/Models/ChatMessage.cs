@@ -222,6 +222,7 @@ public class ChatUser : ObservableObject
     private int _unreadCount;
     private ChatMessage? _lastMessage;
     private bool _isMutedByHost;
+    private bool _isHost;
 
     /// <summary>
     /// 用户ID
@@ -257,6 +258,15 @@ public class ChatUser : ObservableObject
     {
         get => _isMutedByHost;
         set => SetProperty(ref _isMutedByHost, value);
+    }
+
+    /// <summary>
+    /// 是否是主持人（房主）
+    /// </summary>
+    public bool IsHost
+    {
+        get => _isHost;
+        set => SetProperty(ref _isHost, value);
     }
 
     /// <summary>
