@@ -5,6 +5,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using Dorisoy.Meeting.Client.ViewModels;
 using Dorisoy.Meeting.Client.Models;
+using UserControl = System.Windows.Controls.UserControl;
+using KeyEventArgs = System.Windows.Input.KeyEventArgs;
 
 namespace Dorisoy.Meeting.Client.Views;
 

@@ -52,6 +52,9 @@
 
         <!-- 系统管理 -->
         <PackageReference Include="System.Management"  />
+
+        <!-- 二维码生成 -->
+        <PackageReference Include="QRCoder" />
     </ItemGroup>
 
     <ItemGroup>

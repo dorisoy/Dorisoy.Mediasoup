@@ -246,6 +246,48 @@
                     </StackPanel>
                 </ui:Card>
 
+                <!-- 视频录制设置 -->
+                <ui:Card Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <ui:SymbolIcon Symbol="Record24" Margin="0,0,8,0" />
+                            <TextBlock Text="视频录制" FontWeight="SemiBold" />
+                        </StackPanel>
+                        
+                        <TextBlock Text="录制存储目录" Margin="0,0,0,6" Opacity="0.7" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <ui:TextBox Grid.Column="0"
+                                        Text="{Binding RecordingSavePath, UpdateSourceTrigger=PropertyChanged}"
+                                        PlaceholderText="选择录制视频保存目录..."
+                                        IsReadOnly="True"
+                                        Margin="0,0,8,0" />
+                            <ui:Button Grid.Column="1"
+                                       Icon="{ui:SymbolIcon Folder24}"
+                                       ToolTip="浏览文件夹"
+                                       Click="BrowseRecordingPath_Click" />
+                        </Grid>
+                        
+                        <TextBlock Text="录制格式" Margin="0,12,0,6" Opacity="0.7" />
+                        <ComboBox ItemsSource="{Binding RecordingFormats}"
+                                  SelectedItem="{Binding SelectedRecordingFormat}"
+                                  HorizontalAlignment="Stretch"/>
+                        
+                        <!-- 录制倒计时设置 -->
+                        <CheckBox Content="开始录制时显示 3 秒倒计时"
+                                  IsChecked="{Binding RecordingShowCountdown}"
+                                  Margin="0,12,0,0"/>
+                        
+                        <!-- 录制边框高亮 -->
+                        <CheckBox Content="录制时显示视频边框高亮"
+                                  IsChecked="{Binding RecordingShowBorder}"
+                                  Margin="0,8,0,0"/>
+                    </StackPanel>
+                </ui:Card>
+
                 <!-- 状态信息 -->
                 <ui:Card Margin="0,0,0,12">
                     <StackPanel>

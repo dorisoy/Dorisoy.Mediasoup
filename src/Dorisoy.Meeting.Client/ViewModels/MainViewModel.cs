@@ -732,7 +732,12 @@ public partial class MainViewModel : ObservableObject
     #region 左侧工具栏命令
 
     /// <summary>
-    /// 分享教室 - 复制房间链接到剪贴板
+    /// 请求打开分享房间窗口事件
+    /// </summary>
+    public event Action? OpenShareRoomWindowRequested;
+
+    /// <summary>
+    /// 分享教室 - 打开二维码弹窗
     /// </summary>
     [RelayCommand]
     private void ShareRoom()
@@ -743,23 +748,8 @@ public partial class MainViewModel : ObservableObject
             return;
         }
         
-        try
-        {
-            // 构建房间邀请链接
-            var roomLink = $"{ServerUrl}/join?room={RoomId}";
-            var inviteText = $"邀请您加入会议\n房间号: {RoomId}\n链接: {roomLink}";
-            
-            // 复制到剪贴板
-            Clipboard.SetText(inviteText);
-            
-            _logger.LogInformation("已复制房间链接到剪贴板: Room={RoomId}", RoomId);
-            StatusMessage = "房间链接已复制到剪贴板";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "复制房间链接失败");
-            StatusMessage = $"复制失败: {ex.Message}";
-        }
+        _logger.LogInformation("打开分享教室窗口: Room={RoomId}", RoomId);
+        OpenShareRoomWindowRequested?.Invoke();
     }
 
     /// <summary>
@@ -798,6 +788,62 @@ public partial class MainViewModel : ObservableObject
     /// 录制输出路径
     /// </summary>
     private string? _recordingOutputPath;
+    
+    #region 录制设置属性
+    
+    /// <summary>
+    /// 录制存储目录
+    /// </summary>
+    [ObservableProperty]
+    private string _recordingSavePath = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+    
+    /// <summary>
+    /// 录制格式列表
+    /// </summary>
+    public ObservableCollection<string> RecordingFormats { get; } = ["MP4", "WebM", "AVI"];
+    
+    /// <summary>
+    /// 选中的录制格式
+    /// </summary>
+    [ObservableProperty]
+    private string _selectedRecordingFormat = "MP4";
+    
+    /// <summary>
+    /// 是否显示录制倒计时
+    /// </summary>
+    [ObservableProperty]
+    private bool _recordingShowCountdown = true;
+    
+    /// <summary>
+    /// 是否显示录制边框高亮
+    /// </summary>
+    [ObservableProperty]
+    private bool _recordingShowBorder = true;
+    
+    /// <summary>
+    /// 录制倒计时数字 (3, 2, 1)
+    /// </summary>
+    [ObservableProperty]
+    private int _recordingCountdown;
+    
+    /// <summary>
+    /// 倒计时是否可见
+    /// </summary>
+    [ObservableProperty]
+    private bool _isRecordingCountdownVisible;
+    
+    /// <summary>
+    /// REC 指示器闪烁状态
+    /// </summary>
+    [ObservableProperty]
+    private bool _recIndicatorVisible = true;
+    
+    /// <summary>
+    /// 闪烁计时器
+    /// </summary>
+    private System.Timers.Timer? _blinkTimer;
+    
+    #endregion
 
     /// <summary>
     /// 录制 - 开始/停止会议录制
@@ -830,20 +876,27 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            // 选择保存路径
-            var saveDialog = new Microsoft.Win32.SaveFileDialog
+            // 确定文件扩展名
+            var ext = SelectedRecordingFormat.ToLower() switch
             {
-                Filter = "MP4 视频|*.mp4|WebM 视频|*.webm",
-                DefaultExt = ".mp4",
-                FileName = $"会议录制_{RoomId}_{DateTime.Now:yyyyMMdd_HHmmss}"
+                "mp4" => ".mp4",
+                "webm" => ".webm",
+                "avi" => ".avi",
+                _ => ".mp4"
             };
             
-            if (saveDialog.ShowDialog() != true)
-            {
-                return;
-            }
+            // 使用配置的保存目录
+            var fileName = $"会议录制_{RoomId}_{DateTime.Now:yyyyMMdd_HHmmss}{ext}";
+            _recordingOutputPath = Path.Combine(RecordingSavePath, fileName);
             
-            _recordingOutputPath = saveDialog.FileName;
+            // 确保目录存在
+            Directory.CreateDirectory(RecordingSavePath);
+            
+            // 如果启用倒计时，先显示倒计时
+            if (RecordingShowCountdown)
+            {
+                await ShowRecordingCountdownAsync();
+            }
             
             // 通知 WebRTC 服务开始录制
             await _webRtcService.StartRecordingAsync(_recordingOutputPath);
@@ -863,6 +916,9 @@ public partial class MainViewModel : ObservableObject
             };
             _recordingTimer.Start();
             
+            // 启动 REC 指示器闪烁
+            StartRecIndicatorBlink();
+            
             _logger.LogInformation("开始录制: {Path}", _recordingOutputPath);
             StatusMessage = "正在录制...";
         }
@@ -872,6 +928,50 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = $"录制失败: {ex.Message}";
             IsRecording = false;
         }
+    }
+    
+    /// <summary>
+    /// 显示录制倒计时 (3, 2, 1)
+    /// </summary>
+    private async Task ShowRecordingCountdownAsync()
+    {
+        IsRecordingCountdownVisible = true;
+        
+        for (int i = 3; i >= 1; i--)
+        {
+            RecordingCountdown = i;
+            await Task.Delay(1000);
+        }
+        
+        IsRecordingCountdownVisible = false;
+    }
+    
+    /// <summary>
+    /// 启动 REC 指示器闪烁
+    /// </summary>
+    private void StartRecIndicatorBlink()
+    {
+        RecIndicatorVisible = true;
+        _blinkTimer = new System.Timers.Timer(500); // 0.5秒闪烁一次
+        _blinkTimer.Elapsed += (s, e) =>
+        {
+            Application.Current?.Dispatcher.Invoke(() =>
+            {
+                RecIndicatorVisible = !RecIndicatorVisible;
+            });
+        };
+        _blinkTimer.Start();
+    }
+    
+    /// <summary>
+    /// 停止 REC 指示器闪烁
+    /// </summary>
+    private void StopRecIndicatorBlink()
+    {
+        _blinkTimer?.Stop();
+        _blinkTimer?.Dispose();
+        _blinkTimer = null;
+        RecIndicatorVisible = true;
     }
     
     /// <summary>
@@ -885,6 +985,9 @@ public partial class MainViewModel : ObservableObject
             _recordingTimer?.Stop();
             _recordingTimer?.Dispose();
             _recordingTimer = null;
+            
+            // 停止 REC 指示器闪烁
+            StopRecIndicatorBlink();
             
             // 通知 WebRTC 服务停止录制
             await _webRtcService.StopRecordingAsync();

@@ -40,6 +40,9 @@ public partial class MainWindow : FluentWindow
         // 订阅全屏请求事件
         _viewModel.FullScreenRequested += OnFullScreenRequested;
         
+        // 订阅打开分享房间窗口事件
+        _viewModel.OpenShareRoomWindowRequested += OnOpenShareRoomWindowRequested;
+        
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
         
@@ -114,6 +117,18 @@ public partial class MainWindow : FluentWindow
     }
     
     /// <summary>
+    /// 打开分享房间窗口（二维码）
+    /// </summary>
+    private void OnOpenShareRoomWindowRequested()
+    {
+        var shareWindow = new ShareRoomWindow(_viewModel.RoomId, _viewModel.ServerUrl)
+        {
+            Owner = this
+        };
+        shareWindow.ShowDialog();
+    }
+    
+    /// <summary>
     /// 返回加入房间窗口
     /// </summary>
     private void OnReturnToJoinRoomRequested()
@@ -163,6 +178,7 @@ public partial class MainWindow : FluentWindow
             _viewModel.OpenEmojiPickerRequested -= OnOpenEmojiPickerRequested;
             _viewModel.ReturnToJoinRoomRequested -= OnReturnToJoinRoomRequested;
             _viewModel.FullScreenRequested -= OnFullScreenRequested;
+            _viewModel.OpenShareRoomWindowRequested -= OnOpenShareRoomWindowRequested;
             KeyDown -= OnWindowKeyDown;
             
             // 异步清理资源

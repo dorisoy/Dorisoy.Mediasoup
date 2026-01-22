@@ -6,6 +6,7 @@ using Dorisoy.Meeting.Client.Services;
 using Dorisoy.Meeting.Client.ViewModels;
 using Dorisoy.Meeting.Client.Views;
 using Dorisoy.Meeting.Client.WebRtc;
+using Application = System.Windows.Application;
 
 namespace Dorisoy.Meeting.Client;
 

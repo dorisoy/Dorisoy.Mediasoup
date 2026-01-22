@@ -88,6 +88,24 @@
                 <!-- 远端视频网格区域 -->
                 <Border Margin="0,0,0,0"
                         CornerRadius="8">
+                    <!-- 录制时的高亮边框 -->
+                    <Border.Style>
+                        <Style TargetType="Border">
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="BorderBrush" Value="Transparent"/>
+                            <Style.Triggers>
+                                <!-- 录制中且启用边框高亮 -->
+                                <MultiDataTrigger>
+                                    <MultiDataTrigger.Conditions>
+                                        <Condition Binding="{Binding IsRecording}" Value="True"/>
+                                        <Condition Binding="{Binding RecordingShowBorder}" Value="True"/>
+                                    </MultiDataTrigger.Conditions>
+                                    <Setter Property="BorderThickness" Value="3"/>
+                                    <Setter Property="BorderBrush" Value="#FF5252"/>
+                                </MultiDataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Border.Style>
                     <Grid>
                         <!-- 远端视频网格列表 -->
                         <ItemsControl ItemsSource="{Binding RemoteVideos}">
@@ -322,6 +340,62 @@
                                        HorizontalAlignment="Center"
                                        Margin="0,8,0,0" />
                         </StackPanel>
+                        
+                        <!-- REC 录制指示器 - 左上角 -->
+                        <Border HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Margin="16"
+                                Background="#CC000000"
+                                CornerRadius="6"
+                                Padding="12,6"
+                                Visibility="{Binding IsRecording, Converter={StaticResource BoolToVisConverter}}">
+                            <StackPanel Orientation="Horizontal">
+                                <!-- 闪烁的红点 -->
+                                <Ellipse Width="12" Height="12"
+                                         Fill="#FF5252"
+                                         VerticalAlignment="Center"
+                                         Margin="0,0,8,0">
+                                    <Ellipse.Style>
+                                        <Style TargetType="Ellipse">
+                                            <Setter Property="Opacity" Value="1"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding RecIndicatorVisible}" Value="False">
+                                                    <Setter Property="Opacity" Value="0.3"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Ellipse.Style>
+                                </Ellipse>
+                                <!-- REC 文字 -->
+                                <TextBlock Text="REC"
+                                           Foreground="White"
+                                           FontWeight="Bold"
+                                           FontSize="14"
+                                           VerticalAlignment="Center"
+                                           Margin="0,0,12,0"/>
+                                <!-- 录制时长 -->
+                                <TextBlock Text="{Binding RecordingDuration}"
+                                           Foreground="White"
+                                           FontSize="14"
+                                           FontFamily="Consolas"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Border>
+                        
+                        <!-- 录制倒计时覆盖层 -->
+                        <Border Background="#80000000"
+                                Visibility="{Binding IsRecordingCountdownVisible, Converter={StaticResource BoolToVisConverter}}">
+                            <TextBlock Text="{Binding RecordingCountdown}"
+                                       Foreground="White"
+                                       FontSize="120"
+                                       FontWeight="Bold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center">
+                                <TextBlock.Effect>
+                                    <DropShadowEffect Color="Black" BlurRadius="20" ShadowDepth="0" Opacity="0.5"/>
+                                </TextBlock.Effect>
+                            </TextBlock>
+                        </Border>
                     </Grid>
                 </Border>
 
