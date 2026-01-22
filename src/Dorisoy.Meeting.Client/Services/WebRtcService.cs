@@ -41,6 +41,10 @@ public class WebRtcService : IWebRtcService
     private Thread? _videoCaptureThread;
     private volatile bool _isVideoCaptureRunning;
     private readonly object _videoCaptureLock = new();
+    
+    // 屏幕共享
+    private ScreenCapture? _screenCapture;
+    private volatile bool _isScreenSharing;
 
     // 音频采集
     private WaveInEvent? _waveIn;
@@ -107,12 +111,22 @@ public class WebRtcService : IWebRtcService
     /// <summary>
     /// 是否正在生产视频
     /// </summary>
-    public bool IsProducingVideo => _isVideoCaptureRunning;
+    public bool IsProducingVideo => _isVideoCaptureRunning || _isScreenSharing;
 
     /// <summary>
     /// 是否正在生产音频
     /// </summary>
     public bool IsProducingAudio => _isAudioCaptureRunning;
+    
+    /// <summary>
+    /// 是否正在屏幕共享
+    /// </summary>
+    public bool IsScreenSharing => _isScreenSharing;
+    
+    /// <summary>
+    /// 屏幕共享帧更新事件
+    /// </summary>
+    public event Action<WriteableBitmap>? OnScreenShareFrame;
 
     /// <summary>
     /// 当前视频质量配置
@@ -712,26 +726,86 @@ public class WebRtcService : IWebRtcService
     {
         _logger.LogInformation("开始屏幕共享");
 
-        // 屏幕共享使用现有的视频捕获逻辑，只需要切换到屏幕捕获源
-        // 这里使用 Windows Graphics Capture API 捕获屏幕
+        if (_isScreenSharing)
+        {
+            _logger.LogWarning("屏幕共享已在运行");
+            return;
+        }
+
         try
         {
             // 如果摄像头正在运行，先停止
             if (_isVideoCaptureRunning)
             {
+                _logger.LogInformation("停止摄像头以开始屏幕共享...");
                 await StopCameraAsync();
             }
 
-            // 开始屏幕捕获（模拟实现 - 实际需要集成屏幕捕获API）
-            // 目前使用摄像头作为占位符
-            _logger.LogWarning("屏幕共享功能需要集成 Windows Graphics Capture API");
+            // 创建屏幕捕获实例
+            _screenCapture = new ScreenCapture(_loggerFactory.CreateLogger<ScreenCapture>());
+            
+            // 设置屏幕共享参数 - 分辨率和帧率
+            _screenCapture.SetTargetResolution(1280, 720);  // 720p 用于屏幕共享
+            _screenCapture.SetTargetFps(15);  // 15fps 以节省带宽
+            
+            // 订阅捕获帧事件 - 编码并发送
+            _screenCapture.OnFrameCaptured += OnScreenFrameCaptured;
+            
+            // 订阅 UI 预览事件
+            _screenCapture.OnBitmapCaptured += OnScreenBitmapCaptured;
+            
+            // 开始捕获
+            _screenCapture.Start();
+            _isScreenSharing = true;
 
+            _logger.LogInformation("屏幕共享已启动");
             OnConnectionStateChanged?.Invoke("screen_share_started");
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "开始屏幕共享失败");
+            _isScreenSharing = false;
+            _screenCapture?.Dispose();
+            _screenCapture = null;
             throw;
+        }
+    }
+    
+    /// <summary>
+    /// 屏幕捕获帧回调 - 编码并发送
+    /// </summary>
+    private void OnScreenFrameCaptured(byte[] imageData, int width, int height)
+    {
+        try
+        {
+            // 触发视频数据事件
+            OnVideoData?.Invoke(imageData, width, height);
+            
+            // 编码并发送视频帧
+            EncodeAndSendVideoFrame(imageData, width, height);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "屏幕捕获帧处理失败");
+        }
+    }
+    
+    /// <summary>
+    /// 屏幕捕获位图回调 - 本地预览
+    /// </summary>
+    private void OnScreenBitmapCaptured(WriteableBitmap bitmap)
+    {
+        try
+        {
+            // 触发屏幕共享预览事件
+            OnScreenShareFrame?.Invoke(bitmap);
+            
+            // 同时触发本地视频帧事件（让共享内容显示在本地视频区域）
+            OnLocalVideoFrame?.Invoke(bitmap);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "屏幕位图处理失败");
         }
     }
 
@@ -742,7 +816,34 @@ public class WebRtcService : IWebRtcService
     {
         _logger.LogInformation("停止屏幕共享");
 
-        OnConnectionStateChanged?.Invoke("screen_share_stopped");
+        if (!_isScreenSharing)
+        {
+            return Task.CompletedTask;
+        }
+
+        try
+        {
+            if (_screenCapture != null)
+            {
+                // 取消订阅事件
+                _screenCapture.OnFrameCaptured -= OnScreenFrameCaptured;
+                _screenCapture.OnBitmapCaptured -= OnScreenBitmapCaptured;
+                
+                // 停止并释放
+                _screenCapture.Stop();
+                _screenCapture.Dispose();
+                _screenCapture = null;
+            }
+            
+            _isScreenSharing = false;
+            
+            _logger.LogInformation("屏幕共享已停止");
+            OnConnectionStateChanged?.Invoke("screen_share_stopped");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "停止屏幕共享失败");
+        }
 
         return Task.CompletedTask;
     }
@@ -1478,6 +1579,7 @@ public class WebRtcService : IWebRtcService
 
         await StopCameraAsync();
         await StopMicrophoneAsync();
+        await StopScreenShareAsync();
 
         // 停止音频播放
         StopAudioPlayback();
@@ -1519,6 +1621,21 @@ public class WebRtcService : IWebRtcService
                 _videoCapture?.Release();
                 _videoCapture?.Dispose();
                 _videoCapture = null;
+            }
+
+            // 停止屏幕共享
+            _isScreenSharing = false;
+            if (_screenCapture != null)
+            {
+                try
+                {
+                    _screenCapture.OnFrameCaptured -= OnScreenFrameCaptured;
+                    _screenCapture.OnBitmapCaptured -= OnScreenBitmapCaptured;
+                    _screenCapture.Stop();
+                    _screenCapture.Dispose();
+                }
+                catch { }
+                _screenCapture = null;
             }
 
             // 停止音频采集

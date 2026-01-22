@@ -810,17 +810,26 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 共享屏幕
+    /// 共享屏幕 - 仅主持人可以共享屏幕给所有参与者
     /// </summary>
     [RelayCommand]
     private async Task ShareScreenAsync()
     {
-        _logger.LogInformation("屏幕共享按钮点击, IsJoinedRoom={IsJoinedRoom}, IsScreenSharing={IsScreenSharing}", IsJoinedRoom, IsScreenSharing);
+        _logger.LogInformation("屏幕共享按钮点击, IsJoinedRoom={IsJoinedRoom}, IsScreenSharing={IsScreenSharing}, IsHost={IsHost}", 
+            IsJoinedRoom, IsScreenSharing, IsHost);
         
         if (!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
             _logger.LogWarning("尝试共享屏幕但未加入房间");
+            return;
+        }
+        
+        // 主持人权限检查
+        if (!IsHost)
+        {
+            StatusMessage = "仅主持人可以共享屏幕";
+            _logger.LogWarning("非主持人尝试共享屏幕");
             return;
         }
 
@@ -832,33 +841,43 @@ public partial class MainViewModel : ObservableObject
                 _logger.LogInformation("停止屏幕共享...");
                 await _webRtcService.StopScreenShareAsync();
                 IsScreenSharing = false;
+                
+                // 通知其他参与者屏幕共享已停止
+                await _signalRService.InvokeAsync("BroadcastMessage", new
+                {
+                    type = "screenShareStopped",
+                    data = new
+                    {
+                        hostPeerId = CurrentPeerId,
+                        hostName = CurrentUserName
+                    }
+                });
+                
                 StatusMessage = "已停止屏幕共享";
                 _logger.LogInformation("屏幕共享已停止");
             }
             else
             {
-                // 开始共享 - 向所有用户发送共享请求
+                // 开始共享 - 主持人直接开始屏幕捕获并通过 WebRTC 发送给所有参与者
                 _logger.LogInformation("开始屏幕共享...");
-                var sessionId = Guid.NewGuid().ToString();
                 
-                // 通过SignalR广播屏幕共享请求
+                // 通知其他参与者屏幕共享已开始
                 await _signalRService.InvokeAsync("BroadcastMessage", new
                 {
-                    type = "screenShareRequest",
+                    type = "screenShareStarted",
                     data = new
                     {
-                        requesterId = SelectedPeerIndex.ToString(),
-                        requesterName = CurrentUserName,
-                        sessionId
+                        hostPeerId = CurrentPeerId,
+                        hostName = CurrentUserName
                     }
                 });
-                _logger.LogInformation("已发送屏幕共享请求, sessionId={SessionId}", sessionId);
+                _logger.LogInformation("已通知其他参与者屏幕共享已开始");
 
-                // 开始屏幕捕获
+                // 开始屏幕捕获 - 视频流将通过现有的 WebRTC 通道发送
                 await _webRtcService.StartScreenShareAsync();
                 IsScreenSharing = true;
                 StatusMessage = "屏幕共享中...";
-                _logger.LogInformation("屏幕共享已开始");
+                _logger.LogInformation("屏幕共享已开始，视频流正在发送给所有参与者");
             }
         }
         catch (Exception ex)
@@ -3256,6 +3275,12 @@ public partial class MainViewModel : ObservableObject
                     case "screenShareResponse":
                         HandleScreenShareResponse(notification.Data);
                         break;
+                    case "screenShareStarted":
+                        HandleScreenShareStarted(notification.Data);
+                        break;
+                    case "screenShareStopped":
+                        HandleScreenShareStopped(notification.Data);
+                        break;
                     case "broadcastMessage":
                         HandleBroadcastMessage(notification.Data);
                         break;
@@ -3713,6 +3738,63 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "处理屏幕共享响应失败");
+        }
+    }
+    
+    /// <summary>
+    /// 处理屏幕共享已开始通知 - 主持人开始共享屏幕时通知其他参与者
+    /// </summary>
+    private void HandleScreenShareStarted(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var shareData = JsonSerializer.Deserialize<ScreenShareNotificationData>(json, JsonOptions);
+            if (shareData == null) return;
+
+            // 忽略自己的通知
+            if (shareData.HostPeerId == CurrentPeerId) return;
+
+            _logger.LogInformation("主持人开始屏幕共享: HostPeerId={HostPeerId}, HostName={HostName}", 
+                shareData.HostPeerId, shareData.HostName);
+            
+            StatusMessage = $"主持人 {shareData.HostName} 正在共享屏幕";
+            
+            // 这里可以添加其他 UI 反馈，例如显示屏幕共享指示器
+            // 视频流将通过 WebRTC Consumer 自动接收
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理屏幕共享开始通知失败");
+        }
+    }
+    
+    /// <summary>
+    /// 处理屏幕共享已停止通知 - 主持人停止共享屏幕时通知其他参与者
+    /// </summary>
+    private void HandleScreenShareStopped(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var shareData = JsonSerializer.Deserialize<ScreenShareNotificationData>(json, JsonOptions);
+            if (shareData == null) return;
+
+            // 忽略自己的通知
+            if (shareData.HostPeerId == CurrentPeerId) return;
+
+            _logger.LogInformation("主持人停止屏幕共享: HostPeerId={HostPeerId}, HostName={HostName}", 
+                shareData.HostPeerId, shareData.HostName);
+            
+            StatusMessage = $"主持人 {shareData.HostName} 已停止屏幕共享";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理屏幕共享停止通知失败");
         }
     }
 

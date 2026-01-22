@@ -110,6 +110,16 @@ public interface IWebRtcService : IDisposable
     /// 停止屏幕共享
     /// </summary>
     Task StopScreenShareAsync();
+    
+    /// <summary>
+    /// 是否正在屏幕共享
+    /// </summary>
+    bool IsScreenSharing { get; }
+    
+    /// <summary>
+    /// 屏幕共享帧更新事件
+    /// </summary>
+    event Action<WriteableBitmap>? OnScreenShareFrame;
 
     /// <summary>
     /// 加载设备能力

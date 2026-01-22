@@ -259,6 +259,22 @@ public class ScreenShareResponseData
 }
 
 /// <summary>
+/// 屏幕共享状态通知数据（主持人开始/停止屏幕共享时）
+/// </summary>
+public class ScreenShareNotificationData
+{
+    /// <summary>
+    /// 主持人 PeerId
+    /// </summary>
+    public string? HostPeerId { get; set; }
+
+    /// <summary>
+    /// 主持人名称
+    /// </summary>
+    public string? HostName { get; set; }
+}
+
+/// <summary>
 /// 广播消息数据（从服务器 BroadcastMessage 方法发送的消息）
 /// </summary>
 public class BroadcastMessageData
