@@ -21,6 +21,7 @@ public partial class MainWindow : FluentWindow
     private bool _previousTopmost;
     private VoteWindow? _currentVoteWindow; // 当前打开的投票窗口引用
     private CollaborativeEditorWindow? _currentEditorWindow; // 当前打开的编辑器窗口引用
+    private WhiteboardWindow? _currentWhiteboardWindow; // 当前打开的白板窗口引用
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -57,6 +58,11 @@ public partial class MainWindow : FluentWindow
         _viewModel.EditorOpenedReceived += OnEditorOpenedReceived;
         _viewModel.EditorContentUpdated += OnEditorContentUpdated;
         _viewModel.EditorClosedReceived += OnEditorClosedReceived;
+        
+        // 订阅白板事件
+        _viewModel.WhiteboardOpenedReceived += OnWhiteboardOpenedReceived;
+        _viewModel.WhiteboardStrokeUpdated += OnWhiteboardStrokeUpdated;
+        _viewModel.WhiteboardClosedReceived += OnWhiteboardClosedReceived;
         
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
@@ -351,6 +357,88 @@ public partial class MainWindow : FluentWindow
     }
 
     #endregion
+
+    #region 白板
+
+    /// <summary>
+    /// 收到白板打开通知
+    /// </summary>
+    private void OnWhiteboardOpenedReceived(WhiteboardOpenedData data)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            // 如果已有白板窗口打开，激活它
+            if (_currentWhiteboardWindow != null && _currentWhiteboardWindow.IsLoaded)
+            {
+                _currentWhiteboardWindow.Activate();
+                return;
+            }
+
+            // 创建新的白板窗口
+            var whiteboardWindow = new WhiteboardWindow(
+                data.SessionId,
+                data.HostId,
+                data.HostName,
+                _viewModel.CurrentPeerId
+            );
+
+            _currentWhiteboardWindow = whiteboardWindow;
+
+            // 绑定笔触更新事件
+            whiteboardWindow.StrokeUpdated += async (update) =>
+            {
+                await _viewModel.UpdateWhiteboardStrokeAsync(update);
+            };
+
+            // 绑定白板关闭事件
+            whiteboardWindow.WhiteboardClosed += async (request) =>
+            {
+                await _viewModel.CloseWhiteboardAsync(request);
+            };
+
+            // 窗口关闭时清理引用
+            whiteboardWindow.Closed += (s, e) =>
+            {
+                if (_currentWhiteboardWindow == whiteboardWindow)
+                {
+                    _currentWhiteboardWindow = null;
+                }
+            };
+
+            whiteboardWindow.Show();
+        });
+    }
+
+    /// <summary>
+    /// 收到白板笔触更新
+    /// </summary>
+    private void OnWhiteboardStrokeUpdated(WhiteboardStrokeUpdate update)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (_currentWhiteboardWindow != null && _currentWhiteboardWindow.IsLoaded)
+            {
+                _currentWhiteboardWindow.ApplyRemoteStroke(update);
+            }
+        });
+    }
+
+    /// <summary>
+    /// 收到白板关闭通知
+    /// </summary>
+    private void OnWhiteboardClosedReceived(string sessionId)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (_currentWhiteboardWindow != null && _currentWhiteboardWindow.IsLoaded)
+            {
+                _currentWhiteboardWindow.ForceClose();
+                _currentWhiteboardWindow = null;
+            }
+        });
+    }
+
+    #endregion
     
     /// <summary>
     /// 返回加入房间窗口
@@ -409,6 +497,9 @@ public partial class MainWindow : FluentWindow
             _viewModel.EditorOpenedReceived -= OnEditorOpenedReceived;
             _viewModel.EditorContentUpdated -= OnEditorContentUpdated;
             _viewModel.EditorClosedReceived -= OnEditorClosedReceived;
+            _viewModel.WhiteboardOpenedReceived -= OnWhiteboardOpenedReceived;
+            _viewModel.WhiteboardStrokeUpdated -= OnWhiteboardStrokeUpdated;
+            _viewModel.WhiteboardClosedReceived -= OnWhiteboardClosedReceived;
             KeyDown -= OnWindowKeyDown;
             
             // 异步清理资源

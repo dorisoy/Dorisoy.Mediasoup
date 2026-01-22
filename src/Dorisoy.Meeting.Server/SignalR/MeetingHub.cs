@@ -1913,5 +1913,106 @@ namespace Dorisoy.Meeting.Server
         }
 
         #endregion Editor Methods
+
+        #region Whiteboard Methods
+
+        /// <summary>
+        /// 打开白板（主持人调用）
+        /// </summary>
+        public async Task OpenWhiteboard(OpenWhiteboardRequest request)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("OpenWhiteboard: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("OpenWhiteboard: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("OpenWhiteboard: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            _logger.LogInformation("OpenWhiteboard: SessionId {SessionId} by {PeerId}", request.SessionId, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "whiteboardOpened", request);
+        }
+
+        /// <summary>
+        /// 更新白板笔触（主持人调用）
+        /// </summary>
+        public async Task UpdateWhiteboardStroke(WhiteboardStrokeUpdate update)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("UpdateWhiteboardStroke: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("UpdateWhiteboardStroke: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 只有主持人可以绘制
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("UpdateWhiteboardStroke: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            // 广播给房间内所有用户（包括自己，由客户端过滤）
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "whiteboardStrokeUpdated", update);
+        }
+
+        /// <summary>
+        /// 关闭白板（主持人调用）
+        /// </summary>
+        public async Task CloseWhiteboard(CloseWhiteboardRequest request)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("CloseWhiteboard: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("CloseWhiteboard: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("CloseWhiteboard: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            _logger.LogInformation("CloseWhiteboard: SessionId {SessionId} by {PeerId}", request.SessionId, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "whiteboardClosed", request);
+        }
+
+        #endregion Whiteboard Methods
     }
 }

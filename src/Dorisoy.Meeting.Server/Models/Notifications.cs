@@ -482,4 +482,99 @@ namespace Dorisoy.Meeting.Server
     }
 
     #endregion
+
+    #region 白板相关
+
+    /// <summary>
+    /// 打开白板请求
+    /// </summary>
+    public class OpenWhiteboardRequest
+    {
+        /// <summary>
+        /// 会话ID
+        /// </summary>
+        public string SessionId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 发起者（主持人）ID
+        /// </summary>
+        public string HostId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 发起者（主持人）名称
+        /// </summary>
+        public string HostName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 画布宽度
+        /// </summary>
+        public double CanvasWidth { get; set; } = 1920;
+
+        /// <summary>
+        /// 画布高度
+        /// </summary>
+        public double CanvasHeight { get; set; } = 1080;
+    }
+
+    /// <summary>
+    /// 白板绘制工具类型
+    /// </summary>
+    public enum WhiteboardTool
+    {
+        Pen,
+        Rectangle,
+        Ellipse,
+        Text,
+        Eraser,
+        Select
+    }
+
+    /// <summary>
+    /// 白板笔触数据
+    /// </summary>
+    public class WhiteboardStroke
+    {
+        public string Id { get; set; } = string.Empty;
+        public WhiteboardTool Tool { get; set; } = WhiteboardTool.Pen;
+        public string Color { get; set; } = "#FF000000";
+        public double StrokeWidth { get; set; } = 2.0;
+        public List<double> Points { get; set; } = new();
+        public double StartX { get; set; }
+        public double StartY { get; set; }
+        public double EndX { get; set; }
+        public double EndY { get; set; }
+        public string Text { get; set; } = string.Empty;
+        public double FontSize { get; set; } = 16.0;
+        public bool IsFilled { get; set; }
+        public DateTime CreatedTime { get; set; } = DateTime.Now;
+        public string CreatorId { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// 白板笔触更新
+    /// </summary>
+    public class WhiteboardStrokeUpdate
+    {
+        public string SessionId { get; set; } = string.Empty;
+        public string Action { get; set; } = "add";
+        public WhiteboardStroke? Stroke { get; set; }
+        public List<string>? StrokeIds { get; set; }
+        public string DrawerId { get; set; } = string.Empty;
+        public string DrawerName { get; set; } = string.Empty;
+        public DateTime UpdateTime { get; set; } = DateTime.Now;
+    }
+
+    /// <summary>
+    /// 关闭白板请求
+    /// </summary>
+    public class CloseWhiteboardRequest
+    {
+        public string SessionId { get; set; } = string.Empty;
+        public string CloserId { get; set; } = string.Empty;
+        public string CloserName { get; set; } = string.Empty;
+        public bool SaveImage { get; set; }
+        public string? ImageData { get; set; }
+    }
+
+    #endregion
 }

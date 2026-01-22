@@ -1202,6 +1202,21 @@ public partial class MainViewModel : ObservableObject
     public event Action<string>? EditorClosedReceived;
 
     /// <summary>
+    /// 收到白板打开通知事件（所有用户接收）
+    /// </summary>
+    public event Action<WhiteboardOpenedData>? WhiteboardOpenedReceived;
+
+    /// <summary>
+    /// 收到白板笔触更新事件
+    /// </summary>
+    public event Action<WhiteboardStrokeUpdate>? WhiteboardStrokeUpdated;
+
+    /// <summary>
+    /// 收到白板关闭事件
+    /// </summary>
+    public event Action<string>? WhiteboardClosedReceived;
+
+    /// <summary>
     /// 当前编辑器会话ID
     /// </summary>
     private string? _currentEditorSessionId;
@@ -1276,21 +1291,67 @@ public partial class MainViewModel : ObservableObject
     public event Action? OpenWhiteboardRequested;
 
     /// <summary>
-    /// 白板 - 协作白板功能
+    /// 当前白板会话ID
+    /// </summary>
+    private string? _currentWhiteboardSessionId;
+
+    /// <summary>
+    /// 白板 - 主持人点击后广播给所有用户开启白板
     /// </summary>
     [RelayCommand]
-    private void Whiteboard()
+    private async Task WhiteboardAsync()
     {
         if (!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
             return;
         }
+
+        if (!IsHost)
+        {
+            StatusMessage = "只有主持人可以开启白板";
+            return;
+        }
         
-        _logger.LogInformation("打开白板");
-        // TODO: 实现协作白板需要服务端支持
-        OpenWhiteboardRequested?.Invoke();
-        StatusMessage = "白板功能需要服务端支持，暂未实现";
+        _logger.LogInformation("主持人开启白板");
+        
+        // 创建新会话
+        var sessionId = Guid.NewGuid().ToString();
+        _currentWhiteboardSessionId = sessionId;
+        
+        var request = new
+        {
+            SessionId = sessionId,
+            HostId = CurrentPeerId,
+            HostName = CurrentUserName,
+            CanvasWidth = 1920.0,
+            CanvasHeight = 1080.0
+        };
+        
+        await _signalRService.InvokeAsync("OpenWhiteboard", request);
+        StatusMessage = "已开启白板";
+    }
+
+    /// <summary>
+    /// 发送白板笔触更新
+    /// </summary>
+    public async Task UpdateWhiteboardStrokeAsync(WhiteboardStrokeUpdate update)
+    {
+        await _signalRService.InvokeAsync("UpdateWhiteboardStroke", update);
+    }
+
+    /// <summary>
+    /// 关闭白板（主持人关闭时广播）
+    /// </summary>
+    public async Task CloseWhiteboardAsync(CloseWhiteboardRequest request)
+    {
+        if (!IsHost)
+        {
+            return;
+        }
+
+        await _signalRService.InvokeAsync("CloseWhiteboard", request);
+        _currentWhiteboardSessionId = null;
     }
 
     /// <summary>
@@ -3909,6 +3970,15 @@ public partial class MainViewModel : ObservableObject
                     case "editorClosed":
                         HandleEditorClosed(notification.Data);
                         break;
+                    case "whiteboardOpened":
+                        HandleWhiteboardOpened(notification.Data);
+                        break;
+                    case "whiteboardStrokeUpdated":
+                        HandleWhiteboardStrokeUpdated(notification.Data);
+                        break;
+                    case "whiteboardClosed":
+                        HandleWhiteboardClosed(notification.Data);
+                        break;
                     default:
                         _logger.LogDebug("Unhandled notification: {Type}", notification.Type);
                         break;
@@ -4901,6 +4971,80 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "处理编辑器关闭通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理白板打开通知
+    /// </summary>
+    private void HandleWhiteboardOpened(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var notification = JsonSerializer.Deserialize<WhiteboardOpenedData>(json, JsonOptions);
+            if (notification == null) return;
+
+            _logger.LogInformation("收到白板打开通知: SessionId={SessionId}, Host={Host}",
+                notification.SessionId, notification.HostName);
+
+            _currentWhiteboardSessionId = notification.SessionId;
+            WhiteboardOpenedReceived?.Invoke(notification);
+            StatusMessage = $"{notification.HostName} 开启了白板";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理白板打开通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理白板笔触更新通知
+    /// </summary>
+    private void HandleWhiteboardStrokeUpdated(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var update = JsonSerializer.Deserialize<WhiteboardStrokeUpdate>(json, JsonOptions);
+            if (update == null) return;
+
+            // 触发事件，由窗口处理更新
+            WhiteboardStrokeUpdated?.Invoke(update);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理白板笔触更新通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理白板关闭通知
+    /// </summary>
+    private void HandleWhiteboardClosed(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var notification = JsonSerializer.Deserialize<CloseWhiteboardRequest>(json, JsonOptions);
+            if (notification == null) return;
+
+            _logger.LogInformation("收到白板关闭通知: SessionId={SessionId}, Closer={Closer}",
+                notification.SessionId, notification.CloserName);
+
+            _currentWhiteboardSessionId = null;
+            WhiteboardClosedReceived?.Invoke(notification.SessionId);
+            StatusMessage = $"{notification.CloserName} 关闭了白板";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理白板关闭通知失败");
         }
     }
 
