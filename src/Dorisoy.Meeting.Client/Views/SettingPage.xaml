@@ -174,6 +174,78 @@
                     </StackPanel>
                 </ui:Card>
 
+                <!-- 屏幕共享设置 -->
+                <ui:Card Margin="0,0,0,12">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                            <ui:SymbolIcon Symbol="ShareScreenStart24" Margin="0,0,8,0" />
+                            <TextBlock Text="屏幕共享" FontWeight="SemiBold" />
+                        </StackPanel>
+                        
+                        <TextBlock Text="画质模式" Margin="0,0,0,6" Opacity="0.7" />
+                        <ComboBox ItemsSource="{Binding ScreenSharePresets}"
+                                  SelectedItem="{Binding SelectedScreenShareSettings}"
+                                  DisplayMemberPath="DisplayName"
+                                  IsEnabled="{Binding IsScreenSharing, Converter={StaticResource InverseBoolConverter}}"
+                                  HorizontalAlignment="Stretch"/>
+                        
+                        <!-- 当前屏幕共享配置信息 -->
+                        <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                CornerRadius="4"
+                                Padding="10,8"
+                                Margin="0,12,0,0">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                
+                                <TextBlock Grid.Row="0" Grid.Column="0" 
+                                           Text="分辨率:" 
+                                           Opacity="0.6" 
+                                           Margin="0,0,8,4"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" 
+                                           Text="{Binding SelectedScreenShareSettings.Resolution}" 
+                                           FontWeight="Medium"/>
+                                
+                                <TextBlock Grid.Row="1" Grid.Column="0" 
+                                           Text="帧率:" 
+                                           Opacity="0.6" 
+                                           Margin="0,0,8,4"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" 
+                                           FontWeight="Medium">
+                                    <Run Text="{Binding SelectedScreenShareSettings.FrameRate, Mode=OneWay}"/><Run Text=" fps"/>
+                                </TextBlock>
+                                
+                                <TextBlock Grid.Row="2" Grid.Column="0" 
+                                           Text="鼠标:" 
+                                           Opacity="0.6" 
+                                           Margin="0,0,8,0"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" 
+                                           Text="{Binding SelectedScreenShareSettings.ShowCursor, Converter={StaticResource BoolToYesNoConverter}}" 
+                                           FontWeight="Medium"/>
+                            </Grid>
+                        </Border>
+                        
+                        <TextBlock Text="{Binding SelectedScreenShareSettings.Description}"
+                                   Opacity="0.5"
+                                   FontSize="11"
+                                   TextWrapping="Wrap"
+                                   Margin="0,8,0,12" />
+                        
+                        <!-- 显示鼠标指针选项 -->
+                        <CheckBox Content="共享时显示鼠标指针"
+                                  IsChecked="{Binding ScreenShareShowCursor}"
+                                  IsEnabled="{Binding IsScreenSharing, Converter={StaticResource InverseBoolConverter}}"
+                                  Margin="0,0,0,0"/>
+                    </StackPanel>
+                </ui:Card>
+
                 <!-- 状态信息 -->
                 <ui:Card Margin="0,0,0,12">
                     <StackPanel>

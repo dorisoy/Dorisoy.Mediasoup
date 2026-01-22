@@ -117,6 +117,16 @@ public interface IWebRtcService : IDisposable
     bool IsScreenSharing { get; }
     
     /// <summary>
+    /// 屏幕共享设置
+    /// </summary>
+    ScreenShareSettings? ScreenShareSettings { get; set; }
+    
+    /// <summary>
+    /// 屏幕共享是否显示鼠标指针
+    /// </summary>
+    bool ScreenShareShowCursor { get; set; }
+    
+    /// <summary>
     /// 屏幕共享帧更新事件
     /// </summary>
     event Action<WriteableBitmap>? OnScreenShareFrame;

@@ -28,6 +28,56 @@ public class ScreenCapture : IDisposable
     private int _targetFps = 15;
     private int _frameInterval => 1000 / _targetFps;
     
+    // 是否绘制鼠标指针
+    private bool _drawCursor = true;
+    
+    // Windows API 用于获取鼠标信息
+    [DllImport("user32.dll")]
+    private static extern bool GetCursorInfo(ref CURSORINFO pci);
+    
+    [DllImport("user32.dll")]
+    private static extern bool DrawIcon(IntPtr hdc, int x, int y, IntPtr hIcon);
+    
+    [DllImport("user32.dll")]
+    private static extern bool GetIconInfo(IntPtr hIcon, out ICONINFO piconinfo);
+    
+    [DllImport("user32.dll")]
+    private static extern bool DestroyIcon(IntPtr hIcon);
+    
+    [DllImport("user32.dll")]
+    private static extern IntPtr CopyIcon(IntPtr hIcon);
+    
+    [DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(IntPtr hObject);
+    
+    [StructLayout(LayoutKind.Sequential)]
+    private struct CURSORINFO
+    {
+        public int cbSize;
+        public int flags;
+        public IntPtr hCursor;
+        public POINTAPI ptScreenPos;
+    }
+    
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINTAPI
+    {
+        public int x;
+        public int y;
+    }
+    
+    [StructLayout(LayoutKind.Sequential)]
+    private struct ICONINFO
+    {
+        public bool fIcon;
+        public int xHotspot;
+        public int yHotspot;
+        public IntPtr hbmMask;
+        public IntPtr hbmColor;
+    }
+    
+    private const int CURSOR_SHOWING = 0x00000001;
+    
     /// <summary>
     /// 捕获的原始图像数据事件 (BGR24 格式)
     /// </summary>
@@ -85,6 +135,29 @@ public class ScreenCapture : IDisposable
         if (fps > 60) fps = 60;
         _targetFps = fps;
     }
+    
+    /// <summary>
+    /// 设置是否绘制鼠标指针
+    /// </summary>
+    public void SetDrawCursor(bool drawCursor)
+    {
+        _drawCursor = drawCursor;
+    }
+    
+    /// <summary>
+    /// 获取当前目标分辨率
+    /// </summary>
+    public (int Width, int Height) GetTargetResolution() => (_targetWidth, _targetHeight);
+    
+    /// <summary>
+    /// 获取当前帧率
+    /// </summary>
+    public int GetTargetFps() => _targetFps;
+    
+    /// <summary>
+    /// 获取是否绘制鼠标
+    /// </summary>
+    public bool GetDrawCursor() => _drawCursor;
 
     /// <summary>
     /// 开始屏幕捕获
@@ -184,6 +257,12 @@ public class ScreenCapture : IDisposable
         using (var graphics = Graphics.FromImage(screenBitmap))
         {
             graphics.CopyFromScreen(rect.X, rect.Y, 0, 0, rect.Size, CopyPixelOperation.SourceCopy);
+            
+            // 绘制鼠标指针
+            if (_drawCursor)
+            {
+                DrawMouseCursor(graphics, rect.X, rect.Y);
+            }
         }
         
         // 缩放到目标分辨率
@@ -318,6 +397,12 @@ public class ScreenCapture : IDisposable
             using (var graphics = Graphics.FromImage(screenBitmap))
             {
                 graphics.CopyFromScreen(rect.X, rect.Y, 0, 0, rect.Size, CopyPixelOperation.SourceCopy);
+                
+                // 绘制鼠标指针
+                if (_drawCursor)
+                {
+                    DrawMouseCursor(graphics, rect.X, rect.Y);
+                }
             }
             
             Bitmap? resizedBitmap = null;
@@ -384,5 +469,66 @@ public class ScreenCapture : IDisposable
     public void Dispose()
     {
         Stop();
+    }
+    
+    /// <summary>
+    /// 绘制鼠标指针到图形上
+    /// </summary>
+    private void DrawMouseCursor(Graphics graphics, int offsetX, int offsetY)
+    {
+        try
+        {
+            var cursorInfo = new CURSORINFO();
+            cursorInfo.cbSize = Marshal.SizeOf(cursorInfo);
+            
+            if (GetCursorInfo(ref cursorInfo) && cursorInfo.flags == CURSOR_SHOWING)
+            {
+                // 复制鼠标图标
+                var iconCopy = CopyIcon(cursorInfo.hCursor);
+                if (iconCopy != IntPtr.Zero)
+                {
+                    try
+                    {
+                        // 获取鼠标热点信息
+                        if (GetIconInfo(iconCopy, out ICONINFO iconInfo))
+                        {
+                            try
+                            {
+                                // 计算鼠标在截图中的位置
+                                int cursorX = cursorInfo.ptScreenPos.x - offsetX - iconInfo.xHotspot;
+                                int cursorY = cursorInfo.ptScreenPos.y - offsetY - iconInfo.yHotspot;
+                                
+                                // 绘制鼠标
+                                IntPtr hdc = graphics.GetHdc();
+                                try
+                                {
+                                    DrawIcon(hdc, cursorX, cursorY, iconCopy);
+                                }
+                                finally
+                                {
+                                    graphics.ReleaseHdc(hdc);
+                                }
+                            }
+                            finally
+                            {
+                                // 清理 ICONINFO 中的位图资源
+                                if (iconInfo.hbmMask != IntPtr.Zero)
+                                    DeleteObject(iconInfo.hbmMask);
+                                if (iconInfo.hbmColor != IntPtr.Zero)
+                                    DeleteObject(iconInfo.hbmColor);
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        DestroyIcon(iconCopy);
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogTrace(ex, "绘制鼠标指针失败");
+        }
     }
 }

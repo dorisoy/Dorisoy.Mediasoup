@@ -436,14 +436,39 @@
 
                             <!-- 共享屏幕 -->
                             <StackPanel Margin="12,0">
-                                <ui:Button Command="{Binding ShareScreenCommand}"
-                                           ToolTip="共享屏幕"
-                                           Appearance="Transparent"
+                                <ui:Button x:Name="ShareScreenButton"
+                                           Command="{Binding ShareScreenCommand}"
                                            Width="56"
                                            Height="56"
                                            CornerRadius="28">
-                                    <ui:SymbolIcon Symbol="ShareScreenStart24"
-                                                   FontSize="24" />
+                                    <ui:Button.Style>
+                                        <Style TargetType="ui:Button"
+                                               BasedOn="{StaticResource {x:Type ui:Button}}">
+                                            <Setter Property="Appearance"
+                                                    Value="Transparent" />
+                                            <Setter Property="ToolTip"
+                                                    Value="开始共享屏幕" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsScreenSharing}"
+                                                             Value="True">
+                                                    <Setter Property="Appearance"
+                                                            Value="Caution" />
+                                                    <Setter Property="ToolTip"
+                                                            Value="停止共享屏幕" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ui:Button.Style>
+                                    <Grid>
+                                        <!-- 未共享时显示开始图标 -->
+                                        <ui:SymbolIcon Symbol="ShareScreenStart24"
+                                                       FontSize="24"
+                                                       Visibility="{Binding IsScreenSharing, Converter={StaticResource InverseBoolToVisConverter}}" />
+                                        <!-- 共享中显示停止图标 -->
+                                        <ui:SymbolIcon Symbol="ShareScreenStop24"
+                                                       FontSize="24"
+                                                       Visibility="{Binding IsScreenSharing, Converter={StaticResource BoolToVisConverter}}" />
+                                    </Grid>
                                 </ui:Button>
                             </StackPanel>
 
@@ -769,11 +794,33 @@
                                Height="44"
                                CornerRadius="8"
                                Margin="0,3"
-                               ToolTip="共享屏幕"
-                               Appearance="Transparent"
                                Command="{Binding ShareScreenCommand}">
-                        <ui:SymbolIcon Symbol="ShareScreenStart24"
-                                       FontSize="18" />
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button"
+                                   BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Setter Property="Appearance"
+                                        Value="Transparent" />
+                                <Setter Property="ToolTip"
+                                        Value="开始共享屏幕" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsScreenSharing}"
+                                                 Value="True">
+                                        <Setter Property="Appearance"
+                                                Value="Caution" />
+                                        <Setter Property="ToolTip"
+                                                Value="停止共享屏幕" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                        <Grid>
+                            <ui:SymbolIcon Symbol="ShareScreenStart24"
+                                           FontSize="18"
+                                           Visibility="{Binding IsScreenSharing, Converter={StaticResource InverseBoolToVisConverter}}" />
+                            <ui:SymbolIcon Symbol="ShareScreenStop24"
+                                           FontSize="18"
+                                           Visibility="{Binding IsScreenSharing, Converter={StaticResource BoolToVisConverter}}" />
+                        </Grid>
                     </ui:Button>
 
                     <!-- 屏幕截图 -->

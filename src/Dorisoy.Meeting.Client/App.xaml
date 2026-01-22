@@ -48,6 +48,7 @@
             <converters:InverseBoolToVisConverter x:Key="InverseBoolToVisConverter"/>
             <converters:MuteTooltipConverter x:Key="MuteTooltipConverter"/>
             <converters:RemoteVideoMuteTooltipConverter x:Key="RemoteVideoMuteTooltipConverter"/>
+            <converters:BoolToYesNoConverter x:Key="BoolToYesNoConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

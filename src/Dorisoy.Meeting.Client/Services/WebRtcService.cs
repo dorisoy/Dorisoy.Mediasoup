@@ -129,6 +129,16 @@ public class WebRtcService : IWebRtcService
     public event Action<WriteableBitmap>? OnScreenShareFrame;
 
     /// <summary>
+    /// 屏幕共享设置
+    /// </summary>
+    public ScreenShareSettings? ScreenShareSettings { get; set; }
+    
+    /// <summary>
+    /// 屏幕共享是否显示鼠标指针
+    /// </summary>
+    public bool ScreenShareShowCursor { get; set; } = true;
+
+    /// <summary>
     /// 当前视频质量配置
     /// </summary>
     public VideoQualitySettings? VideoQuality { get; set; }
@@ -744,9 +754,22 @@ public class WebRtcService : IWebRtcService
             // 创建屏幕捕获实例
             _screenCapture = new ScreenCapture(_loggerFactory.CreateLogger<ScreenCapture>());
             
-            // 设置屏幕共享参数 - 分辨率和帧率
-            _screenCapture.SetTargetResolution(1280, 720);  // 720p 用于屏幕共享
-            _screenCapture.SetTargetFps(15);  // 15fps 以节省带宽
+            // 应用屏幕共享设置
+            var settings = ScreenShareSettings ?? Models.ScreenShareSettings.GetPreset(ScreenShareQualityPreset.Standard);
+            
+            // 设置分辨率 - 如果是 0 则使用原始屏幕分辨率
+            int targetWidth = settings.Width > 0 ? settings.Width : (int)SystemParameters.PrimaryScreenWidth;
+            int targetHeight = settings.Height > 0 ? settings.Height : (int)SystemParameters.PrimaryScreenHeight;
+            _screenCapture.SetTargetResolution(targetWidth, targetHeight);
+            
+            // 设置帧率
+            _screenCapture.SetTargetFps(settings.FrameRate > 0 ? settings.FrameRate : 15);
+            
+            // 设置是否显示鼠标指针
+            _screenCapture.SetDrawCursor(ScreenShareShowCursor);
+            
+            _logger.LogInformation("屏幕共享设置: {Width}x{Height} @ {Fps}fps, 显示鼠标={ShowCursor}",
+                targetWidth, targetHeight, settings.FrameRate, ScreenShareShowCursor);
             
             // 订阅捕获帧事件 - 编码并发送
             _screenCapture.OnFrameCaptured += OnScreenFrameCaptured;

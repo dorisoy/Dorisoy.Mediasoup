@@ -350,6 +350,23 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private ScreenShareRequestData? _pendingScreenShareRequest;
 
+    /// <summary>
+    /// 屏幕共享质量预设列表
+    /// </summary>
+    public ScreenShareSettings[] ScreenSharePresets { get; } = ScreenShareSettings.Presets;
+
+    /// <summary>
+    /// 选中的屏幕共享设置
+    /// </summary>
+    [ObservableProperty]
+    private ScreenShareSettings _selectedScreenShareSettings = ScreenShareSettings.GetPreset(ScreenShareQualityPreset.Standard);
+
+    /// <summary>
+    /// 屏幕共享是否显示鼠标指针
+    /// </summary>
+    [ObservableProperty]
+    private bool _screenShareShowCursor = true;
+
     #endregion
 
     #region 断线重连相关属性
@@ -810,26 +827,18 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 共享屏幕 - 仅主持人可以共享屏幕给所有参与者
+    /// 共享屏幕 - 所有用户都可以共享屏幕给其他参与者
     /// </summary>
     [RelayCommand]
     private async Task ShareScreenAsync()
     {
-        _logger.LogInformation("屏幕共享按钮点击, IsJoinedRoom={IsJoinedRoom}, IsScreenSharing={IsScreenSharing}, IsHost={IsHost}", 
-            IsJoinedRoom, IsScreenSharing, IsHost);
+        _logger.LogInformation("屏幕共享按钮点击, IsJoinedRoom={IsJoinedRoom}, IsScreenSharing={IsScreenSharing}", 
+            IsJoinedRoom, IsScreenSharing);
         
         if (!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
             _logger.LogWarning("尝试共享屏幕但未加入房间");
-            return;
-        }
-        
-        // 主持人权限检查
-        if (!IsHost)
-        {
-            StatusMessage = "仅主持人可以共享屏幕";
-            _logger.LogWarning("非主持人尝试共享屏幕");
             return;
         }
 
@@ -848,8 +857,8 @@ public partial class MainViewModel : ObservableObject
                     type = "screenShareStopped",
                     data = new
                     {
-                        hostPeerId = CurrentPeerId,
-                        hostName = CurrentUserName
+                        peerId = CurrentPeerId,
+                        userName = CurrentUserName
                     }
                 });
                 
@@ -858,8 +867,14 @@ public partial class MainViewModel : ObservableObject
             }
             else
             {
-                // 开始共享 - 主持人直接开始屏幕捕获并通过 WebRTC 发送给所有参与者
-                _logger.LogInformation("开始屏幕共享...");
+                // 开始共享 - 应用屏幕共享设置
+                _logger.LogInformation("开始屏幕共享, 设置: {Width}x{Height} @ {Fps}fps, 显示鼠标={ShowCursor}...",
+                    SelectedScreenShareSettings.Width, SelectedScreenShareSettings.Height,
+                    SelectedScreenShareSettings.FrameRate, ScreenShareShowCursor);
+                
+                // 应用屏幕共享设置到 WebRtc 服务
+                _webRtcService.ScreenShareSettings = SelectedScreenShareSettings;
+                _webRtcService.ScreenShareShowCursor = ScreenShareShowCursor;
                 
                 // 通知其他参与者屏幕共享已开始
                 await _signalRService.InvokeAsync("BroadcastMessage", new
@@ -867,8 +882,8 @@ public partial class MainViewModel : ObservableObject
                     type = "screenShareStarted",
                     data = new
                     {
-                        hostPeerId = CurrentPeerId,
-                        hostName = CurrentUserName
+                        peerId = CurrentPeerId,
+                        userName = CurrentUserName
                     }
                 });
                 _logger.LogInformation("已通知其他参与者屏幕共享已开始");

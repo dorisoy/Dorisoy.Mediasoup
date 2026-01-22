@@ -602,3 +602,23 @@ public class RemoteVideoMuteTooltipConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
+
+/// <summary>
+/// 布尔值转是/否文本转换器
+/// </summary>
+public class BoolToYesNoConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool boolValue)
+        {
+            return boolValue ? "显示" : "隐藏";
+        }
+        return "隐藏";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
