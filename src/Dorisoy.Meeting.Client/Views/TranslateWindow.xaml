@@ -140,10 +140,10 @@
                                    Click="SaveTranscripts_Click"
                                    ToolTip="保存转录内容"
                                    Margin="0,0,8,0"/>
-                        <ui:Button Icon="{ui:SymbolIcon Dismiss24}"
+                        <!--<ui:Button Icon="{ui:SymbolIcon Dismiss24}"
                                    Appearance="Secondary"
                                    Click="CloseWindow_Click"
-                                   ToolTip="关闭窗口"/>
+                                   ToolTip="关闭窗口"/>-->
                     </StackPanel>
                 </Grid>
             </Border>
