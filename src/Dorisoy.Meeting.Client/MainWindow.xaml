@@ -389,6 +389,7 @@
                             <StackPanel Margin="12,0">
                                 <ui:Button x:Name="CameraButton"
                                            Command="{Binding ToggleCameraCommand}"
+                                           IsEnabled="{Binding IsScreenSharing, Converter={StaticResource InverseBoolConverter}}"
                                            Width="56"
                                            Height="56"
                                            CornerRadius="28">
@@ -406,6 +407,11 @@
                                                             Value="Success" />
                                                     <Setter Property="ToolTip"
                                                             Value="关闭摄像头" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsScreenSharing}"
+                                                             Value="True">
+                                                    <Setter Property="ToolTip"
+                                                            Value="屏幕共享中，摄像头已暂停" />
                                                 </DataTrigger>
                                             </Style.Triggers>
                                         </Style>

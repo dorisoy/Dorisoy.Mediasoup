@@ -367,6 +367,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _screenShareShowCursor = true;
 
+    /// <summary>
+    /// 屏幕共享前的摄像头状态 - 用于结束屏幕共享后恢复
+    /// </summary>
+    private bool _cameraStateBeforeScreenShare;
+
     #endregion
 
     #region 断线重连相关属性
@@ -862,11 +867,29 @@ public partial class MainViewModel : ObservableObject
                     }
                 });
                 
+                // 恢复之前的摄像头状态
+                if (_cameraStateBeforeScreenShare && !IsCameraEnabled)
+                {
+                    _logger.LogInformation("恢复屏幕共享前的摄像头状态...");
+                    await ToggleCameraAsync();
+                }
+                
                 StatusMessage = "已停止屏幕共享";
                 _logger.LogInformation("屏幕共享已停止");
             }
             else
             {
+                // 保存当前摄像头状态
+                _cameraStateBeforeScreenShare = IsCameraEnabled;
+                _logger.LogInformation("保存摄像头状态: {State}, 准备开始屏幕共享...", _cameraStateBeforeScreenShare);
+                
+                // 如果摄像头开启中，先关闭
+                if (IsCameraEnabled)
+                {
+                    _logger.LogInformation("关闭摄像头以开始屏幕共享...");
+                    await ToggleCameraAsync();
+                }
+                
                 // 开始共享 - 应用屏幕共享设置
                 _logger.LogInformation("开始屏幕共享, 设置: {Width}x{Height} @ {Fps}fps, 显示鼠标={ShowCursor}...",
                     SelectedScreenShareSettings.Width, SelectedScreenShareSettings.Height,
