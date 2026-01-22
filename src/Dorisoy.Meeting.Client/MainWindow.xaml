@@ -327,7 +327,7 @@
 
 
                 <!-- 底部控制栏 -->
-                <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
+                <Border Background="#88000000"
                         VerticalAlignment="Bottom"
                         Height="90"
                         CornerRadius="0,0,0,0">
