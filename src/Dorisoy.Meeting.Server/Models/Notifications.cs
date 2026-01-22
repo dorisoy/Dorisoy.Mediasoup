@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using FBS.RtpParameters;
 
 namespace Dorisoy.Meeting.Server
@@ -57,7 +58,7 @@ namespace Dorisoy.Meeting.Server
         /// <summary>
         /// 消费者类型，如 SVC, Simulcast 等。
         /// </summary>
-        public Type Type { get; set; }
+        public FBS.RtpParameters.Type Type { get; set; }
 
         /// <summary>
         /// 生产者的 AppData
@@ -326,6 +327,72 @@ namespace Dorisoy.Meeting.Server
     /// 生产者关闭通知
     /// </summary>
     public class ProducerClosedNotification : ProducerNotificationBase { }
+
+    #endregion
+
+    #region Vote
+
+    /// <summary>
+    /// 创建投票请求
+    /// </summary>
+    public class CreateVoteRequest
+    {
+        /// <summary>
+        /// 投票ID
+        /// </summary>
+        public string Id { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 投票问题
+        /// </summary>
+        public string Question { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 选项列表
+        /// </summary>
+        public List<string> Options { get; set; } = new();
+
+        /// <summary>
+        /// 创建者ID
+        /// </summary>
+        public string CreatorId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 创建者名称
+        /// </summary>
+        public string CreatorName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 创建时间
+        /// </summary>
+        public DateTime CreatedTime { get; set; } = DateTime.Now;
+    }
+
+    /// <summary>
+    /// 提交投票请求
+    /// </summary>
+    public class SubmitVoteRequest
+    {
+        /// <summary>
+        /// 投票ID
+        /// </summary>
+        public string VoteId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 选中的选项索引
+        /// </summary>
+        public int OptionIndex { get; set; }
+
+        /// <summary>
+        /// 投票人ID
+        /// </summary>
+        public string VoterId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 投票人名称
+        /// </summary>
+        public string VoterName { get; set; } = string.Empty;
+    }
 
     #endregion
 }

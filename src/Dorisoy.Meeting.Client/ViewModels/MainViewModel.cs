@@ -1080,9 +1080,29 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 请求打开投票窗口事件
+    /// 请求打开投票窗口事件（主持人主动打开）
     /// </summary>
     public event Action? OpenPollRequested;
+
+    /// <summary>
+    /// 收到投票创建通知事件（参与者接收）
+    /// </summary>
+    public event Action<Vote>? VoteCreatedReceived;
+
+    /// <summary>
+    /// 投票结果更新事件
+    /// </summary>
+    public event Action<VoteSubmitRequest>? VoteResultUpdated;
+
+    /// <summary>
+    /// 投票删除事件
+    /// </summary>
+    public event Action<string>? VoteDeletedReceived;
+
+    /// <summary>
+    /// 当前投票
+    /// </summary>
+    private Vote? _currentVote;
 
     /// <summary>
     /// 投票 - 发起投票
@@ -1096,10 +1116,69 @@ public partial class MainViewModel : ObservableObject
             return;
         }
         
-        _logger.LogInformation("打开投票");
-        // TODO: 实现投票功能需要服务端支持
+        _logger.LogInformation("打开投票窗口, IsHost={IsHost}", IsHost);
         OpenPollRequested?.Invoke();
-        StatusMessage = "投票功能需要服务端支持，暂未实现";
+        StatusMessage = "已打开投票窗口";
+    }
+
+    /// <summary>
+    /// 创建投票并广播给所有用户
+    /// </summary>
+    public async Task CreateVoteAsync(Vote vote)
+    {
+        if (!IsHost)
+        {
+            _logger.LogWarning("只有主持人可以创建投票");
+            return;
+        }
+
+        _currentVote = vote;
+
+        var request = new
+        {
+            Id = vote.Id,
+            Question = vote.Question,
+            Options = vote.Options.Select(o => o.Text).ToList(),
+            CreatorId = vote.CreatorId,
+            CreatorName = vote.CreatorName,
+            CreatedTime = vote.CreatedTime
+        };
+
+        await _signalRService.InvokeAsync("CreateVote", request);
+        _logger.LogInformation("已创建投票: {Question}", vote.Question);
+    }
+
+    /// <summary>
+    /// 提交投票
+    /// </summary>
+    public async Task SubmitVoteAsync(string voteId, int optionIndex)
+    {
+        var request = new
+        {
+            VoteId = voteId,
+            OptionIndex = optionIndex,
+            VoterId = CurrentPeerId,
+            VoterName = CurrentUserName
+        };
+
+        await _signalRService.InvokeAsync("SubmitVote", request);
+        _logger.LogInformation("已提交投票: VoteId={VoteId}, Option={OptionIndex}", voteId, optionIndex);
+    }
+
+    /// <summary>
+    /// 删除投票
+    /// </summary>
+    public async Task DeleteVoteAsync(string voteId)
+    {
+        if (!IsHost)
+        {
+            _logger.LogWarning("只有主持人可以删除投票");
+            return;
+        }
+
+        await _signalRService.InvokeAsync("DeleteVote", voteId);
+        _currentVote = null;
+        _logger.LogInformation("已删除投票: {VoteId}", voteId);
     }
 
     /// <summary>
@@ -3743,6 +3822,18 @@ public partial class MainViewModel : ObservableObject
                     case "roomDismissed":
                         HandleRoomDismissed(notification.Data);
                         break;
+                    case "voteCreated":
+                        HandleVoteCreated(notification.Data);
+                        break;
+                    case "voteSubmitted":
+                        HandleVoteSubmitted(notification.Data);
+                        break;
+                    case "voteDeleted":
+                        HandleVoteDeleted(notification.Data);
+                        break;
+                    case "voteUpdated":
+                        HandleVoteUpdated(notification.Data);
+                        break;
                     default:
                         _logger.LogDebug("Unhandled notification: {Type}", notification.Type);
                         break;
@@ -4509,6 +4600,162 @@ public partial class MainViewModel : ObservableObject
             _logger.LogError(ex, "处理广播屏幕共享响应失败");
         }
     }
+
+    #region Vote Handlers
+
+    /// <summary>
+    /// 处理投票创建通知
+    /// </summary>
+    private void HandleVoteCreated(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            _logger.LogInformation("收到投票创建通知: {Json}", json);
+
+            var voteData = JsonSerializer.Deserialize<JsonElement>(json);
+            
+            var vote = new Vote
+            {
+                Id = voteData.GetProperty("id").GetString() ?? Guid.NewGuid().ToString(),
+                Question = voteData.GetProperty("question").GetString() ?? "",
+                CreatorId = voteData.GetProperty("creatorId").GetString() ?? "",
+                CreatorName = voteData.GetProperty("creatorName").GetString() ?? "",
+                CreatedTime = voteData.TryGetProperty("createdTime", out var ct) 
+                    ? ct.GetDateTime() : DateTime.Now
+            };
+
+            // 解析选项
+            if (voteData.TryGetProperty("options", out var options))
+            {
+                int index = 0;
+                foreach (var opt in options.EnumerateArray())
+                {
+                    vote.Options.Add(new VoteOption
+                    {
+                        Index = index++,
+                        Text = opt.GetString() ?? "",
+                        VoteCount = 0,
+                        Percentage = 0
+                    });
+                }
+            }
+
+            _currentVote = vote;
+            StatusMessage = $"主持人 {vote.CreatorName} 发起了投票";
+            
+            // 触发事件通知 UI 打开投票窗口
+            VoteCreatedReceived?.Invoke(vote);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理投票创建通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理投票提交通知
+    /// </summary>
+    private void HandleVoteSubmitted(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            _logger.LogInformation("收到投票提交通知: {Json}", json);
+
+            var submitData = JsonSerializer.Deserialize<VoteSubmitRequest>(json, JsonOptions);
+            if (submitData == null) return;
+
+            // 更新本地投票状态
+            if (_currentVote != null && _currentVote.Id == submitData.VoteId)
+            {
+                var option = _currentVote.Options.FirstOrDefault(o => o.Index == submitData.OptionIndex);
+                if (option != null)
+                {
+                    option.VoteCount++;
+                    option.Voters.Add(new VoteVoter
+                    {
+                        PeerId = submitData.VoterId,
+                        DisplayName = submitData.VoterName,
+                        VoteTime = DateTime.Now
+                    });
+
+                    // 重新计算百分比
+                    var totalVotes = _currentVote.Options.Sum(o => o.VoteCount);
+                    foreach (var opt in _currentVote.Options)
+                    {
+                        opt.Percentage = totalVotes > 0 ? (double)opt.VoteCount / totalVotes * 100 : 0;
+                    }
+                }
+            }
+
+            // 触发事件通知 UI 更新
+            VoteResultUpdated?.Invoke(submitData);
+            
+            _logger.LogInformation("用户 {VoterName} 投票了选项 {OptionIndex}", 
+                submitData.VoterName, submitData.OptionIndex);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理投票提交通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理投票删除通知
+    /// </summary>
+    private void HandleVoteDeleted(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            _logger.LogInformation("收到投票删除通知: {Json}", json);
+
+            var deleteData = JsonSerializer.Deserialize<JsonElement>(json);
+            var voteId = deleteData.GetProperty("voteId").GetString();
+            
+            if (voteId != null && _currentVote?.Id == voteId)
+            {
+                _currentVote = null;
+            }
+
+            StatusMessage = "投票已被主持人删除";
+            VoteDeletedReceived?.Invoke(voteId ?? "");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理投票删除通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理投票更新通知
+    /// </summary>
+    private void HandleVoteUpdated(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            _logger.LogInformation("收到投票更新通知: {Json}", json);
+            
+            // 投票更新逻辑（如果需要）
+            StatusMessage = "投票已更新";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理投票更新通知失败");
+        }
+    }
+
+    #endregion
 
     #endregion
 }

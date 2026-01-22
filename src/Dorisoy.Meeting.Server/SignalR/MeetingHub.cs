@@ -1689,5 +1689,135 @@ namespace Dorisoy.Meeting.Server
         }
 
         #endregion Private Methods
+
+        #region Vote Methods
+
+        /// <summary>
+        /// 创建投票（主持人调用）
+        /// </summary>
+        public async Task CreateVote(CreateVoteRequest request)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("CreateVote: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("CreateVote: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("CreateVote: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            _logger.LogInformation("CreateVote: {Question} by {PeerId}", request.Question, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "voteCreated", request);
+        }
+
+        /// <summary>
+        /// 提交投票
+        /// </summary>
+        public async Task SubmitVote(SubmitVoteRequest request)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("SubmitVote: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("SubmitVote: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            _logger.LogInformation("SubmitVote: VoteId {VoteId}, OptionIndex {OptionIndex} by {PeerId}", 
+                request.VoteId, request.OptionIndex, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "voteSubmitted", request);
+        }
+
+        /// <summary>
+        /// 删除投票（主持人调用）
+        /// </summary>
+        public async Task DeleteVote(string voteId)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("DeleteVote: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("DeleteVote: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("DeleteVote: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            _logger.LogInformation("DeleteVote: VoteId {VoteId} by {PeerId}", voteId, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "voteDeleted", new { VoteId = voteId });
+        }
+
+        /// <summary>
+        /// 更新投票（主持人调用）
+        /// </summary>
+        public async Task UpdateVote(object voteData)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("UpdateVote: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("UpdateVote: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("UpdateVote: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            _logger.LogInformation("UpdateVote by {PeerId}", UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "voteUpdated", voteData);
+        }
+
+        #endregion Vote Methods
     }
 }

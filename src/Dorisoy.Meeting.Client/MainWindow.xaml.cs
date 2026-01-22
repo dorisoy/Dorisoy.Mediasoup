@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Windows;
+using Dorisoy.Meeting.Client.Models;
 using Dorisoy.Meeting.Client.ViewModels;
 using Dorisoy.Meeting.Client.Views;
 using Microsoft.Extensions.DependencyInjection;
@@ -45,6 +46,10 @@ public partial class MainWindow : FluentWindow
         
         // 订阅打开同步转译窗口事件
         _viewModel.OpenTranslateWindowRequested += OnOpenTranslateWindowRequested;
+        
+        // 订阅打开投票窗口事件
+        _viewModel.OpenPollRequested += OnOpenPollRequested;
+        _viewModel.VoteCreatedReceived += OnVoteCreatedReceived;
         
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
@@ -149,6 +154,83 @@ public partial class MainWindow : FluentWindow
         
         translateWindow.Show();
     }
+
+    /// <summary>
+    /// 主持人打开投票窗口
+    /// </summary>
+    private void OnOpenPollRequested()
+    {
+        OpenVoteWindow(null);
+    }
+
+    /// <summary>
+    /// 参与者收到投票创建通知
+    /// </summary>
+    private void OnVoteCreatedReceived(Vote vote)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            OpenVoteWindow(vote);
+        });
+    }
+
+    /// <summary>
+    /// 打开投票窗口
+    /// </summary>
+    private void OpenVoteWindow(Vote? existingVote)
+    {
+        var voteWindow = new VoteWindow(
+            _viewModel.CurrentPeerId,
+            _viewModel.CurrentUserName,
+            _viewModel.IsHost,
+            existingVote
+        )
+        {
+            Owner = this
+        };
+        
+        // 绑定投票事件
+        voteWindow.VoteCreated += async (vote) =>
+        {
+            await _viewModel.CreateVoteAsync(vote);
+        };
+        
+        voteWindow.VoteSubmitted += async (voteId, optionIndex) =>
+        {
+            await _viewModel.SubmitVoteAsync(voteId, optionIndex);
+        };
+        
+        voteWindow.VoteDeleted += async (voteId) =>
+        {
+            await _viewModel.DeleteVoteAsync(voteId);
+        };
+        
+        // 绑定投票结果更新事件
+        _viewModel.VoteResultUpdated += (submitData) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (voteWindow.CurrentVote?.Id == submitData.VoteId)
+                {
+                    // 窗口内部已经通过数据绑定更新，无需额外处理
+                }
+            });
+        };
+        
+        // 绑定投票删除事件
+        _viewModel.VoteDeletedReceived += (voteId) =>
+        {
+            Dispatcher.Invoke(() =>
+            {
+                if (voteWindow.CurrentVote?.Id == voteId)
+                {
+                    voteWindow.Close();
+                }
+            });
+        };
+        
+        voteWindow.Show();
+    }
     
     /// <summary>
     /// 返回加入房间窗口
@@ -202,6 +284,8 @@ public partial class MainWindow : FluentWindow
             _viewModel.FullScreenRequested -= OnFullScreenRequested;
             _viewModel.OpenShareRoomWindowRequested -= OnOpenShareRoomWindowRequested;
             _viewModel.OpenTranslateWindowRequested -= OnOpenTranslateWindowRequested;
+            _viewModel.OpenPollRequested -= OnOpenPollRequested;
+            _viewModel.VoteCreatedReceived -= OnVoteCreatedReceived;
             KeyDown -= OnWindowKeyDown;
             
             // 异步清理资源
