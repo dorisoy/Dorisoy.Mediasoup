@@ -25,7 +25,7 @@
 
         <!-- 标题栏 -->
         <ui:TitleBar x:Name="TitleBar"
-                     Title="Dorisoy Meeting Client"
+                     Title="Dorisoy.SFU"
                      Grid.Row="0"
                      ShowMaximize="True"
                      ShowMinimize="True">
@@ -33,6 +33,50 @@
                 <ui:SymbolIcon Symbol="Video24"
                                FontSize="20" />
             </ui:TitleBar.Icon>
+            <ui:TitleBar.MenuContent>
+                <Menu FontSize="14">
+                    <ui:MenuItem Header="文件(F)"
+                                 Icon="{ui:SymbolIcon Folder20}">
+                        <MenuItem Header="打开文件夹..."
+                                  InputGestureText="Ctrl+O">
+                            <MenuItem.Icon>
+                                <ui:SymbolIcon Symbol="FolderOpen20" />
+                            </MenuItem.Icon>
+                        </MenuItem>
+                    </ui:MenuItem>
+                    <ui:MenuItem Header="视图(V)"
+                                 Icon="{ui:SymbolIcon ContentView20}">
+                        <MenuItem x:Name="ToggleSidebarMenuItem"
+                                  Header="隐藏侧栏" />
+                    </ui:MenuItem>
+                    <ui:MenuItem Header="帮助(H)"
+                                 Icon="{ui:SymbolIcon ChatHelp20}">
+                        <MenuItem Header="检查更新" />
+                    </ui:MenuItem>
+                </Menu>
+            </ui:TitleBar.MenuContent>
+
+            <ui:TitleBar.RightMenuContent>
+                <!-- 右侧：房间信息和成员数 -->
+                <StackPanel HorizontalAlignment="Right"
+                            VerticalAlignment="Center"
+                            Margin="0,0,20,0"
+                            Orientation="Horizontal">
+                    <TextBlock Text="{Binding RoomId, StringFormat='房间: {0}'}"
+                               FontSize="14"
+                               Opacity="0.6"
+                               VerticalAlignment="Center"
+                               Margin="0,0,16,0" />
+                    <ui:SymbolIcon Symbol="People24"
+                                   FontSize="16"
+                                   Opacity="0.6"
+                                   Margin="0,0,6,0" />
+                    <TextBlock Text="{Binding OnlinePeerCount, StringFormat='在线: {0}人'}"
+                               FontSize="14"
+                               Opacity="0.6"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </ui:TitleBar.RightMenuContent>
         </ui:TitleBar>
 
         <!-- 主布局：视频区 + 浮动工具栏 -->
@@ -42,7 +86,7 @@
             <Grid Background="{DynamicResource ApplicationBackgroundBrush}">
 
                 <!-- 远端视频网格区域 -->
-                <Border Margin="0,0,0,90"
+                <Border Margin="0,0,0,0"
                         CornerRadius="8">
                     <Grid>
                         <!-- 远端视频网格列表 -->
@@ -281,56 +325,6 @@
                     </Grid>
                 </Border>
 
-                <!-- 本地视频预览 - 悬浮右下角 -->
-                <Border Margin="0,0,20,110"
-                        Padding="0"
-                        CornerRadius="8"
-                        Background="{DynamicResource ControlFillColorDefaultBrush}"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Bottom"
-                        Width="220"
-                        Height="150"
-                        ClipToBounds="True"
-                        Visibility="{Binding IsSelfViewVisible, Converter={StaticResource BoolToVisConverter}}">
-                    <Grid ClipToBounds="True">
-                        <Image Source="{Binding LocalVideoFrame}"
-                               Stretch="UniformToFill"
-                               RenderOptions.BitmapScalingMode="HighQuality" />
-
-                        <!-- 无本地视频时的占位符 -->
-                        <StackPanel HorizontalAlignment="Center"
-                                    VerticalAlignment="Center"
-                                    Visibility="{Binding LocalVideoFrame, 
-                                        Converter={StaticResource NullToVisibleConverter}}">
-                            <ui:SymbolIcon Symbol="Person24"
-                                           FontSize="36"
-                                           Opacity="0.3" />
-                            <TextBlock Text="本地预览"
-                                       Opacity="0.5"
-                                       FontSize="11"
-                                       HorizontalAlignment="Center"
-                                       Margin="0,4,0,0" />
-                        </StackPanel>
-
-                        <!-- 本地视频标签 -->
-                        <Border Background="#80000000"
-                                Padding="8,4"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Bottom"
-                                Margin="6"
-                                CornerRadius="4">
-                            <StackPanel Orientation="Horizontal">
-                                <ui:SymbolIcon Symbol="Video24"
-                                               FontSize="12"
-                                               Foreground="White"
-                                               Margin="0,0,4,0" />
-                                <TextBlock Text="{Binding CurrentUserName, FallbackValue='我'}"
-                                           Foreground="White"
-                                           FontSize="11" />
-                            </StackPanel>
-                        </Border>
-                    </Grid>
-                </Border>
 
                 <!-- 底部控制栏 -->
                 <Border Background="{DynamicResource ControlFillColorDefaultBrush}"
@@ -571,26 +565,58 @@
                             </StackPanel>
 
                         </StackPanel>
+                    </Grid>
+                </Border>
 
-                        <!-- 右侧：房间信息和成员数 -->
-                        <StackPanel HorizontalAlignment="Right"
+
+                <!-- 本地视频预览 - 悬浮右下角 -->
+                <Border Margin="0,0,20,20"
+                        Padding="0"
+                        CornerRadius="8"
+                        Background="{DynamicResource ControlFillColorDefaultBrush}"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Width="220"
+                        Height="150"
+                        ClipToBounds="True"
+                        Visibility="{Binding IsSelfViewVisible, Converter={StaticResource BoolToVisConverter}}">
+                    <Grid ClipToBounds="True">
+                        <Image Source="{Binding LocalVideoFrame}"
+                               Stretch="UniformToFill"
+                               RenderOptions.BitmapScalingMode="HighQuality" />
+
+                        <!-- 无本地视频时的占位符 -->
+                        <StackPanel HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
-                                    Margin="0,0,20,0"
-                                    Orientation="Horizontal">
-                            <TextBlock Text="{Binding RoomId, StringFormat='房间: {0}'}"
-                                       FontSize="14"
-                                       Opacity="0.6"
-                                       VerticalAlignment="Center"
-                                       Margin="0,0,16,0" />
-                            <ui:SymbolIcon Symbol="People24"
-                                           FontSize="16"
-                                           Opacity="0.6"
-                                           Margin="0,0,6,0" />
-                            <TextBlock Text="{Binding OnlinePeerCount, StringFormat='在线: {0}人'}"
-                                       FontSize="14"
-                                       Opacity="0.6"
-                                       VerticalAlignment="Center" />
+                                    Visibility="{Binding LocalVideoFrame, 
+                                 Converter={StaticResource NullToVisibleConverter}}">
+                            <ui:SymbolIcon Symbol="Person24"
+                                           FontSize="36"
+                                           Opacity="0.3" />
+                            <TextBlock Text="本地预览"
+                                       Opacity="0.5"
+                                       FontSize="11"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,4,0,0" />
                         </StackPanel>
+
+                        <!-- 本地视频标签 -->
+                        <Border Background="#80000000"
+                                Padding="8,4"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Bottom"
+                                Margin="6"
+                                CornerRadius="4">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Video24"
+                                               FontSize="12"
+                                               Foreground="White"
+                                               Margin="0,0,4,0" />
+                                <TextBlock Text="{Binding CurrentUserName, FallbackValue='我'}"
+                                           Foreground="White"
+                                           FontSize="11" />
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Border>
 
@@ -911,7 +937,7 @@
             <Border HorizontalAlignment="Right"
                     VerticalAlignment="Stretch"
                     Width="650"
-                    Margin="0,0,0,91"
+                    Margin="0,0,0,0"
                     Background="{DynamicResource ApplicationBackgroundBrush}"
                     BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
                     BorderThickness="1,0,0,0"
