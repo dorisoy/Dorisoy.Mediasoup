@@ -1187,21 +1187,87 @@ public partial class MainViewModel : ObservableObject
     public event Action? OpenEditorRequested;
 
     /// <summary>
-    /// 文本编辑器 - 协作文本编辑
+    /// 收到编辑器打开通知事件（所有用户接收）
+    /// </summary>
+    public event Action<EditorOpenedData>? EditorOpenedReceived;
+
+    /// <summary>
+    /// 收到编辑器内容更新事件
+    /// </summary>
+    public event Action<EditorContentUpdate>? EditorContentUpdated;
+
+    /// <summary>
+    /// 收到编辑器关闭事件
+    /// </summary>
+    public event Action<string>? EditorClosedReceived;
+
+    /// <summary>
+    /// 当前编辑器会话ID
+    /// </summary>
+    private string? _currentEditorSessionId;
+
+    /// <summary>
+    /// 文本编辑器 - 主持人点击后广播给所有用户开启协同编辑器
     /// </summary>
     [RelayCommand]
-    private void Editor()
+    private async Task EditorAsync()
     {
         if (!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
             return;
         }
+
+        if (!IsHost)
+        {
+            StatusMessage = "只有主持人可以开启协同编辑器";
+            return;
+        }
         
-        _logger.LogInformation("打开文本编辑器");
-        // TODO: 实现协作编辑器需要服务端支持
-        OpenEditorRequested?.Invoke();
-        StatusMessage = "协作编辑器功能需要服务端支持，暂未实现";
+        _logger.LogInformation("主持人开启协同编辑器");
+        
+        // 创建新会话
+        var sessionId = Guid.NewGuid().ToString();
+        _currentEditorSessionId = sessionId;
+        
+        var request = new
+        {
+            SessionId = sessionId,
+            InitiatorId = CurrentPeerId,
+            InitiatorName = CurrentUserName
+        };
+        
+        await _signalRService.InvokeAsync("OpenEditor", request);
+        StatusMessage = "已开启协同编辑器";
+    }
+
+    /// <summary>
+    /// 发送编辑器内容更新
+    /// </summary>
+    public async Task UpdateEditorContentAsync(EditorContentUpdate update)
+    {
+        await _signalRService.InvokeAsync("UpdateEditorContent", update);
+    }
+
+    /// <summary>
+    /// 关闭编辑器（主持人关闭时广播）
+    /// </summary>
+    public async Task CloseEditorAsync(string sessionId)
+    {
+        if (!IsHost)
+        {
+            return;
+        }
+
+        var request = new
+        {
+            SessionId = sessionId,
+            CloserId = CurrentPeerId,
+            CloserName = CurrentUserName
+        };
+
+        await _signalRService.InvokeAsync("CloseEditor", request);
+        _currentEditorSessionId = null;
     }
 
     /// <summary>
@@ -3834,6 +3900,15 @@ public partial class MainViewModel : ObservableObject
                     case "voteUpdated":
                         HandleVoteUpdated(notification.Data);
                         break;
+                    case "editorOpened":
+                        HandleEditorOpened(notification.Data);
+                        break;
+                    case "editorContentUpdated":
+                        HandleEditorContentUpdated(notification.Data);
+                        break;
+                    case "editorClosed":
+                        HandleEditorClosed(notification.Data);
+                        break;
                     default:
                         _logger.LogDebug("Unhandled notification: {Type}", notification.Type);
                         break;
@@ -4752,6 +4827,80 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "处理投票更新通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理编辑器打开通知
+    /// </summary>
+    private void HandleEditorOpened(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var notification = JsonSerializer.Deserialize<EditorOpenedData>(json, JsonOptions);
+            if (notification == null) return;
+
+            _logger.LogInformation("收到编辑器打开通知: SessionId={SessionId}, Initiator={Initiator}",
+                notification.SessionId, notification.InitiatorName);
+
+            _currentEditorSessionId = notification.SessionId;
+            EditorOpenedReceived?.Invoke(notification);
+            StatusMessage = $"{notification.InitiatorName} 开启了协同编辑器";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理编辑器打开通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理编辑器内容更新通知
+    /// </summary>
+    private void HandleEditorContentUpdated(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var update = JsonSerializer.Deserialize<EditorContentUpdate>(json, JsonOptions);
+            if (update == null) return;
+
+            // 触发事件，由窗口处理更新
+            EditorContentUpdated?.Invoke(update);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理编辑器内容更新通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理编辑器关闭通知
+    /// </summary>
+    private void HandleEditorClosed(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var notification = JsonSerializer.Deserialize<CloseEditorRequest>(json, JsonOptions);
+            if (notification == null) return;
+
+            _logger.LogInformation("收到编辑器关闭通知: SessionId={SessionId}, Closer={Closer}",
+                notification.SessionId, notification.CloserName);
+
+            _currentEditorSessionId = null;
+            EditorClosedReceived?.Invoke(notification.SessionId);
+            StatusMessage = $"{notification.CloserName} 关闭了协同编辑器";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理编辑器关闭通知失败");
         }
     }
 

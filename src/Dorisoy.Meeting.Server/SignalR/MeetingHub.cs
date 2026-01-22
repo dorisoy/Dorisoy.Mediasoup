@@ -1819,5 +1819,99 @@ namespace Dorisoy.Meeting.Server
         }
 
         #endregion Vote Methods
+
+        #region Editor Methods
+
+        /// <summary>
+        /// 打开协同编辑器（主持人调用）
+        /// </summary>
+        public async Task OpenEditor(OpenEditorRequest request)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("OpenEditor: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("OpenEditor: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("OpenEditor: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            _logger.LogInformation("OpenEditor: SessionId {SessionId} by {PeerId}", request.SessionId, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "editorOpened", request);
+        }
+
+        /// <summary>
+        /// 更新编辑器内容（所有用户都可调用）
+        /// </summary>
+        public async Task UpdateEditorContent(EditorContentUpdate update)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("UpdateEditorContent: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("UpdateEditorContent: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 广播给房间内所有用户（包括自己，由客户端过滤）
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "editorContentUpdated", update);
+        }
+
+        /// <summary>
+        /// 关闭协同编辑器（主持人调用）
+        /// </summary>
+        public async Task CloseEditor(CloseEditorRequest request)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("CloseEditor: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("CloseEditor: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("CloseEditor: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            _logger.LogInformation("CloseEditor: SessionId {SessionId} by {PeerId}", request.SessionId, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "editorClosed", request);
+        }
+
+        #endregion Editor Methods
     }
 }

@@ -395,4 +395,91 @@ namespace Dorisoy.Meeting.Server
     }
 
     #endregion
+
+    #region 编辑器相关
+
+    /// <summary>
+    /// 打开编辑器请求
+    /// </summary>
+    public class OpenEditorRequest
+    {
+        /// <summary>
+        /// 会话ID
+        /// </summary>
+        public string SessionId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 发起者ID
+        /// </summary>
+        public string InitiatorId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 发起者名称
+        /// </summary>
+        public string InitiatorName { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// 编辑器内容更新
+    /// </summary>
+    public class EditorContentUpdate
+    {
+        /// <summary>
+        /// 会话ID
+        /// </summary>
+        public string SessionId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 纯文本内容
+        /// </summary>
+        public string Content { get; set; } = string.Empty;
+
+        /// <summary>
+        /// RTF 富文本内容
+        /// </summary>
+        public string RtfContent { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 编辑者ID
+        /// </summary>
+        public string EditorId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 编辑者名称
+        /// </summary>
+        public string EditorName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 更新时间
+        /// </summary>
+        public DateTime UpdateTime { get; set; } = DateTime.Now;
+
+        /// <summary>
+        /// 光标位置
+        /// </summary>
+        public int CursorPosition { get; set; }
+    }
+
+    /// <summary>
+    /// 关闭编辑器请求
+    /// </summary>
+    public class CloseEditorRequest
+    {
+        /// <summary>
+        /// 会话ID
+        /// </summary>
+        public string SessionId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 关闭者ID
+        /// </summary>
+        public string CloserId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// 关闭者名称
+        /// </summary>
+        public string CloserName { get; set; } = string.Empty;
+    }
+
+    #endregion
 }

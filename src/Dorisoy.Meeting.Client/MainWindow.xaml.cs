@@ -20,6 +20,7 @@ public partial class MainWindow : FluentWindow
     private WindowStyle _previousWindowStyle;
     private bool _previousTopmost;
     private VoteWindow? _currentVoteWindow; // 当前打开的投票窗口引用
+    private CollaborativeEditorWindow? _currentEditorWindow; // 当前打开的编辑器窗口引用
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -51,6 +52,11 @@ public partial class MainWindow : FluentWindow
         // 订阅打开投票窗口事件
         _viewModel.OpenPollRequested += OnOpenPollRequested;
         _viewModel.VoteCreatedReceived += OnVoteCreatedReceived;
+        
+        // 订阅编辑器事件
+        _viewModel.EditorOpenedReceived += OnEditorOpenedReceived;
+        _viewModel.EditorContentUpdated += OnEditorContentUpdated;
+        _viewModel.EditorClosedReceived += OnEditorClosedReceived;
         
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
@@ -267,6 +273,84 @@ public partial class MainWindow : FluentWindow
         
         voteWindow.Show();
     }
+
+    #region 协同编辑器
+
+    /// <summary>
+    /// 收到编辑器打开通知
+    /// </summary>
+    private void OnEditorOpenedReceived(EditorOpenedData data)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            // 如果已有编辑器窗口打开，激活它
+            if (_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
+            {
+                _currentEditorWindow.Activate();
+                return;
+            }
+
+            // 创建新的编辑器窗口
+            var editorWindow = new CollaborativeEditorWindow(
+                _viewModel.CurrentPeerId,
+                _viewModel.CurrentUserName,
+                data.SessionId
+            )
+            {
+                Owner = this
+            };
+
+            _currentEditorWindow = editorWindow;
+
+            // 绑定内容变化事件
+            editorWindow.ContentChanged += async (update) =>
+            {
+                await _viewModel.UpdateEditorContentAsync(update);
+            };
+
+            // 窗口关闭时清理引用
+            editorWindow.Closed += (s, e) =>
+            {
+                if (_currentEditorWindow == editorWindow)
+                {
+                    _currentEditorWindow = null;
+                }
+            };
+
+            editorWindow.Show();
+        });
+    }
+
+    /// <summary>
+    /// 收到编辑器内容更新
+    /// </summary>
+    private void OnEditorContentUpdated(EditorContentUpdate update)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
+            {
+                _currentEditorWindow.UpdateContent(update);
+            }
+        });
+    }
+
+    /// <summary>
+    /// 收到编辑器关闭通知
+    /// </summary>
+    private void OnEditorClosedReceived(string sessionId)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
+            {
+                _currentEditorWindow.Close();
+                _currentEditorWindow = null;
+            }
+        });
+    }
+
+    #endregion
     
     /// <summary>
     /// 返回加入房间窗口
@@ -322,6 +406,9 @@ public partial class MainWindow : FluentWindow
             _viewModel.OpenTranslateWindowRequested -= OnOpenTranslateWindowRequested;
             _viewModel.OpenPollRequested -= OnOpenPollRequested;
             _viewModel.VoteCreatedReceived -= OnVoteCreatedReceived;
+            _viewModel.EditorOpenedReceived -= OnEditorOpenedReceived;
+            _viewModel.EditorContentUpdated -= OnEditorContentUpdated;
+            _viewModel.EditorClosedReceived -= OnEditorClosedReceived;
             KeyDown -= OnWindowKeyDown;
             
             // 异步清理资源
