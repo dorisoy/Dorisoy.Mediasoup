@@ -318,6 +318,7 @@
                                x:Name="StartStopButton"
                                MinWidth="120"
                                Height="38"
+                               Foreground="White"
                                Click="StartStop_Click"
                                Margin="16,0,0,0">
                         <ui:Button.Style>
