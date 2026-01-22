@@ -188,6 +188,22 @@ public interface IWebRtcService : IDisposable
     /// 关闭所有连接
     /// </summary>
     Task CloseAsync();
+    
+    /// <summary>
+    /// 开始录制
+    /// </summary>
+    /// <param name="outputPath">输出文件路径</param>
+    Task StartRecordingAsync(string outputPath);
+    
+    /// <summary>
+    /// 停止录制
+    /// </summary>
+    Task StopRecordingAsync();
+    
+    /// <summary>
+    /// 是否正在录制
+    /// </summary>
+    bool IsRecording { get; }
 }
 
 /// <summary>

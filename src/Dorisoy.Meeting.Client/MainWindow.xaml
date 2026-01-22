@@ -718,11 +718,34 @@
                                Height="44"
                                CornerRadius="8"
                                Margin="0,3"
-                               ToolTip="录制"
-                               Appearance="Transparent"
                                Command="{Binding RecordCommand}">
-                        <ui:SymbolIcon Symbol="Record24"
-                                       FontSize="18" />
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button"
+                                   BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Setter Property="Appearance"
+                                        Value="Transparent" />
+                                <Setter Property="ToolTip"
+                                        Value="开始录制" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsRecording}"
+                                                 Value="True">
+                                        <Setter Property="Appearance"
+                                                Value="Danger" />
+                                        <Setter Property="ToolTip"
+                                                Value="停止录制" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                        <Grid>
+                            <ui:SymbolIcon Symbol="Record24"
+                                           FontSize="18"
+                                           Visibility="{Binding IsRecording, Converter={StaticResource InverseBoolToVisConverter}}" />
+                            <ui:SymbolIcon Symbol="Stop24"
+                                           FontSize="18"
+                                           Foreground="White"
+                                           Visibility="{Binding IsRecording, Converter={StaticResource BoolToVisConverter}}" />
+                        </Grid>
                     </ui:Button>
 
                     <!-- 全屏 -->
@@ -730,11 +753,33 @@
                                Height="44"
                                CornerRadius="8"
                                Margin="0,3"
-                               ToolTip="全屏"
-                               Appearance="Transparent"
                                Command="{Binding FullScreenCommand}">
-                        <ui:SymbolIcon Symbol="FullScreenMaximize24"
-                                       FontSize="18" />
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button"
+                                   BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Setter Property="Appearance"
+                                        Value="Transparent" />
+                                <Setter Property="ToolTip"
+                                        Value="进入全屏" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsFullScreen}"
+                                                 Value="True">
+                                        <Setter Property="Appearance"
+                                                Value="Info" />
+                                        <Setter Property="ToolTip"
+                                                Value="退出全屏 (Esc)" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                        <Grid>
+                            <ui:SymbolIcon Symbol="FullScreenMaximize24"
+                                           FontSize="18"
+                                           Visibility="{Binding IsFullScreen, Converter={StaticResource InverseBoolToVisConverter}}" />
+                            <ui:SymbolIcon Symbol="FullScreenMinimize24"
+                                           FontSize="18"
+                                           Visibility="{Binding IsFullScreen, Converter={StaticResource BoolToVisConverter}}" />
+                        </Grid>
                     </ui:Button>
 
                     <!-- 分隔线 -->
@@ -760,9 +805,25 @@
                                Height="44"
                                CornerRadius="8"
                                Margin="0,3"
-                               ToolTip="同步转译"
-                               Appearance="Transparent"
                                Command="{Binding TranslateCommand}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button"
+                                   BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Setter Property="Appearance"
+                                        Value="Transparent" />
+                                <Setter Property="ToolTip"
+                                        Value="同步转译" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsTranslateEnabled}"
+                                                 Value="True">
+                                        <Setter Property="Appearance"
+                                                Value="Success" />
+                                        <Setter Property="ToolTip"
+                                                Value="关闭同步转译" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
                         <ui:SymbolIcon Symbol="Translate24"
                                        FontSize="18" />
                     </ui:Button>
@@ -814,9 +875,25 @@
                                Height="44"
                                CornerRadius="8"
                                Margin="0,3"
-                               ToolTip="画中画"
-                               Appearance="Transparent"
                                Command="{Binding PipCommand}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button"
+                                   BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Setter Property="Appearance"
+                                        Value="Transparent" />
+                                <Setter Property="ToolTip"
+                                        Value="画中画" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPipMode}"
+                                                 Value="True">
+                                        <Setter Property="Appearance"
+                                                Value="Info" />
+                                        <Setter Property="ToolTip"
+                                                Value="退出画中画" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
                         <ui:SymbolIcon Symbol="PictureInPicture24"
                                        FontSize="18" />
                     </ui:Button>

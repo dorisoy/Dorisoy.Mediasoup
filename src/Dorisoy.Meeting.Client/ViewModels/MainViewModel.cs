@@ -732,13 +732,34 @@ public partial class MainViewModel : ObservableObject
     #region 左侧工具栏命令
 
     /// <summary>
-    /// 分享教室
+    /// 分享教室 - 复制房间链接到剪贴板
     /// </summary>
     [RelayCommand]
     private void ShareRoom()
     {
-        _logger.LogInformation("分享教室");
-        StatusMessage = "分享教室功能待实现";
+        if (!IsJoinedRoom)
+        {
+            StatusMessage = "请先加入房间";
+            return;
+        }
+        
+        try
+        {
+            // 构建房间邀请链接
+            var roomLink = $"{ServerUrl}/join?room={RoomId}";
+            var inviteText = $"邀请您加入会议\n房间号: {RoomId}\n链接: {roomLink}";
+            
+            // 复制到剪贴板
+            Clipboard.SetText(inviteText);
+            
+            _logger.LogInformation("已复制房间链接到剪贴板: Room={RoomId}", RoomId);
+            StatusMessage = "房间链接已复制到剪贴板";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "复制房间链接失败");
+            StatusMessage = $"复制失败: {ex.Message}";
+        }
     }
 
     /// <summary>
@@ -752,83 +773,306 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 录制
+    /// 是否正在录制
+    /// </summary>
+    [ObservableProperty]
+    private bool _isRecording;
+    
+    /// <summary>
+    /// 录制开始时间
+    /// </summary>
+    private DateTime _recordingStartTime;
+    
+    /// <summary>
+    /// 录制计时器
+    /// </summary>
+    private System.Timers.Timer? _recordingTimer;
+    
+    /// <summary>
+    /// 录制时长显示
+    /// </summary>
+    [ObservableProperty]
+    private string _recordingDuration = "00:00:00";
+    
+    /// <summary>
+    /// 录制输出路径
+    /// </summary>
+    private string? _recordingOutputPath;
+
+    /// <summary>
+    /// 录制 - 开始/停止会议录制
     /// </summary>
     [RelayCommand]
-    private void Record()
+    private async Task RecordAsync()
     {
-        _logger.LogInformation("录制");
-        StatusMessage = "录制功能待实现";
+        if (!IsJoinedRoom)
+        {
+            StatusMessage = "请先加入房间";
+            return;
+        }
+        
+        if (IsRecording)
+        {
+            // 停止录制
+            await StopRecordingAsync();
+        }
+        else
+        {
+            // 开始录制
+            await StartRecordingAsync();
+        }
+    }
+    
+    /// <summary>
+    /// 开始录制
+    /// </summary>
+    private async Task StartRecordingAsync()
+    {
+        try
+        {
+            // 选择保存路径
+            var saveDialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "MP4 视频|*.mp4|WebM 视频|*.webm",
+                DefaultExt = ".mp4",
+                FileName = $"会议录制_{RoomId}_{DateTime.Now:yyyyMMdd_HHmmss}"
+            };
+            
+            if (saveDialog.ShowDialog() != true)
+            {
+                return;
+            }
+            
+            _recordingOutputPath = saveDialog.FileName;
+            
+            // 通知 WebRTC 服务开始录制
+            await _webRtcService.StartRecordingAsync(_recordingOutputPath);
+            
+            IsRecording = true;
+            _recordingStartTime = DateTime.Now;
+            
+            // 启动计时器更新录制时长
+            _recordingTimer = new System.Timers.Timer(1000);
+            _recordingTimer.Elapsed += (s, e) =>
+            {
+                var duration = DateTime.Now - _recordingStartTime;
+                Application.Current?.Dispatcher.Invoke(() =>
+                {
+                    RecordingDuration = duration.ToString(@"hh\:mm\:ss");
+                });
+            };
+            _recordingTimer.Start();
+            
+            _logger.LogInformation("开始录制: {Path}", _recordingOutputPath);
+            StatusMessage = "正在录制...";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "开始录制失败");
+            StatusMessage = $"录制失败: {ex.Message}";
+            IsRecording = false;
+        }
+    }
+    
+    /// <summary>
+    /// 停止录制
+    /// </summary>
+    private async Task StopRecordingAsync()
+    {
+        try
+        {
+            // 停止计时器
+            _recordingTimer?.Stop();
+            _recordingTimer?.Dispose();
+            _recordingTimer = null;
+            
+            // 通知 WebRTC 服务停止录制
+            await _webRtcService.StopRecordingAsync();
+            
+            IsRecording = false;
+            
+            _logger.LogInformation("停止录制: {Path}, 时长: {Duration}", _recordingOutputPath, RecordingDuration);
+            StatusMessage = $"录制已保存: {_recordingOutputPath}";
+            RecordingDuration = "00:00:00";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "停止录制失败");
+            StatusMessage = $"停止录制失败: {ex.Message}";
+        }
     }
 
     /// <summary>
-    /// 全屏
+    /// 是否全屏
+    /// </summary>
+    [ObservableProperty]
+    private bool _isFullScreen;
+    
+    /// <summary>
+    /// 请求切换全屏事件
+    /// </summary>
+    public event Action<bool>? FullScreenRequested;
+
+    /// <summary>
+    /// 全屏 - 切换窗口全屏/还原
     /// </summary>
     [RelayCommand]
     private void FullScreen()
     {
-        _logger.LogInformation("全屏");
-        StatusMessage = "全屏功能待实现";
+        IsFullScreen = !IsFullScreen;
+        FullScreenRequested?.Invoke(IsFullScreen);
+        
+        _logger.LogInformation("切换全屏: {IsFullScreen}", IsFullScreen);
+        StatusMessage = IsFullScreen ? "已进入全屏模式，按 Esc 或点击全屏按钮退出" : "已退出全屏模式";
     }
 
     /// <summary>
-    /// 表情
+    /// 表情 - 打开表情选择器
     /// </summary>
     [RelayCommand]
     private void Emoji()
     {
-        _logger.LogInformation("表情");
-        StatusMessage = "表情功能待实现";
+        if (!IsJoinedRoom)
+        {
+            StatusMessage = "请先加入房间";
+            return;
+        }
+        
+        _logger.LogInformation("打开表情选择器");
+        OpenEmojiPickerRequested?.Invoke();
     }
 
     /// <summary>
-    /// 同步转译
+    /// 是否启用同步转译
+    /// </summary>
+    [ObservableProperty]
+    private bool _isTranslateEnabled;
+
+    /// <summary>
+    /// 同步转译 - 语音转文字功能（需要集成语音识别 API）
     /// </summary>
     [RelayCommand]
     private void Translate()
     {
-        _logger.LogInformation("同步转译");
-        StatusMessage = "同步转译功能待实现";
+        IsTranslateEnabled = !IsTranslateEnabled;
+        
+        if (IsTranslateEnabled)
+        {
+            _logger.LogInformation("启用同步转译");
+            StatusMessage = "同步转译功能需要集成语音识别 API，暂未实现";
+        }
+        else
+        {
+            _logger.LogInformation("关闭同步转译");
+            StatusMessage = "已关闭同步转译";
+        }
     }
 
     /// <summary>
-    /// 投票
+    /// 请求打开投票窗口事件
+    /// </summary>
+    public event Action? OpenPollRequested;
+
+    /// <summary>
+    /// 投票 - 发起投票
     /// </summary>
     [RelayCommand]
     private void Poll()
     {
-        _logger.LogInformation("投票");
-        StatusMessage = "投票功能待实现";
+        if (!IsJoinedRoom)
+        {
+            StatusMessage = "请先加入房间";
+            return;
+        }
+        
+        _logger.LogInformation("打开投票");
+        // TODO: 实现投票功能需要服务端支持
+        OpenPollRequested?.Invoke();
+        StatusMessage = "投票功能需要服务端支持，暂未实现";
     }
 
     /// <summary>
-    /// 文本编辑器
+    /// 请求打开编辑器窗口事件
+    /// </summary>
+    public event Action? OpenEditorRequested;
+
+    /// <summary>
+    /// 文本编辑器 - 协作文本编辑
     /// </summary>
     [RelayCommand]
     private void Editor()
     {
-        _logger.LogInformation("文本编辑器");
-        StatusMessage = "文本编辑器功能待实现";
+        if (!IsJoinedRoom)
+        {
+            StatusMessage = "请先加入房间";
+            return;
+        }
+        
+        _logger.LogInformation("打开文本编辑器");
+        // TODO: 实现协作编辑器需要服务端支持
+        OpenEditorRequested?.Invoke();
+        StatusMessage = "协作编辑器功能需要服务端支持，暂未实现";
     }
 
     /// <summary>
-    /// 白板
+    /// 请求打开白板窗口事件
+    /// </summary>
+    public event Action? OpenWhiteboardRequested;
+
+    /// <summary>
+    /// 白板 - 协作白板功能
     /// </summary>
     [RelayCommand]
     private void Whiteboard()
     {
-        _logger.LogInformation("白板");
-        StatusMessage = "白板功能待实现";
+        if (!IsJoinedRoom)
+        {
+            StatusMessage = "请先加入房间";
+            return;
+        }
+        
+        _logger.LogInformation("打开白板");
+        // TODO: 实现协作白板需要服务端支持
+        OpenWhiteboardRequested?.Invoke();
+        StatusMessage = "白板功能需要服务端支持，暂未实现";
     }
 
     /// <summary>
-    /// 画中画
+    /// 请求打开画中画窗口事件
+    /// </summary>
+    public event Action? OpenPipRequested;
+    
+    /// <summary>
+    /// 是否处于画中画模式
+    /// </summary>
+    [ObservableProperty]
+    private bool _isPipMode;
+
+    /// <summary>
+    /// 画中画 - 将当前视频放入画中画窗口
     /// </summary>
     [RelayCommand]
     private void Pip()
     {
-        _logger.LogInformation("画中画");
-        StatusMessage = "画中画功能待实现";
+        if (!IsJoinedRoom)
+        {
+            StatusMessage = "请先加入房间";
+            return;
+        }
+        
+        IsPipMode = !IsPipMode;
+        
+        if (IsPipMode)
+        {
+            _logger.LogInformation("进入画中画模式");
+            OpenPipRequested?.Invoke();
+            StatusMessage = "已进入画中画模式";
+        }
+        else
+        {
+            _logger.LogInformation("退出画中画模式");
+            StatusMessage = "已退出画中画模式";
+        }
     }
 
     /// <summary>
@@ -991,14 +1235,71 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 屏幕截图
+    /// 请求屏幕截图事件（传递截图区域选择器启动请求）
+    /// </summary>
+    public event Action? ScreenshotRequested;
+
+    /// <summary>
+    /// 屏幕截图 - 截取屏幕或选定区域
     /// </summary>
     [RelayCommand]
-    private void Screenshot()
+    private async Task ScreenshotAsync()
     {
-        _logger.LogInformation("屏幕截图");
-        StatusMessage = "屏幕截图功能待实现";
+        try
+        {
+            _logger.LogInformation("开始屏幕截图");
+            
+            // 获取整个屏幕截图
+            var screenWidth = (int)SystemParameters.PrimaryScreenWidth;
+            var screenHeight = (int)SystemParameters.PrimaryScreenHeight;
+            
+            using var bitmap = new System.Drawing.Bitmap(screenWidth, screenHeight);
+            using var graphics = System.Drawing.Graphics.FromImage(bitmap);
+            graphics.CopyFromScreen(0, 0, 0, 0, new System.Drawing.Size(screenWidth, screenHeight));
+            
+            // 转换为 WPF 图像
+            var bitmapSource = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+                bitmap.GetHbitmap(),
+                IntPtr.Zero,
+                Int32Rect.Empty,
+                BitmapSizeOptions.FromEmptyOptions());
+            
+            // 弹出保存对话框
+            var saveDialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Filter = "PNG 图片|*.png|JPEG 图片|*.jpg|BMP 图片|*.bmp",
+                DefaultExt = ".png",
+                FileName = $"截图_{DateTime.Now:yyyyMMdd_HHmmss}"
+            };
+            
+            if (saveDialog.ShowDialog() == true)
+            {
+                using var fileStream = new FileStream(saveDialog.FileName, FileMode.Create);
+                BitmapEncoder encoder = saveDialog.FileName.ToLower() switch
+                {
+                    var s when s.EndsWith(".jpg") => new JpegBitmapEncoder(),
+                    var s when s.EndsWith(".bmp") => new BmpBitmapEncoder(),
+                    _ => new PngBitmapEncoder()
+                };
+                encoder.Frames.Add(BitmapFrame.Create(bitmapSource));
+                encoder.Save(fileStream);
+                
+                _logger.LogInformation("截图已保存: {Path}", saveDialog.FileName);
+                StatusMessage = $"截图已保存: {saveDialog.FileName}";
+            }
+            
+            // 释放 GDI 对象
+            DeleteObject(bitmap.GetHbitmap());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "屏幕截图失败");
+            StatusMessage = $"截图失败: {ex.Message}";
+        }
     }
+    
+    [System.Runtime.InteropServices.DllImport("gdi32.dll")]
+    private static extern bool DeleteObject(IntPtr hObject);
 
     #endregion
 

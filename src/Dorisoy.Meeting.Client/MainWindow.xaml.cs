@@ -15,6 +15,9 @@ public partial class MainWindow : FluentWindow
 {
     private readonly MainViewModel _viewModel;
     private bool _isReturningToJoinRoom;
+    private WindowState _previousWindowState;
+    private WindowStyle _previousWindowStyle;
+    private bool _previousTopmost;
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -34,8 +37,57 @@ public partial class MainWindow : FluentWindow
         // 订阅返回加入房间事件
         _viewModel.ReturnToJoinRoomRequested += OnReturnToJoinRoomRequested;
         
+        // 订阅全屏请求事件
+        _viewModel.FullScreenRequested += OnFullScreenRequested;
+        
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
+        
+        // 订阅键盘事件用于 Esc 退出全屏
+        KeyDown += OnWindowKeyDown;
+    }
+    
+    /// <summary>
+    /// 全屏请求处理
+    /// </summary>
+    private void OnFullScreenRequested(bool isFullScreen)
+    {
+        if (isFullScreen)
+        {
+            // 保存当前状态
+            _previousWindowState = WindowState;
+            _previousWindowStyle = WindowStyle;
+            _previousTopmost = Topmost;
+            
+            // 进入全屏
+            WindowStyle = WindowStyle.None;
+            WindowState = WindowState.Maximized;
+            Topmost = true;
+            
+            // 隐藏标题栏
+            TitleBar.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            // 恢复之前的状态
+            WindowStyle = _previousWindowStyle;
+            WindowState = _previousWindowState;
+            Topmost = _previousTopmost;
+            
+            // 显示标题栏
+            TitleBar.Visibility = Visibility.Visible;
+        }
+    }
+    
+    /// <summary>
+    /// 键盘事件 - Esc 退出全屏
+    /// </summary>
+    private void OnWindowKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == System.Windows.Input.Key.Escape && _viewModel.IsFullScreen)
+        {
+            _viewModel.FullScreenCommand.Execute(null);
+        }
     }
 
     /// <summary>
@@ -110,6 +162,8 @@ public partial class MainWindow : FluentWindow
             _viewModel.OpenSettingsRequested -= OnOpenSettingsRequested;
             _viewModel.OpenEmojiPickerRequested -= OnOpenEmojiPickerRequested;
             _viewModel.ReturnToJoinRoomRequested -= OnReturnToJoinRoomRequested;
+            _viewModel.FullScreenRequested -= OnFullScreenRequested;
+            KeyDown -= OnWindowKeyDown;
             
             // 异步清理资源
             await _viewModel.CleanupAsync();

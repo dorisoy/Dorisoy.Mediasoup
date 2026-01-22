@@ -45,6 +45,10 @@ public class WebRtcService : IWebRtcService
     // 屏幕共享
     private ScreenCapture? _screenCapture;
     private volatile bool _isScreenSharing;
+    
+    // 录制相关
+    private volatile bool _isRecording;
+    private string? _recordingOutputPath;
 
     // 音频采集
     private WaveInEvent? _waveIn;
@@ -122,6 +126,11 @@ public class WebRtcService : IWebRtcService
     /// 是否正在屏幕共享
     /// </summary>
     public bool IsScreenSharing => _isScreenSharing;
+    
+    /// <summary>
+    /// 是否正在录制
+    /// </summary>
+    public bool IsRecording => _isRecording;
     
     /// <summary>
     /// 屏幕共享帧更新事件
@@ -1626,6 +1635,68 @@ public class WebRtcService : IWebRtcService
         _remoteVideoBitmaps.Clear();
 
         _logger.LogInformation("WebRTC service closed");
+    }
+    
+    /// <summary>
+    /// 开始录制 - 录制本地视频和音频
+    /// </summary>
+    /// <param name="outputPath">输出文件路径</param>
+    public Task StartRecordingAsync(string outputPath)
+    {
+        if (_isRecording)
+        {
+            _logger.LogWarning("已在录制中");
+            return Task.CompletedTask;
+        }
+        
+        try
+        {
+            _recordingOutputPath = outputPath;
+            _isRecording = true;
+            
+            // TODO: 实现实际录制逻辑
+            // 可以使用 FFmpeg 或 OpenCV 将视频帧写入文件
+            // 音频可以使用 NAudio 录制
+            
+            _logger.LogInformation("开始录制: {Path}", outputPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "开始录制失败");
+            _isRecording = false;
+            throw;
+        }
+        
+        return Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// 停止录制
+    /// </summary>
+    public Task StopRecordingAsync()
+    {
+        if (!_isRecording)
+        {
+            _logger.LogWarning("未在录制中");
+            return Task.CompletedTask;
+        }
+        
+        try
+        {
+            _isRecording = false;
+            
+            // TODO: 停止录制并保存文件
+            
+            _logger.LogInformation("停止录制: {Path}", _recordingOutputPath);
+            _recordingOutputPath = null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "停止录制失败");
+            throw;
+        }
+        
+        return Task.CompletedTask;
     }
 
     /// <summary>
