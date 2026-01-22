@@ -82,7 +82,7 @@
                                     <Setter Property="Icon" Value="{ui:SymbolIcon Mic24}"/>
                                     <Style.Triggers>
                                         <DataTrigger Binding="{Binding IsListening}" Value="True">
-                                            <Setter Property="Icon" Value="{ui:SymbolIcon MicOn24}"/>
+                                            <Setter Property="Icon" Value="{ui:SymbolIcon Mic24}"/>
                                             <Setter Property="Appearance" Value="Success"/>
                                         </DataTrigger>
                                     </Style.Triggers>

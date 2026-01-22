@@ -376,19 +376,72 @@ public class WebRtcService : IWebRtcService
             {
                 lock (_videoCaptureLock)
                 {
-                    _videoCapture = new VideoCapture(cameraIndex, VideoCaptureAPIs.DSHOW);
-
-                    if (!_videoCapture.IsOpened())
+                    // 先确保释放已有资源
+                    if (_videoCapture != null)
                     {
-                        throw new Exception($"Failed to open camera {cameraIndex}");
+                        try
+                        {
+                            _videoCapture.Release();
+                            _videoCapture.Dispose();
+                        }
+                        catch { }
+                        _videoCapture = null;
                     }
 
-                    // 设置视频参数
-                    _videoCapture.Set(VideoCaptureProperties.FrameWidth, 640);
-                    _videoCapture.Set(VideoCaptureProperties.FrameHeight, 480);
-                    _videoCapture.Set(VideoCaptureProperties.Fps, 30);
+                    // 尝试打开摄像头，最多重试 3 次
+                    Exception? lastException = null;
+                    for (int retry = 0; retry < 3; retry++)
+                    {
+                        try
+                        {
+                            if (retry > 0)
+                            {
+                                _logger.LogInformation("Retrying camera open, attempt {Attempt}", retry + 1);
+                                Thread.Sleep(500); // 等待摄像头资源释放
+                            }
 
-                    _isVideoCaptureRunning = true;
+                            _videoCapture = new VideoCapture(cameraIndex, VideoCaptureAPIs.DSHOW);
+
+                            if (_videoCapture.IsOpened())
+                            {
+                                // 设置视频参数
+                                _videoCapture.Set(VideoCaptureProperties.FrameWidth, 640);
+                                _videoCapture.Set(VideoCaptureProperties.FrameHeight, 480);
+                                _videoCapture.Set(VideoCaptureProperties.Fps, 30);
+
+                                _isVideoCaptureRunning = true;
+                                _logger.LogInformation("Camera {Index} opened successfully", cameraIndex);
+                                return; // 成功，退出循环
+                            }
+                            else
+                            {
+                                _videoCapture.Release();
+                                _videoCapture.Dispose();
+                                _videoCapture = null;
+                                lastException = new Exception($"Camera {cameraIndex} exists but failed to open");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            lastException = ex;
+                            _logger.LogWarning(ex, "Camera open attempt {Attempt} failed", retry + 1);
+                            if (_videoCapture != null)
+                            {
+                                try { _videoCapture.Release(); _videoCapture.Dispose(); } catch { }
+                                _videoCapture = null;
+                            }
+                        }
+                    }
+
+                    // 所有重试都失败
+                    throw new Exception(
+                        $"无法打开摄像头 {cameraIndex}。\n" +
+                        $"可能原因：\n" +
+                        $"1. 摄像头被其他应用程序占用\n" +
+                        $"2. 摄像头未正确连接\n" +
+                        $"3. 需要授予摄像头访问权限\n" +
+                        $"请关闭其他使用摄像头的应用后重试。",
+                        lastException);
                 }
             }).ConfigureAwait(false);
 
