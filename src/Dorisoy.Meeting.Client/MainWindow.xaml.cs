@@ -19,6 +19,7 @@ public partial class MainWindow : FluentWindow
     private WindowState _previousWindowState;
     private WindowStyle _previousWindowStyle;
     private bool _previousTopmost;
+    private VoteWindow? _currentVoteWindow; // 当前打开的投票窗口引用
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -160,6 +161,13 @@ public partial class MainWindow : FluentWindow
     /// </summary>
     private void OnOpenPollRequested()
     {
+        // 如果已有投票窗口打开，则激活它
+        if (_currentVoteWindow != null && _currentVoteWindow.IsLoaded)
+        {
+            _currentVoteWindow.Activate();
+            return;
+        }
+        
         OpenVoteWindow(null);
     }
 
@@ -170,6 +178,15 @@ public partial class MainWindow : FluentWindow
     {
         Dispatcher.Invoke(() =>
         {
+            // 如果是主持人且已有投票窗口打开，直接更新现有窗口内容
+            if (_viewModel.IsHost && _currentVoteWindow != null && _currentVoteWindow.IsLoaded)
+            {
+                // 更新现有窗口的投票内容
+                _currentVoteWindow.SetVote(vote);
+                return;
+            }
+            
+            // 非主持人或者没有投票窗口打开，则新建窗口
             OpenVoteWindow(vote);
         });
     }
@@ -179,6 +196,13 @@ public partial class MainWindow : FluentWindow
     /// </summary>
     private void OpenVoteWindow(Vote? existingVote)
     {
+        // 如果已有窗口打开，先关闭
+        if (_currentVoteWindow != null && _currentVoteWindow.IsLoaded)
+        {
+            // 先取消事件绑定
+            _currentVoteWindow.Close();
+        }
+        
         var voteWindow = new VoteWindow(
             _viewModel.CurrentPeerId,
             _viewModel.CurrentUserName,
@@ -187,6 +211,18 @@ public partial class MainWindow : FluentWindow
         )
         {
             Owner = this
+        };
+        
+        // 保存窗口引用
+        _currentVoteWindow = voteWindow;
+        
+        // 窗口关闭时清理引用
+        voteWindow.Closed += (s, e) =>
+        {
+            if (_currentVoteWindow == voteWindow)
+            {
+                _currentVoteWindow = null;
+            }
         };
         
         // 绑定投票事件
