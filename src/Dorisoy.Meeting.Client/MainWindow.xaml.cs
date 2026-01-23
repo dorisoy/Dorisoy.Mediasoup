@@ -64,6 +64,9 @@ public partial class MainWindow : FluentWindow
         _viewModel.WhiteboardStrokeUpdated += OnWhiteboardStrokeUpdated;
         _viewModel.WhiteboardClosedReceived += OnWhiteboardClosedReceived;
         
+        // 订阅关闭所有子窗口事件（主持人断开/房间解散时）
+        _viewModel.CloseAllChildWindowsRequested += OnCloseAllChildWindows;
+        
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
         
@@ -448,6 +451,70 @@ public partial class MainWindow : FluentWindow
     }
 
     #endregion
+
+    #region 关闭所有子窗口
+
+    /// <summary>
+    /// 关闭所有子窗口（主持人断开/房间解散时触发）
+    /// 包括：投票窗口、编辑器窗口、白板窗口等
+    /// </summary>
+    private void OnCloseAllChildWindows()
+    {
+        Dispatcher.Invoke(() =>
+        {
+            try
+            {
+                // 关闭投票窗口
+                if (_currentVoteWindow != null && _currentVoteWindow.IsLoaded)
+                {
+                    _currentVoteWindow.Close();
+                    _currentVoteWindow = null;
+                }
+
+                // 关闭编辑器窗口
+                if (_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
+                {
+                    _currentEditorWindow.ForceClose();
+                    _currentEditorWindow = null;
+                }
+
+                // 关闭白板窗口
+                if (_currentWhiteboardWindow != null && _currentWhiteboardWindow.IsLoaded)
+                {
+                    _currentWhiteboardWindow.ForceClose();
+                    _currentWhiteboardWindow = null;
+                }
+
+                // 关闭所有其他子窗口（遍历 OwnedWindows）
+                var windowsToClose = new List<Window>();
+                foreach (Window window in OwnedWindows)
+                {
+                    if (window != this && window.IsLoaded)
+                    {
+                        windowsToClose.Add(window);
+                    }
+                }
+
+                foreach (var window in windowsToClose)
+                {
+                    try
+                    {
+                        window.Close();
+                    }
+                    catch
+                    {
+                        // 忽略单个窗口关闭异常
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"关闭子窗口时发生异常: {ex.Message}");
+            }
+        });
+    }
+
+    #endregion
     
     /// <summary>
     /// 返回加入房间窗口
@@ -509,6 +576,7 @@ public partial class MainWindow : FluentWindow
             _viewModel.WhiteboardOpenedReceived -= OnWhiteboardOpenedReceived;
             _viewModel.WhiteboardStrokeUpdated -= OnWhiteboardStrokeUpdated;
             _viewModel.WhiteboardClosedReceived -= OnWhiteboardClosedReceived;
+            _viewModel.CloseAllChildWindowsRequested -= OnCloseAllChildWindows;
             KeyDown -= OnWindowKeyDown;
             
             // 异步清理资源

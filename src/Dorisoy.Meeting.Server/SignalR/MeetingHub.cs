@@ -67,6 +67,76 @@ namespace Dorisoy.Meeting.Server
         {
             try
             {
+                // 先获取 peer 和 room 信息，用于判断是否是主持人
+                var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId).ConfigureAwait(false);
+                Room? room = null;
+                string? roomId = null;
+                bool isHost = false;
+                string[]? otherPeerIds = null;
+                
+                if (peer != null)
+                {
+                    try
+                    {
+                        room = await peer.GetRoomAsync();
+                        if (room != null)
+                        {
+                            roomId = room.RoomId;
+                            isHost = room.HostPeerId == UserId;
+                            
+                            // 如果是主持人，获取其他用户的 ID
+                            if (isHost)
+                            {
+                                var allPeerIds = await room.GetPeerIdsAsync();
+                                otherPeerIds = allPeerIds.Where(id => id != UserId).ToArray();
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "LeaveAsync: 获取房间信息失败");
+                    }
+                }
+                
+                // 如果是主持人异常断开，发送 roomDismissed 通知给其他用户
+                if (isHost && otherPeerIds != null && otherPeerIds.Length > 0)
+                {
+                    _logger.LogWarning("LeaveAsync: 主持人 {HostId} 异常断开，发送 roomDismissed 通知给 {Count} 个用户", 
+                        UserId, otherPeerIds.Length);
+                    
+                    SendNotification(
+                        otherPeerIds,
+                        "roomDismissed",
+                        new RoomDismissedNotification 
+                        { 
+                            RoomId = roomId ?? "",
+                            HostPeerId = UserId,
+                            Reason = "主持人已断开连接"
+                        }
+                    );
+                    
+                    // 等待一小段时间，确保通知发送出去
+                    await Task.Delay(200);
+                    
+                    // 解散房间，清理所有用户的资源
+                    try
+                    {
+                        if (room != null)
+                        {
+                            await _scheduler.DismissRoomAsync(UserId, ConnectionId, room);
+                            _logger.LogInformation("LeaveAsync: 房间 {RoomId} 已解散", roomId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "LeaveAsync: 解散房间失败");
+                    }
+                    
+                    _badDisconnectSocketService.DisconnectClient(peer?.ConnectionId ?? ConnectionId);
+                    return;
+                }
+                
+                // 非主持人或主持人但没有其他用户，使用正常的离开流程
                 var leaveResult = await _scheduler.LeaveAsync(UserId);
                 if (leaveResult != null)
                 {

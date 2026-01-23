@@ -2127,6 +2127,12 @@ public partial class MainViewModel : ObservableObject
     public event Action? ReturnToJoinRoomRequested;
 
     /// <summary>
+    /// 请求关闭所有子窗口事件（主持人断开/房间解散时）
+    /// 包括：编辑器、白板、投票、分享房间、同步转译等窗口
+    /// </summary>
+    public event Action? CloseAllChildWindowsRequested;
+
+    /// <summary>
     /// 自动加入房间（用于启动时自动连接并加入）
     /// </summary>
     /// <param name="joinInfo">加入信息</param>
@@ -4252,7 +4258,7 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var json = JsonSerializer.Serialize(data);
+            var json = JsonSerializer.Serialize(data, JsonOptions);
             var notification = JsonSerializer.Deserialize<RoomDismissedData>(json, JsonOptions);
             
             _logger.LogWarning("收到房间解散通知: RoomId={RoomId}, HostPeerId={HostPeerId}, Reason={Reason}", 
@@ -4260,6 +4266,13 @@ public partial class MainViewModel : ObservableObject
             
             // 显示提示
             StatusMessage = "主持人已离开，房间已解散";
+            
+            // 重要：先关闭所有子窗口（编辑器、白板、投票等）
+            _logger.LogInformation("触发 CloseAllChildWindowsRequested 事件...");
+            CloseAllChildWindowsRequested?.Invoke();
+            
+            // 等待一小段时间，确保子窗口关闭完成
+            await Task.Delay(200);
             
             // 使用 WPF UI 风格的消息框
             var messageBox = new Wpf.Ui.Controls.MessageBox
