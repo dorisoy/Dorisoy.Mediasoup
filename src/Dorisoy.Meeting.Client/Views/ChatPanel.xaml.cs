@@ -150,11 +150,23 @@ public partial class ChatPanel : UserControl
                     {
                         var fileBytes = Convert.FromBase64String(message.FileData);
                         System.IO.File.WriteAllBytes(dialog.FileName, fileBytes);
-                        MessageBox.Show($"文件已保存到:\n{dialog.FileName}", "保存成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                        var successBox = new Wpf.Ui.Controls.MessageBox
+                        {
+                            Title = "保存成功",
+                            Content = $"文件已保存到:\n{dialog.FileName}",
+                            CloseButtonText = "确定"
+                        };
+                        _ = successBox.ShowDialogAsync();
                     }
                     catch (Exception ex)
                     {
-                        MessageBox.Show($"保存文件失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                        var errorBox = new Wpf.Ui.Controls.MessageBox
+                        {
+                            Title = "错误",
+                            Content = $"保存文件失败: {ex.Message}",
+                            CloseButtonText = "确定"
+                        };
+                        _ = errorBox.ShowDialogAsync();
                     }
                 }
             }
@@ -227,7 +239,13 @@ public partial class ChatPanel : UserControl
                     _viewModel.StatusMessage = $"文件已保存: {suggestedFileName}";
                 }
 
-                MessageBox.Show($"文件已保存到:\n{dialog.FileName}", "下载完成", MessageBoxButton.OK, MessageBoxImage.Information);
+                var successBox = new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = "下载完成",
+                    Content = $"文件已保存到:\n{dialog.FileName}",
+                    CloseButtonText = "确定"
+                };
+                _ = successBox.ShowDialogAsync();
             }
             catch (Exception ex)
             {
@@ -235,7 +253,13 @@ public partial class ChatPanel : UserControl
                 {
                     _viewModel.StatusMessage = $"下载失败: {ex.Message}";
                 }
-                MessageBox.Show($"下载文件失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                var errorBox = new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = "错误",
+                    Content = $"下载文件失败: {ex.Message}",
+                    CloseButtonText = "确定"
+                };
+                _ = errorBox.ShowDialogAsync();
             }
         }
     }

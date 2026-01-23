@@ -29,6 +29,7 @@ namespace Dorisoy.Meeting.Client.Views
         private readonly string _currentPeerName;
         private readonly bool _isHost;
         private bool _isForceClosing; // 标记是否是强制关闭（主持人关闭通知）
+        private bool _isPendingCloseConfirm; // 标记是否正在等待关闭确认
 
         // 当前工具和颜色
         private WhiteboardTool _currentTool = WhiteboardTool.Pen;
@@ -512,17 +513,13 @@ namespace Dorisoy.Meeting.Client.Views
             NotifyStrokesRemoved(new List<string> { lastStroke.Id });
         }
 
-        private void BtnClear_Click(object sender, RoutedEventArgs e)
+        private async void BtnClear_Click(object sender, RoutedEventArgs e)
         {
             if (!_isHost) return;
 
-            var confirmResult = System.Windows.MessageBox.Show(
-                "确定要清空所有绘制内容吗？",
-                "确认清空",
-                System.Windows.MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
+            var confirmResult = await ShowConfirmDialogAsync("确认清空", "确定要清空所有绘制内容吗？");
 
-            if (confirmResult == System.Windows.MessageBoxResult.Yes)
+            if (confirmResult)
             {
                 ClearCanvas();
 
@@ -612,19 +609,16 @@ namespace Dorisoy.Meeting.Client.Views
             encoder.Save(stream);
         }
 
-        private void BtnCancel_Click(object sender, RoutedEventArgs e)
+        private async void BtnCancel_Click(object sender, RoutedEventArgs e)
         {
             if (!_isHost) return;
 
-            var cancelResult = System.Windows.MessageBox.Show(
-                "确定要取消并关闭白板吗？所有绘制内容将丢失。",
-                "确认取消",
-                System.Windows.MessageBoxButton.YesNo,
-                MessageBoxImage.Warning);
+            var cancelResult = await ShowConfirmDialogAsync("确认取消", "确定要取消并关闭白板吗？所有绘制内容将丢失。");
 
-            if (cancelResult == System.Windows.MessageBoxResult.Yes)
+            if (cancelResult)
             {
                 NotifyWhiteboardClosed(false);
+                _isForceClosing = true;
                 Close();
             }
         }
@@ -634,7 +628,25 @@ namespace Dorisoy.Meeting.Client.Views
             if (!_isHost) return;
 
             NotifyWhiteboardClosed(true);
+            _isForceClosing = true;
             Close();
+        }
+
+        /// <summary>
+        /// 显示确认对话框
+        /// </summary>
+        private async Task<bool> ShowConfirmDialogAsync(string title, string content)
+        {
+            var confirmBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = title,
+                Content = content,
+                PrimaryButtonText = "确定",
+                CloseButtonText = "取消"
+            };
+
+            var result = await confirmBox.ShowDialogAsync();
+            return result == Wpf.Ui.Controls.MessageBoxResult.Primary;
         }
 
         #endregion

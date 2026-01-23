@@ -1884,6 +1884,9 @@ namespace Dorisoy.Meeting.Server
         /// </summary>
         public async Task CloseEditor(CloseEditorRequest request)
         {
+            _logger.LogInformation("CloseEditor: 收到关闭请求 - SessionId={SessionId}, CloserId={CloserId}, CloserName={CloserName}",
+                request.SessionId, request.CloserId, request.CloserName);
+
             var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
             if (peer == null)
             {
@@ -1898,17 +1901,21 @@ namespace Dorisoy.Meeting.Server
                 return;
             }
 
+            _logger.LogInformation("CloseEditor: room.HostPeerId={HostPeerId}, UserId={UserId}, Match={Match}",
+                room.HostPeerId, UserId, room.HostPeerId == UserId);
+
             // 验证是否为主持人
             if (room.HostPeerId != UserId)
             {
-                _logger.LogWarning("CloseEditor: PeerId {PeerId} is not the host", UserId);
+                _logger.LogWarning("CloseEditor: PeerId {PeerId} is not the host (HostPeerId={HostPeerId})", UserId, room.HostPeerId);
                 return;
             }
 
-            _logger.LogInformation("CloseEditor: SessionId {SessionId} by {PeerId}", request.SessionId, UserId);
+            _logger.LogInformation("CloseEditor: SessionId {SessionId} by {PeerId} - 广播给所有用户", request.SessionId, UserId);
 
             // 广播给房间内所有用户
             var peerIds = await room.GetPeerIdsAsync();
+            _logger.LogInformation("CloseEditor: 广播给 {Count} 个用户: {PeerIds}", peerIds.Length, string.Join(", ", peerIds));
             SendNotification(peerIds, "editorClosed", request);
         }
 
@@ -1954,6 +1961,9 @@ namespace Dorisoy.Meeting.Server
         /// </summary>
         public async Task UpdateWhiteboardStroke(WhiteboardStrokeUpdate update)
         {
+            _logger.LogDebug("UpdateWhiteboardStroke: 收到笔触更新 - Action={Action}, DrawerId={DrawerId}, StrokeId={StrokeId}",
+                update.Action, update.DrawerId, update.Stroke?.Id ?? "N/A");
+
             var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
             if (peer == null)
             {
@@ -1968,15 +1978,19 @@ namespace Dorisoy.Meeting.Server
                 return;
             }
 
+            _logger.LogDebug("UpdateWhiteboardStroke: room.HostPeerId={HostPeerId}, UserId={UserId}, Match={Match}",
+                room.HostPeerId, UserId, room.HostPeerId == UserId);
+
             // 只有主持人可以绘制
             if (room.HostPeerId != UserId)
             {
-                _logger.LogWarning("UpdateWhiteboardStroke: PeerId {PeerId} is not the host", UserId);
+                _logger.LogWarning("UpdateWhiteboardStroke: PeerId {PeerId} is not the host (HostPeerId={HostPeerId})", UserId, room.HostPeerId);
                 return;
             }
 
             // 广播给房间内所有用户（包括自己，由客户端过滤）
             var peerIds = await room.GetPeerIdsAsync();
+            _logger.LogDebug("UpdateWhiteboardStroke: 广播给 {Count} 个用户", peerIds.Length);
             SendNotification(peerIds, "whiteboardStrokeUpdated", update);
         }
 
@@ -1985,6 +1999,9 @@ namespace Dorisoy.Meeting.Server
         /// </summary>
         public async Task CloseWhiteboard(CloseWhiteboardRequest request)
         {
+            _logger.LogInformation("CloseWhiteboard: 收到关闭请求 - SessionId={SessionId}, CloserId={CloserId}, CloserName={CloserName}",
+                request.SessionId, request.CloserId, request.CloserName);
+
             var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
             if (peer == null)
             {
@@ -1999,17 +2016,21 @@ namespace Dorisoy.Meeting.Server
                 return;
             }
 
+            _logger.LogInformation("CloseWhiteboard: room.HostPeerId={HostPeerId}, UserId={UserId}, Match={Match}",
+                room.HostPeerId, UserId, room.HostPeerId == UserId);
+
             // 验证是否为主持人
             if (room.HostPeerId != UserId)
             {
-                _logger.LogWarning("CloseWhiteboard: PeerId {PeerId} is not the host", UserId);
+                _logger.LogWarning("CloseWhiteboard: PeerId {PeerId} is not the host (HostPeerId={HostPeerId})", UserId, room.HostPeerId);
                 return;
             }
 
-            _logger.LogInformation("CloseWhiteboard: SessionId {SessionId} by {PeerId}", request.SessionId, UserId);
+            _logger.LogInformation("CloseWhiteboard: SessionId {SessionId} by {PeerId} - 广播给所有用户", request.SessionId, UserId);
 
             // 广播给房间内所有用户
             var peerIds = await room.GetPeerIdsAsync();
+            _logger.LogInformation("CloseWhiteboard: 广播给 {Count} 个用户: {PeerIds}", peerIds.Length, string.Join(", ", peerIds));
             SendNotification(peerIds, "whiteboardClosed", request);
         }
 

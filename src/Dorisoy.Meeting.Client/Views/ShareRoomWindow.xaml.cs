@@ -57,8 +57,13 @@ public partial class ShareRoomWindow : FluentWindow
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"生成二维码失败: {ex.Message}", "错误", 
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            var errorBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "错误",
+                Content = $"生成二维码失败: {ex.Message}",
+                CloseButtonText = "确定"
+            };
+            _ = errorBox.ShowDialogAsync();
         }
     }
 
@@ -97,8 +102,13 @@ public partial class ShareRoomWindow : FluentWindow
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"复制失败: {ex.Message}", "错误", 
-                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Error);
+            var errorBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "错误",
+                Content = $"复制失败: {ex.Message}",
+                CloseButtonText = "确定"
+            };
+            _ = errorBox.ShowDialogAsync();
         }
     }
 

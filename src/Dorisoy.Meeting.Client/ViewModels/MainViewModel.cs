@@ -1290,11 +1290,9 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task CloseEditorAsync(CloseEditorRequest request)
     {
-        if (!IsHost)
-        {
-            return;
-        }
-
+        // 注意：不再检查 IsHost，因为窗口内已经做了主持人检查
+        _logger.LogInformation("发送编辑器关闭请求: SessionId={SessionId}, CloserId={CloserId}", 
+            request.SessionId, request.CloserId);
         await _signalRService.InvokeAsync("CloseEditor", request);
         _currentEditorSessionId = null;
     }
@@ -1359,11 +1357,9 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task CloseWhiteboardAsync(CloseWhiteboardRequest request)
     {
-        if (!IsHost)
-        {
-            return;
-        }
-
+        // 注意：不再检查 IsHost，因为窗口内已经做了主持人检查
+        _logger.LogInformation("发送白板关闭请求: SessionId={SessionId}, CloserId={CloserId}", 
+            request.SessionId, request.CloserId);
         await _signalRService.InvokeAsync("CloseWhiteboard", request);
         _currentWhiteboardSessionId = null;
     }

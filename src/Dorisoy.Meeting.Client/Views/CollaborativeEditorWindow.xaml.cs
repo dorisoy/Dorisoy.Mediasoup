@@ -24,6 +24,7 @@ namespace Dorisoy.Meeting.Client.Views
         private readonly bool _isHost;
         private bool _isUpdatingFromRemote;
         private bool _isForceClosing; // 标记是否是强制关闭（主持人关闭通知）
+        private bool _isPendingCloseConfirm; // 标记是否正在等待关闭确认
         private Timer? _debounceTimer;
         private const int DebounceDelay = 300; // 300ms 防抖
 
@@ -276,22 +277,37 @@ namespace Dorisoy.Meeting.Client.Views
                 return;
             }
 
-            // 主持人关闭窗口时，确认后发送关闭通知
-            // 使用同步方式处理确认对话框
-            var confirmResult = System.Windows.MessageBox.Show(
-                "关闭编辑器将结束所有用户的协同编辑会话。确定关闭吗？",
-                "确认关闭",
-                System.Windows.MessageBoxButton.YesNo,
-                MessageBoxImage.Question);
+            // 主持人关闭窗口时，显示确认对话框
+            // 先取消关闭，然后异步显示确认对话框
+            if (!_isPendingCloseConfirm)
+            {
+                e.Cancel = true;
+                _isPendingCloseConfirm = true;
+                ShowCloseConfirmDialog();
+            }
+        }
 
-            if (confirmResult == System.Windows.MessageBoxResult.Yes)
+        /// <summary>
+        /// 显示关闭确认对话框
+        /// </summary>
+        private async void ShowCloseConfirmDialog()
+        {
+            var confirmBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "确认关闭",
+                Content = "关闭编辑器将结束所有用户的协同编辑会话。确定关闭吗？",
+                PrimaryButtonText = "确定",
+                CloseButtonText = "取消"
+            };
+
+            var result = await confirmBox.ShowDialogAsync();
+            _isPendingCloseConfirm = false;
+
+            if (result == Wpf.Ui.Controls.MessageBoxResult.Primary)
             {
                 NotifyEditorClosed();
                 _isForceClosing = true;
-            }
-            else
-            {
-                e.Cancel = true;
+                Close();
             }
         }
 

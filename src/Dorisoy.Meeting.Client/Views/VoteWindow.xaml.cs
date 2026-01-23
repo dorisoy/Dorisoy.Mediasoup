@@ -264,7 +264,13 @@ public partial class VoteWindow : FluentWindow, INotifyPropertyChanged
     {
         if (OptionInputs.Count >= 10)
         {
-            MessageBox.Show("最多只能添加10个选项", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            var tipBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "提示",
+                Content = "最多只能添加10个选项",
+                CloseButtonText = "确定"
+            };
+            _ = tipBox.ShowDialogAsync();
             return;
         }
 
@@ -279,7 +285,13 @@ public partial class VoteWindow : FluentWindow, INotifyPropertyChanged
     {
         if (OptionInputs.Count <= 2)
         {
-            MessageBox.Show("至少需要2个选项", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            var tipBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "提示",
+                Content = "至少需要2个选项",
+                CloseButtonText = "确定"
+            };
+            _ = tipBox.ShowDialogAsync();
             return;
         }
 
@@ -302,14 +314,26 @@ public partial class VoteWindow : FluentWindow, INotifyPropertyChanged
         // 验证
         if (string.IsNullOrWhiteSpace(QuestionText))
         {
-            MessageBox.Show("请输入投票问题", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            var tipBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "提示",
+                Content = "请输入投票问题",
+                CloseButtonText = "确定"
+            };
+            _ = tipBox.ShowDialogAsync();
             return;
         }
 
         var validOptions = OptionInputs.Where(o => !string.IsNullOrWhiteSpace(o.Text)).ToList();
         if (validOptions.Count < 2)
         {
-            MessageBox.Show("请至少输入2个有效选项", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            var tipBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "提示",
+                Content = "请至少输入2个有效选项",
+                CloseButtonText = "确定"
+            };
+            _ = tipBox.ShowDialogAsync();
             return;
         }
 
@@ -350,7 +374,13 @@ public partial class VoteWindow : FluentWindow, INotifyPropertyChanged
     {
         if (CurrentVote == null) return;
         VoteUpdated?.Invoke(CurrentVote);
-        MessageBox.Show("投票已保存", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+        var tipBox = new Wpf.Ui.Controls.MessageBox
+        {
+            Title = "提示",
+            Content = "投票已保存",
+            CloseButtonText = "确定"
+        };
+        _ = tipBox.ShowDialogAsync();
     }
 
     /// <summary>
@@ -395,14 +425,21 @@ public partial class VoteWindow : FluentWindow, INotifyPropertyChanged
     /// <summary>
     /// 删除投票
     /// </summary>
-    private void DeleteVote_Click(object sender, RoutedEventArgs e)
+    private async void DeleteVote_Click(object sender, RoutedEventArgs e)
     {
         if (CurrentVote == null) return;
 
-        var result = MessageBox.Show("确定要删除这个投票吗？", "确认删除", 
-            MessageBoxButton.YesNo, MessageBoxImage.Question);
+        var confirmBox = new Wpf.Ui.Controls.MessageBox
+        {
+            Title = "确认删除",
+            Content = "确定要删除这个投票吗？",
+            PrimaryButtonText = "确定",
+            CloseButtonText = "取消"
+        };
         
-        if (result == System.Windows.MessageBoxResult.Yes)
+        var result = await confirmBox.ShowDialogAsync();
+        
+        if (result == Wpf.Ui.Controls.MessageBoxResult.Primary)
         {
             var voteId = CurrentVote.Id;
             
@@ -467,7 +504,13 @@ public partial class VoteWindow : FluentWindow, INotifyPropertyChanged
     {
         if (CurrentVote == null || !_selectedOptionIndex.HasValue)
         {
-            MessageBox.Show("请选择一个选项", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+            var tipBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "提示",
+                Content = "请选择一个选项",
+                CloseButtonText = "确定"
+            };
+            _ = tipBox.ShowDialogAsync();
             return;
         }
 

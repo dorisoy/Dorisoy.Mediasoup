@@ -216,7 +216,13 @@ public partial class TranslateWindow : FluentWindow, INotifyPropertyChanged
         {
             if (SelectedSourceLanguage == null)
             {
-                MessageBox.Show("请先选择源语言", "提示", MessageBoxButton.OK, MessageBoxImage.Warning);
+                var tipBox = new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = "提示",
+                    Content = "请先选择源语言",
+                    CloseButtonText = "确定"
+                };
+                _ = tipBox.ShowDialogAsync();
                 return;
             }
             
@@ -269,7 +275,13 @@ public partial class TranslateWindow : FluentWindow, INotifyPropertyChanged
     {
         if (_transcripts.Count == 0)
         {
-            MessageBox.Show("没有可导出的记录", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+            var tipBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "提示",
+                Content = "没有可导出的记录",
+                CloseButtonText = "确定"
+            };
+            _ = tipBox.ShowDialogAsync();
             return;
         }
 
@@ -302,11 +314,23 @@ public partial class TranslateWindow : FluentWindow, INotifyPropertyChanged
                 }
 
                 File.WriteAllText(dialog.FileName, sb.ToString(), Encoding.UTF8);
-                MessageBox.Show($"导出成功: {dialog.FileName}", "成功", MessageBoxButton.OK, MessageBoxImage.Information);
+                var successBox = new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = "成功",
+                    Content = $"导出成功: {dialog.FileName}",
+                    CloseButtonText = "确定"
+                };
+                _ = successBox.ShowDialogAsync();
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"导出失败: {ex.Message}", "错误", MessageBoxButton.OK, MessageBoxImage.Error);
+                var errorBox = new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = "错误",
+                    Content = $"导出失败: {ex.Message}",
+                    CloseButtonText = "确定"
+                };
+                _ = errorBox.ShowDialogAsync();
             }
         }
     }
@@ -317,7 +341,13 @@ public partial class TranslateWindow : FluentWindow, INotifyPropertyChanged
     private void Settings_Click(object sender, RoutedEventArgs e)
     {
         // TODO: 打开设置对话框
-        MessageBox.Show("设置功能开发中...", "提示", MessageBoxButton.OK, MessageBoxImage.Information);
+        var tipBox = new Wpf.Ui.Controls.MessageBox
+        {
+            Title = "提示",
+            Content = "设置功能开发中...",
+            CloseButtonText = "确定"
+        };
+        _ = tipBox.ShowDialogAsync();
     }
 
     /// <summary>
@@ -420,7 +450,13 @@ public partial class TranslateWindow : FluentWindow, INotifyPropertyChanged
     {
         Dispatcher.Invoke(() =>
         {
-            MessageBox.Show(errorMessage, "语音识别错误", MessageBoxButton.OK, MessageBoxImage.Warning);
+            var errorBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "语音识别错误",
+                Content = errorMessage,
+                CloseButtonText = "确定"
+            };
+            _ = errorBox.ShowDialogAsync();
         });
     }
 
