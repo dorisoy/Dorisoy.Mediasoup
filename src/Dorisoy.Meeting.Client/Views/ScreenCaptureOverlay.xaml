@@ -11,6 +11,69 @@
         ResizeMode="NoResize"
         WindowState="Maximized"
         Cursor="Cross">
+    
+    <Window.Resources>
+        <!-- 工具按钮样式 -->
+        <Style x:Key="ToolButtonStyle" TargetType="RadioButton">
+            <Setter Property="Width" Value="36"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Border x:Name="Border" 
+                                Background="Transparent" 
+                                CornerRadius="6"
+                                Padding="6">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#0078D4"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#40FFFFFF"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- 颜色按钮样式 -->
+        <Style x:Key="ColorButtonStyle" TargetType="RadioButton">
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="RadioButton">
+                        <Grid>
+                            <Ellipse x:Name="Outer" Width="24" Height="24"
+                                     Stroke="Transparent" StrokeThickness="2"/>
+                            <Ellipse Width="18" Height="18"
+                                     Fill="{TemplateBinding Background}"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Outer" Property="Stroke" Value="White"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        
+        <!-- 操作按钮样式 -->
+        <Style x:Key="ActionButtonStyle" TargetType="Border">
+            <Setter Property="Background" Value="#60000000"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Margin" Value="4,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+    </Window.Resources>
+    
     <Grid x:Name="RootGrid">
         <!-- 半透明遮罩层 -->
         <Canvas x:Name="OverlayCanvas" 
@@ -40,9 +103,36 @@
                 Visibility="Collapsed"
                 IsHitTestVisible="False">
             <Border.Effect>
-                <DropShadowEffect Color="#00AAFF" BlurRadius="10" ShadowDepth="0" Opacity="0.5"/>
+                <DropShadowEffect Color="#00AAFF" BlurRadius="8" ShadowDepth="0" Opacity="0.5"/>
             </Border.Effect>
         </Border>
+        
+        <!-- 绘图层（选区内） -->
+        <Canvas x:Name="DrawingCanvas"
+                Visibility="Collapsed"
+                Background="Transparent"
+                MouseLeftButtonDown="DrawingCanvas_MouseLeftButtonDown"
+                MouseMove="DrawingCanvas_MouseMove"
+                MouseLeftButtonUp="DrawingCanvas_MouseLeftButtonUp">
+            
+            <!-- 文字输入框 -->
+            <Border x:Name="TextInputContainer"
+                    Visibility="Collapsed"
+                    Background="White"
+                    BorderBrush="#0078D4"
+                    BorderThickness="2"
+                    CornerRadius="4"
+                    Padding="4,2">
+                <TextBox x:Name="TextInputBox"
+                         MinWidth="80"
+                         MinHeight="24"
+                         FontSize="16"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         KeyDown="TextInputBox_KeyDown"
+                         LostFocus="TextInputBox_LostFocus"/>
+            </Border>
+        </Canvas>
         
         <!-- 选区尺寸提示 -->
         <Border x:Name="SizeHint"
@@ -59,8 +149,8 @@
                        FontFamily="Consolas"/>
         </Border>
         
-        <!-- 工具栏（选择完成后显示） -->
-        <Border x:Name="Toolbar"
+        <!-- 顶部工具栏（绘制工具） - 选区上方 -->
+        <Border x:Name="TopToolbar"
                 Background="#E0333333"
                 CornerRadius="8"
                 Padding="8,6"
@@ -68,24 +158,115 @@
                 VerticalAlignment="Top"
                 Visibility="Collapsed">
             <StackPanel Orientation="Horizontal">
-                <ui:Button x:Name="BtnConfirm"
-                           Width="32" Height="32"
-                           CornerRadius="4"
-                           Margin="2,0"
-                           ToolTip="确定 (Enter)"
-                           Appearance="Primary"
-                           Click="BtnConfirm_Click">
-                    <ui:SymbolIcon Symbol="Checkmark20" FontSize="16"/>
-                </ui:Button>
-                <ui:Button x:Name="BtnCancel"
-                           Width="32" Height="32"
-                           CornerRadius="4"
-                           Margin="2,0"
-                           ToolTip="取消 (Esc)"
-                           Appearance="Secondary"
-                           Click="BtnCancel_Click">
-                    <ui:SymbolIcon Symbol="Dismiss20" FontSize="16"/>
-                </ui:Button>
+                <!-- 绘图工具 -->
+                <Border Background="#40FFFFFF" CornerRadius="6" Padding="2">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="BtnSelect" Style="{StaticResource ToolButtonStyle}"
+                                     GroupName="Tools" IsChecked="True"
+                                     ToolTip="选择" Checked="Tool_Checked">
+                            <ui:SymbolIcon Symbol="Cursor20" FontSize="16" Foreground="White"/>
+                        </RadioButton>
+                        <RadioButton x:Name="BtnPen" Style="{StaticResource ToolButtonStyle}"
+                                     GroupName="Tools" ToolTip="画笔" Checked="Tool_Checked">
+                            <ui:SymbolIcon Symbol="Pen20" FontSize="16" Foreground="White"/>
+                        </RadioButton>
+                        <RadioButton x:Name="BtnRectangle" Style="{StaticResource ToolButtonStyle}"
+                                     GroupName="Tools" ToolTip="矩形" Checked="Tool_Checked">
+                            <ui:SymbolIcon Symbol="Square20" FontSize="16" Foreground="White"/>
+                        </RadioButton>
+                        <RadioButton x:Name="BtnEllipse" Style="{StaticResource ToolButtonStyle}"
+                                     GroupName="Tools" ToolTip="椭圆" Checked="Tool_Checked">
+                            <ui:SymbolIcon Symbol="Circle20" FontSize="16" Foreground="White"/>
+                        </RadioButton>
+                        <RadioButton x:Name="BtnArrow" Style="{StaticResource ToolButtonStyle}"
+                                     GroupName="Tools" ToolTip="箭头" Checked="Tool_Checked">
+                            <ui:SymbolIcon Symbol="ArrowRight20" FontSize="16" Foreground="White"/>
+                        </RadioButton>
+                        <RadioButton x:Name="BtnText" Style="{StaticResource ToolButtonStyle}"
+                                     GroupName="Tools" ToolTip="文字" Checked="Tool_Checked">
+                            <ui:SymbolIcon Symbol="TextT20" FontSize="16" Foreground="White"/>
+                        </RadioButton>
+                    </StackPanel>
+                </Border>
+                
+                <Rectangle Width="1" Height="28" Fill="#60FFFFFF" Margin="8,0"/>
+                
+                <!-- 颜色选择 -->
+                <Border Background="#40FFFFFF" CornerRadius="6" Padding="2">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="ColorRed" Style="{StaticResource ColorButtonStyle}"
+                                     GroupName="Colors" Background="#FFFF0000" IsChecked="True"
+                                     ToolTip="红色" Checked="Color_Checked" Tag="#FFFF0000"/>
+                        <RadioButton x:Name="ColorBlue" Style="{StaticResource ColorButtonStyle}"
+                                     GroupName="Colors" Background="#FF0078D4"
+                                     ToolTip="蓝色" Checked="Color_Checked" Tag="#FF0078D4"/>
+                        <RadioButton x:Name="ColorGreen" Style="{StaticResource ColorButtonStyle}"
+                                     GroupName="Colors" Background="#FF10893E"
+                                     ToolTip="绿色" Checked="Color_Checked" Tag="#FF10893E"/>
+                        <RadioButton x:Name="ColorYellow" Style="{StaticResource ColorButtonStyle}"
+                                     GroupName="Colors" Background="#FFFFD700"
+                                     ToolTip="黄色" Checked="Color_Checked" Tag="#FFFFD700"/>
+                        <RadioButton x:Name="ColorWhite" Style="{StaticResource ColorButtonStyle}"
+                                     GroupName="Colors" Background="#FFFFFFFF"
+                                     ToolTip="白色" Checked="Color_Checked" Tag="#FFFFFFFF"/>
+                    </StackPanel>
+                </Border>
+                
+                <Rectangle Width="1" Height="28" Fill="#60FFFFFF" Margin="8,0"/>
+                
+                <!-- 笔触大小 -->
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="粗细" VerticalAlignment="Center" Margin="0,0,6,0"
+                               Foreground="#AAFFFFFF" FontSize="12"/>
+                    <Slider x:Name="SliderStrokeWidth" Width="80" Minimum="1" Maximum="10" Value="3"
+                            VerticalAlignment="Center" ValueChanged="SliderStrokeWidth_ValueChanged"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+        
+        <!-- 底部工具栏（操作按钮） - 选区下方 -->
+        <Border x:Name="BottomToolbar"
+                Background="#E0333333"
+                CornerRadius="8"
+                Padding="8,6"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Visibility="Collapsed">
+            <StackPanel Orientation="Horizontal">
+                <!-- 撤销 -->
+                <Border Style="{StaticResource ActionButtonStyle}" MouseLeftButtonDown="BtnUndo_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="ArrowUndo20" FontSize="14" Foreground="White"/>
+                        <TextBlock Text="撤销" Foreground="White" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- 保存 -->
+                <Border Style="{StaticResource ActionButtonStyle}" MouseLeftButtonDown="BtnSave_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Save20" FontSize="14" Foreground="White"/>
+                        <TextBlock Text="保存" Foreground="White" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                
+                <Rectangle Width="1" Height="24" Fill="#60FFFFFF" Margin="8,0"/>
+                
+                <!-- 取消 -->
+                <Border Style="{StaticResource ActionButtonStyle}" MouseLeftButtonDown="BtnCancel_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Dismiss20" FontSize="14" Foreground="White"/>
+                        <TextBlock Text="取消" Foreground="White" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                
+                <!-- 确定 -->
+                <Border Background="#0078D4" CornerRadius="4" Padding="10,6" Margin="4,0" Cursor="Hand"
+                        MouseLeftButtonDown="BtnConfirm_Click">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="Checkmark20" FontSize="14" Foreground="White"/>
+                        <TextBlock Text="确定" Foreground="White" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
             </StackPanel>
         </Border>
         

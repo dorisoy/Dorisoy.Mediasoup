@@ -179,32 +179,16 @@ public partial class MainWindow : FluentWindow
     /// </summary>
     private void OnCaptureScreenRequested()
     {
-        // 创建屏幕截取遮罩（全屏覆盖，不需要最小化主窗口）
+        // 创建屏幕截取遮罩（全屏覆盖，支持直接在选区上绘制标记）
         var overlay = new ScreenCaptureOverlay();
         
-        // 截图完成事件
+        // 截图完成事件（图片已复制到剪贴板）
         overlay.CaptureCompleted += (screenshot) =>
         {
             Dispatcher.Invoke(() =>
             {
-                // 激活主窗口
                 Activate();
-                
-                // 打开截图编辑器
-                var editor = new ScreenshotEditorWindow
-                {
-                    Owner = this
-                };
-                editor.SetScreenshot(screenshot);
-                
-                // 截图完成后事件
-                editor.ScreenshotCompleted += (finalImage) =>
-                {
-                    // 图片已复制到剪贴板，用户可以在聊天中粘贴
-                    _viewModel.StatusMessage = "截图已复制到剪贴板";
-                };
-                
-                editor.ShowDialog();
+                _viewModel.StatusMessage = "截图已复制到剪贴板，可在聊天中 Ctrl+V 粘贴发送";
             });
         };
         
