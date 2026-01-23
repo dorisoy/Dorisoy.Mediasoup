@@ -59,6 +59,14 @@ namespace Dorisoy.Meeting.Client.Views
         private Line? _arrowLine;
         private Polygon? _arrowHead;
 
+        // 选择工具 - 移动元素
+        private UIElement? _selectedElement;
+        private Line? _selectedArrowLine;      // 箭头线条部分
+        private Polygon? _selectedArrowHead;   // 箭头头部部分
+        private bool _isDragging;
+        private System.Windows.Point _dragStartPoint;
+        private System.Windows.Point _elementStartPosition;
+
         // 截取的屏幕图像
         private BitmapSource? _capturedImage;
 
@@ -374,7 +382,26 @@ namespace Dorisoy.Meeting.Client.Views
                 return;
             }
 
-            if (_currentTool == DrawingTool.Select) return;
+            // 选择工具 - 检测点击的元素
+            if (_currentTool == DrawingTool.Select)
+            {
+                var clickPoint = e.GetPosition(DrawingCanvas);
+                var hitElement = FindElementAtPoint(clickPoint);
+                
+                if (hitElement != null)
+                {
+                    SelectElement(hitElement);
+                    _isDragging = true;
+                    _dragStartPoint = clickPoint;
+                    _elementStartPosition = GetElementPosition(_selectedElement!);
+                    DrawingCanvas.CaptureMouse();
+                }
+                else
+                {
+                    ClearSelection();
+                }
+                return;
+            }
 
             _isDrawing = true;
             _drawStartPoint = e.GetPosition(DrawingCanvas);
@@ -444,6 +471,17 @@ namespace Dorisoy.Meeting.Client.Views
 
         private void DrawingCanvas_MouseMove(object sender, MouseEventArgs e)
         {
+            // 选择工具 - 拖动元素
+            if (_isDragging && _selectedElement != null && _currentTool == DrawingTool.Select)
+            {
+                var currentPoint = e.GetPosition(DrawingCanvas);
+                var deltaX = currentPoint.X - _dragStartPoint.X;
+                var deltaY = currentPoint.Y - _dragStartPoint.Y;
+                
+                MoveSelectedElement(deltaX, deltaY);
+                return;
+            }
+            
             if (!_isDrawing || _state != CaptureState.Editing) return;
 
             var currentPoint = e.GetPosition(DrawingCanvas);
@@ -467,6 +505,14 @@ namespace Dorisoy.Meeting.Client.Views
 
         private void DrawingCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
+            // 选择工具 - 结束拖动
+            if (_isDragging && _currentTool == DrawingTool.Select)
+            {
+                _isDragging = false;
+                DrawingCanvas.ReleaseMouseCapture();
+                return;
+            }
+            
             if (!_isDrawing || _state != CaptureState.Editing) return;
 
             _isDrawing = false;
@@ -744,6 +790,284 @@ namespace Dorisoy.Meeting.Client.Views
 
             using var stream = File.OpenWrite(filePath);
             encoder.Save(stream);
+        }
+
+        #endregion
+
+        #region 选择工具辅助方法
+
+        /// <summary>
+        /// 在指定点查找元素
+        /// </summary>
+        private UIElement? FindElementAtPoint(System.Windows.Point point)
+        {
+            // 从后往前遍历（后绘制的在上层）
+            for (int i = _drawingHistory.Count - 1; i >= 0; i--)
+            {
+                var element = _drawingHistory[i];
+                var bounds = GetElementBounds(element);
+                
+                if (bounds.Contains(point))
+                {
+                    return element;
+                }
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 获取元素边界
+        /// </summary>
+        private Rect GetElementBounds(UIElement element)
+        {
+            if (element is Polyline polyline)
+            {
+                if (polyline.Points.Count == 0) return Rect.Empty;
+                
+                double minX = double.MaxValue, minY = double.MaxValue;
+                double maxX = double.MinValue, maxY = double.MinValue;
+                
+                foreach (var pt in polyline.Points)
+                {
+                    minX = Math.Min(minX, pt.X);
+                    minY = Math.Min(minY, pt.Y);
+                    maxX = Math.Max(maxX, pt.X);
+                    maxY = Math.Max(maxY, pt.Y);
+                }
+                
+                // 扩大点击区域
+                var padding = Math.Max(polyline.StrokeThickness, 5);
+                return new Rect(minX - padding, minY - padding, 
+                    maxX - minX + padding * 2, maxY - minY + padding * 2);
+            }
+            else if (element is Line line)
+            {
+                var minX = Math.Min(line.X1, line.X2);
+                var minY = Math.Min(line.Y1, line.Y2);
+                var maxX = Math.Max(line.X1, line.X2);
+                var maxY = Math.Max(line.Y1, line.Y2);
+                var padding = Math.Max(line.StrokeThickness, 10);
+                return new Rect(minX - padding, minY - padding,
+                    maxX - minX + padding * 2, maxY - minY + padding * 2);
+            }
+            else if (element is Polygon polygon)
+            {
+                if (polygon.Points.Count == 0) return Rect.Empty;
+                
+                double minX = double.MaxValue, minY = double.MaxValue;
+                double maxX = double.MinValue, maxY = double.MinValue;
+                
+                foreach (var pt in polygon.Points)
+                {
+                    minX = Math.Min(minX, pt.X);
+                    minY = Math.Min(minY, pt.Y);
+                    maxX = Math.Max(maxX, pt.X);
+                    maxY = Math.Max(maxY, pt.Y);
+                }
+                
+                return new Rect(minX, minY, maxX - minX, maxY - minY);
+            }
+            else if (element is FrameworkElement fe)
+            {
+                var left = Canvas.GetLeft(fe);
+                var top = Canvas.GetTop(fe);
+                if (double.IsNaN(left)) left = 0;
+                if (double.IsNaN(top)) top = 0;
+                return new Rect(left, top, fe.ActualWidth, fe.ActualHeight);
+            }
+            
+            return Rect.Empty;
+        }
+
+        /// <summary>
+        /// 选中元素
+        /// </summary>
+        private void SelectElement(UIElement element)
+        {
+            ClearSelection();
+            _selectedElement = element;
+            
+            // 如果是箭头的一部分，找到完整的箭头
+            var index = _drawingHistory.IndexOf(element);
+            if (element is Line line && index >= 0 && index + 1 < _drawingHistory.Count)
+            {
+                if (_drawingHistory[index + 1] is Polygon poly)
+                {
+                    _selectedArrowLine = line;
+                    _selectedArrowHead = poly;
+                }
+            }
+            else if (element is Polygon poly && index > 0)
+            {
+                if (_drawingHistory[index - 1] is Line ln)
+                {
+                    _selectedArrowLine = ln;
+                    _selectedArrowHead = poly;
+                    _selectedElement = ln;  // 用线条作为主元素
+                }
+            }
+            
+            // 高亮选中元素
+            HighlightElement(_selectedElement, true);
+            if (_selectedArrowHead != null)
+            {
+                HighlightElement(_selectedArrowHead, true);
+            }
+        }
+
+        /// <summary>
+        /// 清除选择
+        /// </summary>
+        private void ClearSelection()
+        {
+            if (_selectedElement != null)
+            {
+                HighlightElement(_selectedElement, false);
+            }
+            if (_selectedArrowHead != null)
+            {
+                HighlightElement(_selectedArrowHead, false);
+            }
+            
+            _selectedElement = null;
+            _selectedArrowLine = null;
+            _selectedArrowHead = null;
+        }
+
+        /// <summary>
+        /// 高亮/取消高亮元素
+        /// </summary>
+        private static void HighlightElement(UIElement element, bool highlight)
+        {
+            if (element is Shape shape)
+            {
+                if (highlight)
+                {
+                    shape.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                    {
+                        Color = Colors.Cyan,
+                        BlurRadius = 8,
+                        ShadowDepth = 0,
+                        Opacity = 0.8
+                    };
+                }
+                else
+                {
+                    shape.Effect = null;
+                }
+            }
+            else if (element is System.Windows.Controls.TextBlock textBlock)
+            {
+                if (highlight)
+                {
+                    textBlock.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                    {
+                        Color = Colors.Cyan,
+                        BlurRadius = 8,
+                        ShadowDepth = 0,
+                        Opacity = 0.8
+                    };
+                }
+                else
+                {
+                    textBlock.Effect = null;
+                }
+            }
+        }
+
+        /// <summary>
+        /// 获取元素位置
+        /// </summary>
+        private System.Windows.Point GetElementPosition(UIElement element)
+        {
+            if (element is Polyline polyline && polyline.Points.Count > 0)
+            {
+                return polyline.Points[0];
+            }
+            else if (element is Line line)
+            {
+                return new System.Windows.Point(line.X1, line.Y1);
+            }
+            else if (element is FrameworkElement fe)
+            {
+                var left = Canvas.GetLeft(fe);
+                var top = Canvas.GetTop(fe);
+                if (double.IsNaN(left)) left = 0;
+                if (double.IsNaN(top)) top = 0;
+                return new System.Windows.Point(left, top);
+            }
+            return new System.Windows.Point(0, 0);
+        }
+
+        /// <summary>
+        /// 移动选中的元素
+        /// </summary>
+        private void MoveSelectedElement(double deltaX, double deltaY)
+        {
+            if (_selectedElement == null) return;
+
+            if (_selectedElement is Polyline polyline)
+            {
+                // 移动 Polyline 的所有点
+                var newPoints = new PointCollection();
+                foreach (var pt in polyline.Points)
+                {
+                    newPoints.Add(new System.Windows.Point(
+                        _elementStartPosition.X + (pt.X - polyline.Points[0].X) + deltaX,
+                        _elementStartPosition.Y + (pt.Y - polyline.Points[0].Y) + deltaY));
+                }
+                polyline.Points = newPoints;
+            }
+            else if (_selectedArrowLine != null && _selectedArrowHead != null)
+            {
+                // 移动箭头
+                var newX1 = _elementStartPosition.X + deltaX;
+                var newY1 = _elementStartPosition.Y + deltaY;
+                var dx = _selectedArrowLine.X2 - _selectedArrowLine.X1;
+                var dy = _selectedArrowLine.Y2 - _selectedArrowLine.Y1;
+                
+                _selectedArrowLine.X1 = newX1;
+                _selectedArrowLine.Y1 = newY1;
+                _selectedArrowLine.X2 = newX1 + dx;
+                _selectedArrowLine.Y2 = newY1 + dy;
+                
+                // 更新箭头头部
+                UpdateArrowHeadPosition(_selectedArrowLine, _selectedArrowHead);
+            }
+            else if (_selectedElement is FrameworkElement fe)
+            {
+                // 移动矩形、椭圆、文字等
+                Canvas.SetLeft(fe, _elementStartPosition.X + deltaX);
+                Canvas.SetTop(fe, _elementStartPosition.Y + deltaY);
+            }
+        }
+
+        /// <summary>
+        /// 更新箭头头部位置
+        /// </summary>
+        private void UpdateArrowHeadPosition(Line line, Polygon arrowHead)
+        {
+            var endPoint = new System.Windows.Point(line.X2, line.Y2);
+            var startPoint = new System.Windows.Point(line.X1, line.Y1);
+            
+            var dx = endPoint.X - startPoint.X;
+            var dy = endPoint.Y - startPoint.Y;
+            var angle = Math.Atan2(dy, dx);
+            
+            var headLength = 12 + _strokeWidth * 2;
+            
+            var points = new PointCollection
+            {
+                endPoint,
+                new System.Windows.Point(
+                    endPoint.X - headLength * Math.Cos(angle - Math.PI / 6),
+                    endPoint.Y - headLength * Math.Sin(angle - Math.PI / 6)),
+                new System.Windows.Point(
+                    endPoint.X - headLength * Math.Cos(angle + Math.PI / 6),
+                    endPoint.Y - headLength * Math.Sin(angle + Math.PI / 6))
+            };
+            
+            arrowHead.Points = points;
         }
 
         #endregion
