@@ -130,6 +130,7 @@
             <Border x:Name="ToolbarPanel" Grid.Row="1" Padding="12,8" Visibility="Visible">
                 <Grid>
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
@@ -137,7 +138,7 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- 绘图工具 -->
-                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
                         <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" 
                                 CornerRadius="8" Padding="4">
                             <StackPanel Orientation="Horizontal">
@@ -168,7 +169,7 @@
                     </StackPanel>
 
                     <!-- 颜色选择 -->
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0,0,0">
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="16,0,0,0">
                         <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" 
                                 CornerRadius="8" Padding="4">
                             <StackPanel Orientation="Horizontal">
@@ -192,7 +193,7 @@
                     </StackPanel>
 
                     <!-- 笔触大小 -->
-                    <StackPanel Grid.Column="3" Orientation="Horizontal">
+                    <StackPanel Grid.Column="4" Orientation="Horizontal">
                         <TextBlock Text="笔触:"
                                    VerticalAlignment="Center"
                                    Margin="0,0,8,0"
@@ -224,19 +225,27 @@
                         MouseLeftButtonDown="DrawingCanvas_MouseLeftButtonDown"
                         MouseMove="DrawingCanvas_MouseMove"
                         MouseLeftButtonUp="DrawingCanvas_MouseLeftButtonUp"
-                        MouseLeave="DrawingCanvas_MouseLeave"/>
-
-                <!-- 文字输入框 - 默认隐藏 -->
-                <TextBox x:Name="TextInputBox"
-                         Visibility="Collapsed"
-                         MinWidth="100"
-                         FontSize="16"
-                         Background="#FFFFFFFF"
-                         BorderBrush="{DynamicResource SystemAccentColorPrimaryBrush}"
-                         BorderThickness="2"
-                         Padding="8,4"
-                         KeyDown="TextInputBox_KeyDown"
-                         LostFocus="TextInputBox_LostFocus"/>
+                        MouseLeave="DrawingCanvas_MouseLeave">
+                    
+                    <!-- 文字输入框 - 默认隐藏，位于 Canvas 内部以支持定位 -->
+                    <Border x:Name="TextInputContainer"
+                            Visibility="Collapsed"
+                            Background="White"
+                            BorderBrush="{DynamicResource SystemAccentColorPrimaryBrush}"
+                            BorderThickness="2"
+                            CornerRadius="4"
+                            Padding="4,2">
+                        <TextBox x:Name="TextInputBox"
+                                 MinWidth="80"
+                                 MinHeight="24"
+                                 FontSize="16"
+                                 Background="Transparent"
+                                 BorderThickness="0"
+                                 VerticalContentAlignment="Center"
+                                 KeyDown="TextInputBox_KeyDown"
+                                 LostFocus="TextInputBox_LostFocus"/>
+                    </Border>
+                </Canvas>
             </Grid>
         </Border>
 

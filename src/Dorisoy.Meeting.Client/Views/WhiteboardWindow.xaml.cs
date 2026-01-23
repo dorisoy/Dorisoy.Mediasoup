@@ -38,6 +38,7 @@ namespace Dorisoy.Meeting.Client.Views
 
         // 绘制状态
         private bool _isDrawing;
+        private bool _isTextInputActive; // 标记是否正在输入文字
         private Point _startPoint;
         private Point _lastPoint;
         private List<Point> _currentPoints = new();
@@ -123,6 +124,12 @@ namespace Dorisoy.Meeting.Client.Views
         private void Tool_Checked(object sender, RoutedEventArgs e)
         {
             if (!_isHost) return;
+
+            // 如果正在输入文字，先取消输入
+            if (_isTextInputActive)
+            {
+                CancelTextInput();
+            }
 
             if (sender == BtnPen)
                 _currentTool = WhiteboardTool.Pen;
@@ -380,12 +387,37 @@ namespace Dorisoy.Meeting.Client.Views
 
         private void ShowTextInput(Point position)
         {
+            // 清空输入框
             TextInputBox.Text = string.Empty;
             TextInputBox.Foreground = new SolidColorBrush(_currentColor);
-            Canvas.SetLeft(TextInputBox, position.X);
-            Canvas.SetTop(TextInputBox, position.Y);
-            TextInputBox.Visibility = Visibility.Visible;
-            TextInputBox.Focus();
+            TextInputBox.FontSize = 16 + _strokeWidth;
+            
+            // 将输入框容器定位到鼠标点击位置
+            Canvas.SetLeft(TextInputContainer, position.X);
+            Canvas.SetTop(TextInputContainer, position.Y);
+            
+            // 显示输入框并获取焦点
+            TextInputContainer.Visibility = Visibility.Visible;
+            _isTextInputActive = true;
+            
+            // 确保焦点在输入框上
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                TextInputBox.Focus();
+                Keyboard.Focus(TextInputBox);
+            }), System.Windows.Threading.DispatcherPriority.Input);
+        }
+
+        /// <summary>
+        /// 取消文字输入（不保存）
+        /// </summary>
+        private void CancelTextInput()
+        {
+            if (!_isTextInputActive) return;
+            
+            _isTextInputActive = false;
+            TextInputBox.Text = string.Empty;
+            TextInputContainer.Visibility = Visibility.Collapsed;
         }
 
         private void TextInputBox_KeyDown(object sender, KeyEventArgs e)
@@ -397,26 +429,40 @@ namespace Dorisoy.Meeting.Client.Views
             }
             else if (e.Key == Key.Escape)
             {
-                TextInputBox.Visibility = Visibility.Collapsed;
+                CancelTextInput();
                 e.Handled = true;
             }
         }
 
         private void TextInputBox_LostFocus(object sender, RoutedEventArgs e)
         {
-            FinishTextInput();
+            // 只有在输入框激活且有内容时才完成输入
+            // 如果是切换工具导致的失焦，且没有内容，则取消
+            if (_isTextInputActive)
+            {
+                if (string.IsNullOrWhiteSpace(TextInputBox.Text))
+                {
+                    CancelTextInput();
+                }
+                else
+                {
+                    FinishTextInput();
+                }
+            }
         }
 
         private void FinishTextInput()
         {
+            if (!_isTextInputActive) return;
+            
             var text = TextInputBox.Text.Trim();
             if (string.IsNullOrEmpty(text))
             {
-                TextInputBox.Visibility = Visibility.Collapsed;
+                CancelTextInput();
                 return;
             }
 
-            var position = new Point(Canvas.GetLeft(TextInputBox), Canvas.GetTop(TextInputBox));
+            var position = new Point(Canvas.GetLeft(TextInputContainer), Canvas.GetTop(TextInputContainer));
 
             var textBlock = new System.Windows.Controls.TextBlock
             {
@@ -445,7 +491,10 @@ namespace Dorisoy.Meeting.Client.Views
             _strokes.Add(stroke);
             _strokeElements[stroke.Id] = textBlock;
 
-            TextInputBox.Visibility = Visibility.Collapsed;
+            // 隐藏输入框
+            _isTextInputActive = false;
+            TextInputBox.Text = string.Empty;
+            TextInputContainer.Visibility = Visibility.Collapsed;
 
             // 发送更新
             NotifyStrokeAdded(stroke);
