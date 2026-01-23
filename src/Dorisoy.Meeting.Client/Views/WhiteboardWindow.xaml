@@ -193,28 +193,30 @@
 
                     <!-- 笔触大小 -->
                     <StackPanel Grid.Column="3" Orientation="Horizontal">
-                        <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" 
-                                CornerRadius="8" Padding="8,4">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="笔触:" VerticalAlignment="Center" Margin="0,0,8,0"
-                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
-                                <Slider x:Name="SliderStrokeWidth"
-                                        Width="120"
-                                        Minimum="1" Maximum="20"
-                                        Value="3"
-                                        VerticalAlignment="Center"
-                                        ValueChanged="SliderStrokeWidth_ValueChanged"/>
-                                <TextBlock x:Name="TxtStrokeWidth" Text="3" Width="24" VerticalAlignment="Center" 
-                                           Margin="8,0,0,0" TextAlignment="Center"/>
-                            </StackPanel>
-                        </Border>
+                        <TextBlock Text="笔触:"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                        <Slider x:Name="SliderStrokeWidth"
+                                Width="120"
+                                Minimum="1"
+                                Maximum="20"
+                                Value="3"
+                                VerticalAlignment="Center"
+                                ValueChanged="SliderStrokeWidth_ValueChanged" />
+                        <TextBlock x:Name="TxtStrokeWidth"
+                                   Text="3"
+                                   Width="24"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0"
+                                   TextAlignment="Center" />
                     </StackPanel>
                 </Grid>
             </Border>
         </Grid>
 
         <!-- 画布区域 -->
-        <Border Grid.Row="1" Background="#FFFFFFFF" Margin="12">
+        <Border Grid.Row="1" Background="#FFFFFFFF" Margin="0">
             <Grid x:Name="CanvasContainer" ClipToBounds="True">
                 <!-- 使用 Canvas 自定义绘制，支持更多图形 -->
                 <Canvas x:Name="DrawingCanvas" 
@@ -281,8 +283,8 @@
                                Click="BtnUndo_Click"/>
                     
                     <!-- 清空按钮 -->
-                    <ui:Button x:Name="BtnClear" 
-                               Style="{StaticResource DangerButtonStyle}"
+                    <ui:Button x:Name="BtnClear"
+                               Style="{StaticResource ActionButtonStyle}"
                                Appearance="Secondary"
                                Icon="{ui:SymbolIcon Delete20}"
                                Content="清空"
