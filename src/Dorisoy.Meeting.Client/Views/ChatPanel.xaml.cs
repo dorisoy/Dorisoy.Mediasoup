@@ -217,6 +217,30 @@ public partial class ChatPanel : UserControl
     }
 
     /// <summary>
+    /// 图片消息双击 - 预览图片
+    /// </summary>
+    private void ImageMessage_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2) return;
+        
+        if (sender is FrameworkElement element && element.DataContext is ChatMessage message)
+        {
+            if (message.ImageSource != null)
+            {
+                var previewWindow = new ImagePreviewWindow(
+                    message.ImageSource,
+                    message.FileName,
+                    message.FilePath,
+                    message.FileSize)
+                {
+                    Owner = Window.GetWindow(this)
+                };
+                previewWindow.Show();
+            }
+        }
+    }
+
+    /// <summary>
     /// 从 URL 下载文件
     /// </summary>
     private async Task DownloadFileFromUrlAsync(string url, string suggestedFileName)

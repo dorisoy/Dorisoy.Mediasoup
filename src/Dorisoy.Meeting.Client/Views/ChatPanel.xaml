@@ -36,7 +36,9 @@
                                            MaxWidth="200"
                                            MaxHeight="200"
                                            Stretch="Uniform"
-                                           Margin="0,0,0,4"/>
+                                           Margin="0,0,0,4"
+                                           Cursor="Hand"
+                                           MouseLeftButtonDown="ImageMessage_DoubleClick"/>
                                     <TextBlock Text="{Binding FileName}"
                                                Foreground="White"
                                                FontSize="11"
@@ -94,7 +96,9 @@
                                        MaxWidth="200"
                                        MaxHeight="200"
                                        Stretch="Uniform"
-                                       Margin="0,0,0,4"/>
+                                       Margin="0,0,0,4"
+                                       Cursor="Hand"
+                                       MouseLeftButtonDown="ImageMessage_DoubleClick"/>
                                 <TextBlock Text="{Binding FileName}"
                                            FontSize="11"
                                            Opacity="0.6"/>

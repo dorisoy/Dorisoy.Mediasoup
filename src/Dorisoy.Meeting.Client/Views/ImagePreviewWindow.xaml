@@ -1,0 +1,152 @@
+<ui:FluentWindow x:Class="Dorisoy.Meeting.Client.Views.ImagePreviewWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="图片预览"
+                 Width="800" Height="600"
+                 MinWidth="400" MinHeight="300"
+                 WindowStartupLocation="CenterOwner"
+                 KeyDown="Window_KeyDown">
+    
+    <Grid Background="{DynamicResource ApplicationBackgroundBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        
+        <!-- 顶部工具栏 -->
+        <Border Grid.Row="0" 
+                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                Padding="12,8">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                
+                <!-- 文件名 -->
+                <TextBlock x:Name="FileNameText"
+                           Grid.Column="0"
+                           Text="图片预览"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"/>
+                
+                <!-- 操作按钮 -->
+                <StackPanel Grid.Column="1" 
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <!-- 缩小 -->
+                    <ui:Button Appearance="Transparent"
+                               ToolTip="缩小 (鼠标滚轮下)"
+                               Padding="8"
+                               Click="ZoomOut_Click">
+                        <ui:SymbolIcon Symbol="ZoomOut24" FontSize="18"/>
+                    </ui:Button>
+                    
+                    <!-- 缩放比例 -->
+                    <TextBlock x:Name="ZoomText"
+                               Text="100%"
+                               Width="50"
+                               TextAlignment="Center"
+                               VerticalAlignment="Center"
+                               FontSize="12"
+                               Opacity="0.7"/>
+                    
+                    <!-- 放大 -->
+                    <ui:Button Appearance="Transparent"
+                               ToolTip="放大 (鼠标滚轮上)"
+                               Padding="8"
+                               Click="ZoomIn_Click">
+                        <ui:SymbolIcon Symbol="ZoomIn24" FontSize="18"/>
+                    </ui:Button>
+                    
+                    <!-- 分隔符 -->
+                    <Border Width="1" 
+                            Height="20" 
+                            Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            Margin="8,0"/>
+                    
+                    <!-- 适应窗口 -->
+                    <ui:Button Appearance="Transparent"
+                               ToolTip="适应窗口"
+                               Padding="8"
+                               Click="FitToWindow_Click">
+                        <ui:SymbolIcon Symbol="FullScreenMaximize24" FontSize="18"/>
+                    </ui:Button>
+                    
+                    <!-- 原始大小 -->
+                    <ui:Button Appearance="Transparent"
+                               ToolTip="原始大小 (1:1)"
+                               Padding="8"
+                               Click="ActualSize_Click">
+                        <ui:SymbolIcon Symbol="Resize24" FontSize="18"/>
+                    </ui:Button>
+                    
+                    <!-- 分隔符 -->
+                    <Border Width="1" 
+                            Height="20" 
+                            Background="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            Margin="8,0"/>
+                    
+                    <!-- 保存 -->
+                    <ui:Button Appearance="Transparent"
+                               ToolTip="保存图片"
+                               Padding="8"
+                               Click="Save_Click">
+                        <ui:SymbolIcon Symbol="Save24" FontSize="18"/>
+                    </ui:Button>
+                    
+                    <!-- 复制 -->
+                    <ui:Button Appearance="Transparent"
+                               ToolTip="复制到剪贴板"
+                               Padding="8"
+                               Click="Copy_Click">
+                        <ui:SymbolIcon Symbol="Copy24" FontSize="18"/>
+                    </ui:Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+        
+        <!-- 图片显示区域 -->
+        <ScrollViewer Grid.Row="1"
+                      x:Name="ImageScrollViewer"
+                      HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollBarVisibility="Auto"
+                      Background="#1E1E1E"
+                      PreviewMouseWheel="ImageScrollViewer_PreviewMouseWheel">
+            <Grid x:Name="ImageContainer"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center"
+                  MouseLeftButtonDown="ImageContainer_MouseLeftButtonDown"
+                  MouseLeftButtonUp="ImageContainer_MouseLeftButtonUp"
+                  MouseMove="ImageContainer_MouseMove">
+                <Image x:Name="PreviewImage"
+                       Stretch="None"
+                       RenderOptions.BitmapScalingMode="HighQuality">
+                    <Image.LayoutTransform>
+                        <ScaleTransform x:Name="ImageScale" ScaleX="1" ScaleY="1"/>
+                    </Image.LayoutTransform>
+                </Image>
+            </Grid>
+        </ScrollViewer>
+        
+        <!-- 底部状态栏 -->
+        <Border Grid.Row="2"
+                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                Padding="12,6">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock x:Name="ImageSizeText"
+                           Text="尺寸: --"
+                           FontSize="12"
+                           Opacity="0.7"
+                           Margin="0,0,16,0"/>
+                <TextBlock x:Name="FileSizeText"
+                           Text="大小: --"
+                           FontSize="12"
+                           Opacity="0.7"/>
+            </StackPanel>
+        </Border>
+    </Grid>
+</ui:FluentWindow>
