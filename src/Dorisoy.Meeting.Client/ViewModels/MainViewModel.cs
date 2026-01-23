@@ -183,7 +183,7 @@ public partial class MainViewModel : ObservableObject
     /// 选中的视频编解码器
     /// </summary>
     [ObservableProperty]
-    private VideoCodecInfo _selectedVideoCodec = VideoCodecInfo.AvailableCodecs[0]; // 默认 VP8
+    private VideoCodecInfo _selectedVideoCodec = VideoCodecInfo.GetByType(VideoCodecType.VP9); // 默认 VP9
 
     #endregion
 
@@ -3291,6 +3291,12 @@ public partial class MainViewModel : ObservableObject
         _videoProducerId = null;
         _audioProducerId = null;
         
+        // 清理待恢复的 Consumer 列表
+        lock (_pendingResumeConsumers)
+        {
+            _pendingResumeConsumers.Clear();
+        }
+        
         StatusMessage = "已回到大厅";
         _logger.LogInformation("离开房间完成，回到大厅");
         
@@ -3336,6 +3342,12 @@ public partial class MainViewModel : ObservableObject
         _videoProducerId = null;
         _audioProducerId = null;
         _currentAccessToken = string.Empty;
+        
+        // 清理待恢复的 Consumer 列表
+        lock (_pendingResumeConsumers)
+        {
+            _pendingResumeConsumers.Clear();
+        }
         
         StatusMessage = "已被踢出房间";
         _logger.LogInformation("被踢出房间，本地状态清理完成，已断开连接");
@@ -3396,6 +3408,12 @@ public partial class MainViewModel : ObservableObject
         _videoProducerId = null;
         _audioProducerId = null;
         _currentAccessToken = string.Empty;
+        
+        // 清理待恢复的 Consumer 列表
+        lock (_pendingResumeConsumers)
+        {
+            _pendingResumeConsumers.Clear();
+        }
         
         StatusMessage = "已断开连接";
         _logger.LogInformation("完全退出会议，返回加入窗口");

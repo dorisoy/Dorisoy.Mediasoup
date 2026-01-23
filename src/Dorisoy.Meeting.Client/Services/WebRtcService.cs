@@ -31,6 +31,12 @@ public class WebRtcService : IWebRtcService
     // 视频/音频编码器
     private Vp8Encoder? _videoEncoder;
     private AudioFramePacketizer? _audioPacketizer;
+<<<<<<< HEAD
+=======
+    
+    // 当前视频编解码器类型
+    private VideoCodecType _currentVideoCodec = VideoCodecType.VP9;
+>>>>>>> pro
 
     // 视频采集
     private VideoCapture? _videoCapture;
@@ -975,6 +981,36 @@ public class WebRtcService : IWebRtcService
     {
         _logger.LogInformation("Creating recv transport: {TransportId}", transportId);
 
+<<<<<<< HEAD
+=======
+        // 先清理旧的 Transport（如果存在）
+        if (_recvTransport != null)
+        {
+            _logger.LogWarning("清理旧的 recv transport: {OldTransportId}", _recvTransport.TransportId);
+            try
+            {
+                _recvTransport.Close();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "清理旧 recv transport 失败");
+            }
+            _recvTransport = null;
+        }
+        
+        // 重置 DTLS 连接状态 - 这是关键！新的 transport 需要重新建立 DTLS
+        _isRecvTransportDtlsConnected = false;
+        
+        // 清理旧的 RTP 解码器
+        if (_rtpDecoder != null)
+        {
+            _rtpDecoder.OnDecodedVideoFrame -= HandleRemoteVideoFrame;
+            _rtpDecoder.OnDecodedAudioSamples -= HandleDecodedAudioSamples;
+            _rtpDecoder.Dispose();
+            _rtpDecoder = null;
+        }
+
+>>>>>>> pro
         var iceParams = ParseIceParameters(iceParameters);
         var iceCands = ParseIceCandidates(iceCandidates);
         var dtlsParams = ParseDtlsParameters(dtlsParameters);
@@ -1503,6 +1539,9 @@ public class WebRtcService : IWebRtcService
         _recvTransport?.Close();
         _recvTransport = null;
         
+        // 重置 DTLS 连接状态
+        _isRecvTransportDtlsConnected = false;
+        
         // 释放解码器
         _rtpDecoder?.Dispose();
         _rtpDecoder = null;
@@ -1636,6 +1675,9 @@ public class WebRtcService : IWebRtcService
 
             _recvTransport?.Dispose();
             _recvTransport = null;
+            
+            // 重置 DTLS 连接状态
+            _isRecvTransportDtlsConnected = false;
             
             // 释放解码器
             _rtpDecoder?.Dispose();

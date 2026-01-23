@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using Dorisoy.Meeting.Client.ViewModels;
@@ -69,6 +70,34 @@ public partial class ChatPanel : UserControl
         {
             _isGroupChat = false;
             UpdateChatTarget();
+        }
+    }
+
+    /// <summary>
+    /// 搜索框文本变化 - 过滤联系人列表
+    /// </summary>
+    private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_viewModel?.ChatUsers == null) return;
+        
+        var view = CollectionViewSource.GetDefaultView(_viewModel.ChatUsers);
+        var searchText = SearchTextBox.Text?.Trim();
+        
+        if (string.IsNullOrEmpty(searchText))
+        {
+            view.Filter = null;
+        }
+        else
+        {
+            view.Filter = obj =>
+            {
+                if (obj is ChatUser user)
+                {
+                    return user.DisplayName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true ||
+                           user.PeerId?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true;
+                }
+                return false;
+            };
         }
     }
 
@@ -183,6 +212,30 @@ public partial class ChatPanel : UserControl
                 {
                     // 忽略打开失败
                 }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 图片消息双击 - 预览图片
+    /// </summary>
+    private void ImageMessage_DoubleClick(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount != 2) return;
+        
+        if (sender is FrameworkElement element && element.DataContext is ChatMessage message)
+        {
+            if (message.ImageSource != null)
+            {
+                var previewWindow = new ImagePreviewWindow(
+                    message.ImageSource,
+                    message.FileName,
+                    message.FilePath,
+                    message.FileSize)
+                {
+                    Owner = Window.GetWindow(this)
+                };
+                previewWindow.Show();
             }
         }
     }

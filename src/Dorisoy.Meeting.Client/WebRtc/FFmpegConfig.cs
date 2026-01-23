@@ -11,6 +11,7 @@ namespace Dorisoy.Meeting.Client.WebRtc;
 public static class FFmpegConfig
 {
     private static bool _initialized;
+    private static bool _initializationAttempted; // 防止初始化失败后反复重试
     private static readonly object _lock = new();
     private static string? _libraryPath;
 
@@ -49,10 +50,19 @@ public static class FFmpegConfig
         if (_initialized)
             return true;
 
+        // 如果已经尝试过初始化但失败，不再重试
+        if (_initializationAttempted)
+            return false;
+
         lock (_lock)
         {
             if (_initialized)
                 return true;
+            
+            if (_initializationAttempted)
+                return false;
+
+            _initializationAttempted = true;
 
             try
             {
@@ -75,11 +85,11 @@ public static class FFmpegConfig
                 else
                 {
                     logger?.LogWarning("FFmpeg library path not found, using system default");
+                    return false;
                 }
 
                 // 注意：FFmpeg.AutoGen 6.0.0 默认使用静态 P/Invoke 绑定
                 // 不调用 DynamicallyLoadedBindings.Initialize() 以避免函数不匹配导致的 NotSupportedException
-                // 之前调用动态绑定会为不存在的函数创建抱出异常的占位委托
                 logger?.LogDebug("Using static P/Invoke bindings for FFmpeg");
 
                 // 验证 FFmpeg 是否可用
@@ -95,6 +105,12 @@ public static class FFmpegConfig
                     logger?.LogError(ex, "FFmpeg libraries not found. Please ensure FFmpeg DLLs are available.");
                     return false;
                 }
+                catch (NotSupportedException ex)
+                {
+                    // FFmpeg.AutoGen 动态绑定在某些函数不存在时会抛出此异常
+                    logger?.LogError(ex, "FFmpeg function not supported. This may indicate version mismatch.");
+                    return false;
+                }
             }
             catch (Exception ex)
             {
@@ -105,7 +121,7 @@ public static class FFmpegConfig
     }
 
     /// <summary>
-    /// 查找 FFmpeg 库路径
+    /// 查找 FFmpeg6.0 库路径
     /// </summary>
     private static string? FindFFmpegPath(string? customPath)
     {

@@ -1223,6 +1223,48 @@ public class MediasoupTransport : IDisposable
     private const int VIDEO_CLOCK_RATE = 90000; // 90kHz
     private const int AUDIO_CLOCK_RATE = 48000; // 48kHz
 
+<<<<<<< HEAD
+=======
+    // 当前视频编解码器类型
+    private VideoCodecType _currentVideoCodec = VideoCodecType.VP9;
+    
+    /// <summary>
+    /// 视频目标比特率 (bps)，用于 RTP 参数协商
+    /// </summary>
+    public int VideoBitrate { get; set; } = 5_000_000;
+
+    /// <summary>
+    /// 设置当前视频编解码器类型
+    /// </summary>
+    public void SetVideoCodecType(VideoCodecType codecType)
+    {
+        if (_currentVideoCodec != codecType)
+        {
+            _logger.LogInformation("Transport 编解码器类型切换: {Old} -> {New}", _currentVideoCodec, codecType);
+            _currentVideoCodec = codecType;
+        }
+    }
+
+    /// <summary>
+    /// 获取当前视频编解码器类型
+    /// </summary>
+    public VideoCodecType CurrentVideoCodec => _currentVideoCodec;
+
+    /// <summary>
+    /// 获取当前编解码器的 Payload Type
+    /// </summary>
+    private int GetVideoPayloadType()
+    {
+        return _currentVideoCodec switch
+        {
+            VideoCodecType.VP8 => VP8_PAYLOAD_TYPE,
+            VideoCodecType.VP9 => VP9_PAYLOAD_TYPE,
+            VideoCodecType.H264 => H264_PAYLOAD_TYPE,
+            _ => VP8_PAYLOAD_TYPE
+        };
+    }
+
+>>>>>>> pro
     // RTP 发送状态
     private uint _videoSsrc = (uint)Random.Shared.Next(100000000, 999999999);
     private uint _audioSsrc = (uint)Random.Shared.Next(100000000, 999999999);

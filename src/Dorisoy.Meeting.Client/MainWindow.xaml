@@ -1302,7 +1302,7 @@
                                ToolTip="屏幕截取 (Ctrl+Shift+A)"
                                Appearance="Transparent"
                                Command="{Binding CaptureScreenCommand}">
-                        <ui:SymbolIcon Symbol="Screenshot24"
+                        <ui:SymbolIcon Symbol="ScreenCut20"
                                        FontSize="18" />
                     </ui:Button>
 

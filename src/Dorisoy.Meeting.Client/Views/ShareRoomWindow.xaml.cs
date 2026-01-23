@@ -14,6 +14,7 @@ public partial class ShareRoomWindow : FluentWindow
 {
     private readonly string _roomId;
     private readonly string _serverUrl;
+    private bool _isClosing;
 
     public ShareRoomWindow(string roomId, string serverUrl)
     {
@@ -22,6 +23,7 @@ public partial class ShareRoomWindow : FluentWindow
         
         InitializeComponent();
         
+        Closing += (s, e) => _isClosing = true;
         GenerateQrCode();
     }
 
@@ -129,6 +131,10 @@ public partial class ShareRoomWindow : FluentWindow
     /// </summary>
     private void Window_Deactivated(object sender, EventArgs e)
     {
-        Close();
+        if (!_isClosing)
+        {
+            _isClosing = true;
+            Close();
+        }
     }
 }

@@ -67,4 +67,22 @@
         <ProjectReference Include="..\..\UI\Wpf.Ui\Wpf.Ui.csproj" />
     </ItemGroup>
 
+<<<<<<< HEAD
+=======
+    <!-- 音频资源文件 - 复制到输出目录 -->
+    <ItemGroup>
+        <None Update="Resources\sounds\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <!-- FFmpeg 原生库 - 复制到输出目录 -->
+    <ItemGroup>
+        <None Include="..\FFmpeg\bin\x64\*.dll">
+            <Link>%(Filename)%(Extension)</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+>>>>>>> pro
 </Project>
