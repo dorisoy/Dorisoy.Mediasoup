@@ -176,6 +176,102 @@ namespace Dorisoy.Meeting.Server
             }
         }
 
+        /// <summary>
+        /// 解散房间（主持人离开时调用）
+        /// 按正确的顺序清理所有用户的资源，避免 Worker 崩溃
+        /// </summary>
+        public async Task<DismissRoomResult> DismissRoomAsync(string hostPeerId, string connectionId, Room room)
+        {
+            // 使用写锁，因为我们需要从 _peers 中移除 Peer
+            await using (await _peersLock.WriteLockAsync())
+            {
+                if (!_peers.TryGetValue(hostPeerId, out var hostPeer))
+                {
+                    throw new PeerNotExistsException("DismissRoomAsync()", hostPeerId);
+                }
+
+                CheckConnection(hostPeer, connectionId);
+
+                // 获取房间中除主持人外的所有 Peer
+                var allPeers = await room.GetPeersAsync();
+                var otherPeers = new List<Peer>();
+                var otherPeerIds = new List<string>();
+
+                foreach (var peer in allPeers)
+                {
+                    if (peer.PeerId != hostPeerId)
+                    {
+                        otherPeers.Add(peer);
+                        otherPeerIds.Add(peer.PeerId);
+                    }
+                }
+
+                _logger.LogInformation("DismissRoomAsync() | 房间 {RoomId} 解散，清理 {Count} 个其他用户的资源", 
+                    room.RoomId, otherPeers.Count);
+
+                // 1. 清理所有其他用户：先清理 Transport，再从 Room 和 Scheduler 中移除
+                foreach (var peer in otherPeers)
+                {
+                    try
+                    {
+                        _logger.LogDebug("DismissRoomAsync() | 清理 Peer:{PeerId} 的资源", peer.PeerId);
+                        
+                        // 清理 Transport（关闭 Consumer 和 Producer）
+                        await peer.ForceLeaveRoomAsync();
+                        
+                        // 从 Room 中移除 Peer（重要！）
+                        try
+                        {
+                            await room.ForceRemovePeerAsync(peer.PeerId);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogDebug(ex, "DismissRoomAsync() | 从房间移除 Peer:{PeerId} 时出错（可能已移除）", peer.PeerId);
+                        }
+                        
+                        // 从 Scheduler 的 _peers 中移除（让用户可以重新 Join）
+                        _peers.Remove(peer.PeerId);
+                        _logger.LogDebug("DismissRoomAsync() | 已从 Scheduler 移除 Peer:{PeerId}", peer.PeerId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "DismissRoomAsync() | 清理 Peer:{PeerId} 失败", peer.PeerId);
+                    }
+                }
+
+                // 2. 添加小延迟，确保资源清理完成
+                await Task.Delay(100);
+
+                // 3. 最后清理主持人的资源
+                _logger.LogDebug("DismissRoomAsync() | 清理主持人 {HostPeerId} 的资源", hostPeerId);
+                await hostPeer.LeaveRoomAsync();
+                _peers.Remove(hostPeerId);
+
+                // 4. 从房间列表中移除空房间
+                await _roomsLock.WaitAsync();
+                try
+                {
+                    // 直接移除房间，因为所有用户都已经被清理
+                    _rooms.Remove(room.RoomId);
+                    _logger.LogInformation("DismissRoomAsync() | 房间 {RoomId} 已清空并移除", room.RoomId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "DismissRoomAsync() | 移除房间时出错");
+                }
+                finally
+                {
+                    _roomsLock.Set();
+                }
+
+                return new DismissRoomResult
+                {
+                    HostPeer = hostPeer,
+                    OtherPeerIds = otherPeerIds.ToArray()
+                };
+            }
+        }
+
         public async Task<PeerAppDataResult> SetPeerAppDataAsync(
             string peerId,
             string connectionId,
@@ -732,6 +828,77 @@ namespace Dorisoy.Meeting.Server
             }
         }
 
+<<<<<<< HEAD
+=======
+        /// <summary>
+        /// 获取 Peer 信息（用于消息广播等）
+        /// </summary>
+        public async Task<Peer?> GetPeerAsync(string peerId, string connectionId)
+        {
+            await using (await _peersLock.ReadLockAsync())
+            {
+                if (!_peers.TryGetValue(peerId, out var peer))
+                {
+                    return null;
+                }
+
+                CheckConnection(peer, connectionId);
+
+                return peer;
+            }
+        }
+
+        /// <summary>
+        /// 踢出用户（主持人操作）
+        /// </summary>
+        public async Task<KickPeerResult?> KickPeerAsync(string hostPeerId, string connectionId, string targetPeerId)
+        {
+            await using (await _peersLock.ReadLockAsync())
+            {
+                if (!_peers.TryGetValue(hostPeerId, out var hostPeer))
+                {
+                    throw new PeerNotExistsException("KickPeerAsync()", hostPeerId);
+                }
+
+                CheckConnection(hostPeer, connectionId);
+
+                if (!_peers.TryGetValue(targetPeerId, out var targetPeer))
+                {
+                    throw new PeerNotExistsException("KickPeerAsync()", targetPeerId);
+                }
+
+                // 通过 Peer 获取 Room
+                var room = await hostPeer.GetRoomAsync();
+                if (room == null)
+                {
+                    throw new Exception("KickPeerAsync() | Host peer is not in any room.");
+                }
+
+                // 踢出用户
+                var result = await room.KickPeerAsync(hostPeerId, targetPeerId);
+
+                // 让被踢用户强制离开房间（关闭 transports，但不再调用 Room.PeerLeaveAsync）
+                if (result != null)
+                {
+                    await targetPeer.ForceLeaveRoomAsync();
+                }
+
+                return result;
+            }
+        }
+
+        /// <summary>
+        /// 获取目标 Peer 信息
+        /// </summary>
+        public async Task<Peer?> GetTargetPeerAsync(string peerId)
+        {
+            await using (await _peersLock.ReadLockAsync())
+            {
+                return _peers.TryGetValue(peerId, out var peer) ? peer : null;
+            }
+        }
+
+>>>>>>> pro
         private static void CheckConnection(Peer peer, string connectionId)
         {
             if (peer.ConnectionId != connectionId)

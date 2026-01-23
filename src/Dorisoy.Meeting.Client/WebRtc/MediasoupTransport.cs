@@ -27,6 +27,12 @@ public class MediasoupTransport : IDisposable
     private readonly ConcurrentDictionary<string, RemoteConsumerInfo> _remoteConsumers = new();
     private readonly object _consumersLock = new();
     
+    // SSRC 到 ConsumerId 的动态映射 - 用于在 SSRC 不匹配时建立正确的路由
+    private readonly ConcurrentDictionary<uint, string> _ssrcToConsumerMap = new();
+    // 记录已收到 RTP 包的 Consumer，用于判断哪些 Consumer 尚未分配 SSRC
+    private readonly HashSet<string> _consumersWithRtp = new();
+    private readonly object _ssrcMapLock = new();
+    
     // SDP 状态 (预留用于后续 SDP 重新协商)
     #pragma warning disable CS0414
     private bool _sdpNegotiated;
@@ -288,6 +294,7 @@ public class MediasoupTransport : IDisposable
 
     /// <summary>
     /// 处理接收到的 RTP 包
+    /// 关键修复：支持多个视频 Consumer，通过 SSRC 动态映射正确路由 RTP 包
     /// </summary>
     private void OnRtpPacketReceived(IPEndPoint remoteEndPoint, SDPMediaTypesEnum mediaType, RTPPacket rtpPacket)
     {
@@ -313,58 +320,102 @@ public class MediasoupTransport : IDisposable
                     _recvRtpPacketCount, ssrc, payloadType, payload.Length, mediaType);
             }
     
-            // 查找对应的 Consumer
+            // 1. 首先检查 SSRC 映射表
+            if (_ssrcToConsumerMap.TryGetValue(ssrc, out var mappedConsumerId))
+            {
+                if (_remoteConsumers.TryGetValue(mappedConsumerId, out var mappedConsumer))
+                {
+                    DispatchRtpToConsumer(mappedConsumer, rtpPacket);
+                    return;
+                }
+            }
+    
+            // 2. 尝试根据预期 SSRC 查找 Consumer（服务端在 newConsumer 通知中提供的 SSRC）
             var consumer = _remoteConsumers.Values.FirstOrDefault(c => c.Ssrc == ssrc);
-            if (consumer == null)
+            if (consumer != null)
             {
-                // 尝试根据 PayloadType 查找
-                consumer = _remoteConsumers.Values.FirstOrDefault(c => c.PayloadType == payloadType);
-            }
-    
-            if (consumer == null)
-            {
-                // 尝试根据 MediaType 查找
-                var kind = mediaType == SDPMediaTypesEnum.video ? "video" : "audio";
-                consumer = _remoteConsumers.Values.FirstOrDefault(c => c.Kind == kind);
-                    
-                if (consumer != null)
-                {
-                    // 找到了，可能是 SSRC 不匹配（服务器端可能使用了不同的 SSRC）
-                    // 更新 Consumer 的 SSRC
-                    if (_recvRtpPacketCount <= 10)
-                    {
-                        _logger.LogInformation("Mapping RTP SSRC {ReceivedSsrc} -> Consumer {ConsumerId} (expected SSRC={ExpectedSsrc})", 
-                            ssrc, consumer.ConsumerId, consumer.Ssrc);
-                        consumer.Ssrc = ssrc; // 更新 SSRC 以便后续匹配
-                    }
-                }
-            }
-    
-            if (consumer == null)
-            {
-                if (_recvRtpPacketCount % 100 == 1)
-                {
-                    _logger.LogWarning("Received RTP for unknown SSRC: {Ssrc}, PT: {PayloadType}, MediaType: {MediaType}. Known consumers: {Consumers}",
-                        ssrc, payloadType, mediaType,
-                        string.Join(", ", _remoteConsumers.Values.Select(c => $"{c.Kind}:SSRC={c.Ssrc},PT={c.PayloadType}")));
-                }
+                // 建立映射并分发
+                EstablishSsrcMapping(ssrc, consumer);
+                DispatchRtpToConsumer(consumer, rtpPacket);
                 return;
             }
     
-            if (consumer.Kind == "video")
+            // 3. SSRC 不匹配，需要动态分配给尚未收到 RTP 的 Consumer
+            var kind = mediaType == SDPMediaTypesEnum.video ? "video" : "audio";
+            lock (_ssrcMapLock)
             {
-                // 触发视频 RTP 包事件
-                OnVideoRtpPacketReceived?.Invoke(consumer.ConsumerId, rtpPacket);
+                // 找到同类型但尚未收到 RTP 包的 Consumer
+                var unassignedConsumer = _remoteConsumers.Values
+                    .Where(c => c.Kind == kind && !_consumersWithRtp.Contains(c.ConsumerId))
+                    .FirstOrDefault();
+                    
+                if (unassignedConsumer != null)
+                {
+                    _logger.LogInformation(
+                        "Dynamic SSRC mapping: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind}, expected SSRC={ExpectedSsrc})",
+                        ssrc, unassignedConsumer.ConsumerId, kind, unassignedConsumer.Ssrc);
+                    
+                    // 更新 Consumer 的实际 SSRC
+                    unassignedConsumer.Ssrc = ssrc;
+                    EstablishSsrcMapping(ssrc, unassignedConsumer);
+                    DispatchRtpToConsumer(unassignedConsumer, rtpPacket);
+                    return;
+                }
             }
-            else if (consumer.Kind == "audio")
+    
+            // 4. 所有同类型 Consumer 都已分配，可能是新的 SSRC（重传或新流）
+            // 尝试用 PayloadType 匹配
+            consumer = _remoteConsumers.Values.FirstOrDefault(c => c.PayloadType == payloadType && c.Kind == kind);
+            if (consumer != null)
             {
-                // 触发音频 RTP 包事件
-                OnAudioRtpPacketReceived?.Invoke(consumer.ConsumerId, rtpPacket);
+                if (_recvRtpPacketCount <= 20)
+                {
+                    _logger.LogWarning(
+                        "RTP SSRC mismatch, routing by PT: SSRC={Ssrc}, PT={PayloadType} -> Consumer {ConsumerId}",
+                        ssrc, payloadType, consumer.ConsumerId);
+                }
+                DispatchRtpToConsumer(consumer, rtpPacket);
+                return;
+            }
+    
+            if (_recvRtpPacketCount % 100 == 1)
+            {
+                _logger.LogWarning(
+                    "Received RTP for unknown SSRC: {Ssrc}, PT: {PayloadType}, MediaType: {MediaType}. Known consumers: {Consumers}",
+                    ssrc, payloadType, mediaType,
+                    string.Join(", ", _remoteConsumers.Values.Select(c => $"{c.Kind}:SSRC={c.Ssrc},PT={c.PayloadType},Id={c.ConsumerId}")));
             }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error processing RTP packet");
+        }
+    }
+    
+    /// <summary>
+    /// 建立 SSRC 到 Consumer 的映射
+    /// </summary>
+    private void EstablishSsrcMapping(uint ssrc, RemoteConsumerInfo consumer)
+    {
+        lock (_ssrcMapLock)
+        {
+            _ssrcToConsumerMap[ssrc] = consumer.ConsumerId;
+            _consumersWithRtp.Add(consumer.ConsumerId);
+        }
+    }
+    
+    /// <summary>
+    /// 分发 RTP 包到指定 Consumer
+    /// </summary>
+    private void DispatchRtpToConsumer(RemoteConsumerInfo consumer, RTPPacket rtpPacket)
+    {
+        if (consumer.Kind == "video")
+        {
+            OnVideoRtpPacketReceived?.Invoke(consumer.ConsumerId, rtpPacket);
+        }
+        else if (consumer.Kind == "audio")
+        {
+            OnAudioRtpPacketReceived?.Invoke(consumer.ConsumerId, rtpPacket);
         }
     }
 
@@ -1044,6 +1095,49 @@ public class MediasoupTransport : IDisposable
             return new Dictionary<string, RemoteConsumerInfo>(_remoteConsumers);
         }
     }
+<<<<<<< HEAD
+=======
+    
+    /// <summary>
+    /// 移除指定 Consumer
+    /// 当用户离开房间或 Consumer 关闭时调用
+    /// </summary>
+    /// <param name="consumerId">Consumer ID</param>
+    public void RemoveConsumer(string consumerId)
+    {
+        lock (_consumersLock)
+        {
+            if (_consumers.TryRemove(consumerId, out _))
+            {
+                _logger.LogDebug("已移除 Consumer 信息: {ConsumerId}", consumerId);
+            }
+            
+            if (_remoteConsumers.TryRemove(consumerId, out var removedConsumer))
+            {
+                _logger.LogDebug("已移除远端 Consumer 信息: {ConsumerId}", consumerId);
+                
+                // 清理 SSRC 映射
+                lock (_ssrcMapLock)
+                {
+                    // 移除 SSRC -> ConsumerId 映射
+                    var ssrcToRemove = _ssrcToConsumerMap
+                        .Where(kv => kv.Value == consumerId)
+                        .Select(kv => kv.Key)
+                        .ToList();
+                    foreach (var ssrc in ssrcToRemove)
+                    {
+                        _ssrcToConsumerMap.TryRemove(ssrc, out _);
+                    }
+                    
+                    // 从已收到 RTP 的 Consumer 集合中移除
+                    _consumersWithRtp.Remove(consumerId);
+                }
+            }
+        }
+        
+        _logger.LogInformation("Consumer 已从 Transport 移除: {ConsumerId}", consumerId);
+    }
+>>>>>>> pro
 
     /// <summary>
     /// 为轨道创建 RTP 参数
@@ -1405,6 +1499,14 @@ public class MediasoupTransport : IDisposable
         lock (_consumersLock)
         {
             _remoteConsumers.Clear();
+            _consumers.Clear();
+        }
+        
+        // 清理 SSRC 映射
+        lock (_ssrcMapLock)
+        {
+            _ssrcToConsumerMap.Clear();
+            _consumersWithRtp.Clear();
         }
 
         _connected = false;

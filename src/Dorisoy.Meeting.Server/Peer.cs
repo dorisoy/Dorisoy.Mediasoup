@@ -1120,6 +1120,42 @@ namespace Dorisoy.Meeting.Server
         }
 
         /// <summary>
+        /// 强制离开房间（用于被踢出场景，不再调用 Room.PeerLeaveAsync 因为已经被移除）
+        /// </summary>
+        public async Task ForceLeaveRoomAsync()
+        {
+            await using (await _joinedLock.ReadLockAsync())
+            {
+                if (!_joined)
+                {
+                    return;
+                }
+
+                await using (await _roomLock.WriteLockAsync())
+                {
+                    if (_room == null)
+                    {
+                        return;
+                    }
+
+                    // NOTE: 因为 Close 会触发 Emit("@close")，而 @close 的事件处理需要写锁。故使用写锁。
+                    await using (await _transportsLock.WriteLockAsync())
+                    {
+                        // Iterate and close all mediasoup Transport associated to this Peer, so all
+                        // its Producers and Consumers will also be closed.
+                        foreach (var transport in _transports.Values)
+                        {
+                            await transport.CloseAsync();
+                        }
+                    }
+
+                    // 不调用 Room.PeerLeaveAsync，因为在被踢出场景中 peer 已经被 Room.KickPeerAsync 移除
+                    _room = null;
+                }
+            }
+        }
+
+        /// <summary>
         /// 离开
         /// </summary>
         public async Task<LeaveResult> LeaveAsync()
@@ -1435,5 +1471,20 @@ namespace Dorisoy.Meeting.Server
         }
 
         #endregion Private Methods
+
+        #region Public Room Access
+
+        /// <summary>
+        /// 获取 Peer 所在的房间
+        /// </summary>
+        public async Task<Room?> GetRoomAsync()
+        {
+            await using (await _roomLock.ReadLockAsync())
+            {
+                return _room;
+            }
+        }
+
+        #endregion
     }
 }

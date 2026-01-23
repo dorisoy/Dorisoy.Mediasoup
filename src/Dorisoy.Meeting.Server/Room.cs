@@ -14,6 +14,11 @@ namespace Dorisoy.Meeting.Server
 
         public string Name { get; }
 
+        /// <summary>
+        /// 主持人 PeerId（房间创建者）
+        /// </summary>
+        public string? HostPeerId { get; private set; }
+
         #region IEquatable<T>
 
         public bool Equals(Room? other)
@@ -105,11 +110,93 @@ namespace Dorisoy.Meeting.Server
                         throw new Exception($"PeerJoinAsync() | Peer:{peer.PeerId} was in RoomId:{RoomId} already.");
                     }
 
-                    return new JoinRoomResult { SelfPeer = peer, Peers = _peers.Values.ToArray() };
+                    // 第一个加入房间的人成为主持人
+                    if (HostPeerId == null)
+                    {
+                        HostPeerId = peer.PeerId;
+                        _logger.LogInformation("Room {RoomId}: Host set to {PeerId}", RoomId, peer.PeerId);
+                    }
+
+                    return new JoinRoomResult 
+                    { 
+                        SelfPeer = peer, 
+                        Peers = _peers.Values.ToArray(),
+                        HostPeerId = HostPeerId
+                    };
                 }
             }
         }
 
+<<<<<<< HEAD
+=======
+        /// <summary>
+        /// 获取当前加入房间结果（用于幂等操作）
+        /// </summary>
+        public async Task<JoinRoomResult> GetJoinRoomResultAsync(Peer peer)
+        {
+            await using (await _closeLock.ReadLockAsync())
+            {
+                if (_closed)
+                {
+                    throw new Exception($"GetJoinRoomResultAsync() | RoomId:{RoomId} was closed.");
+                }
+
+                await using (await _peersLock.ReadLockAsync())
+                {
+                    return new JoinRoomResult 
+                    { 
+                        SelfPeer = peer, 
+                        Peers = _peers.Values.ToArray(),
+                        HostPeerId = HostPeerId
+                    };
+                }
+            }
+        }
+
+        /// <summary>
+        /// 踢出用户（主持人操作）
+        /// </summary>
+        public async Task<KickPeerResult?> KickPeerAsync(string hostPeerId, string targetPeerId)
+        {
+            await using (await _closeLock.ReadLockAsync())
+            {
+                if (_closed)
+                {
+                    throw new Exception($"KickPeerAsync() | RoomId:{RoomId} was closed.");
+                }
+
+                // 验证主持人权限
+                if (HostPeerId != hostPeerId)
+                {
+                    throw new Exception($"KickPeerAsync() | Peer:{hostPeerId} is not the host of RoomId:{RoomId}.");
+                }
+
+                // 不能踢自己
+                if (hostPeerId == targetPeerId)
+                {
+                    throw new Exception($"KickPeerAsync() | Host cannot kick themselves.");
+                }
+
+                await using (await _peersLock.WriteLockAsync())
+                {
+                    if (!_peers.Remove(targetPeerId, out var peer))
+                    {
+                        throw new Exception($"KickPeerAsync() | Peer:{targetPeerId} is not in RoomId:{RoomId}.");
+                    }
+
+                    _logger.LogInformation("Room {RoomId}: Peer {TargetPeerId} was kicked by host {HostPeerId}", 
+                        RoomId, targetPeerId, hostPeerId);
+
+                    return new KickPeerResult 
+                    { 
+                        KickedPeer = peer, 
+                        OtherPeerIds = _peers.Keys.ToArray() 
+                    };
+                }
+            }
+        }
+
+>>>>>>> pro
         public async Task<LeaveRoomResult> PeerLeaveAsync(string peerId)
         {
             await using (await _closeLock.ReadLockAsync())
@@ -127,6 +214,26 @@ namespace Dorisoy.Meeting.Server
                     }
 
                     return new LeaveRoomResult { SelfPeer = peer, OtherPeerIds = _peers.Keys.ToArray() };
+                }
+            }
+        }
+
+        /// <summary>
+        /// 强制从房间中移除 Peer（用于房间解散场景，不抛出异常）
+        /// </summary>
+        public async Task ForceRemovePeerAsync(string peerId)
+        {
+            await using (await _closeLock.ReadLockAsync())
+            {
+                if (_closed)
+                {
+                    return;
+                }
+
+                await using (await _peersLock.WriteLockAsync())
+                {
+                    _peers.Remove(peerId);
+                    _logger.LogDebug("ForceRemovePeerAsync() | Peer:{PeerId} removed from Room:{RoomId}", peerId, RoomId);
                 }
             }
         }

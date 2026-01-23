@@ -1,0 +1,383 @@
+<ui:FluentWindow x:Class="Dorisoy.Meeting.Client.Views.VoteWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 xmlns:converters="clr-namespace:Dorisoy.Meeting.Client.Converters"
+                 Title="投票"
+                 Width="500"
+                 Height="600"
+                 MinWidth="400"
+                 MinHeight="450"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True">
+
+    <ui:FluentWindow.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisConverter"/>
+        <converters:CountToVisibilityConverter x:Key="CountToVisConverter"/>
+        
+        <!-- 反转布尔值转换器 -->
+        <Style x:Key="OptionTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题栏 -->
+        <ui:TitleBar Grid.Row="0"
+                     Title="投票"
+                     ShowMaximize="True"
+                     ShowMinimize="True">
+            <ui:TitleBar.Icon>
+                <ui:SymbolIcon Symbol="Vote24"/>
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+
+        <!-- 主内容区 -->
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+            </Grid.RowDefinitions>
+
+            <!-- ========== 头部工具栏 ========== -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="16,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 左侧：投票图标和标题 -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ui:SymbolIcon Symbol="Vote24" FontSize="20" Margin="0,0,8,0"/>
+                        <TextBlock Text="投票管理"
+                                   FontWeight="SemiBold"
+                                   FontSize="15"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding IsHost, Converter={StaticResource BoolToVisConverter}}"/>
+                        <TextBlock Text="参与投票"
+                                   FontWeight="SemiBold"
+                                   FontSize="15"
+                                   VerticalAlignment="Center"
+                                   Visibility="{Binding IsParticipant, Converter={StaticResource BoolToVisConverter}}"/>
+                    </StackPanel>
+
+                    <!-- 右侧：保存和关闭按钮 -->
+                    <StackPanel Grid.Column="2" 
+                                Orientation="Horizontal" 
+                                HorizontalAlignment="Right">
+                        <ui:Button Content="保存"
+                                   Icon="{ui:SymbolIcon Save24}"
+                                   Appearance="Secondary"
+                                   Click="SaveVote_Click"
+                                   ToolTip="保存投票"
+                                   Visibility="{Binding IsHost, Converter={StaticResource BoolToVisConverter}}"
+                                   Margin="0,0,8,0"/>
+                        <!--<ui:Button Icon="{ui:SymbolIcon Dismiss24}"
+                                   Appearance="Secondary"
+                                   Click="CloseWindow_Click"
+                                   ToolTip="关闭窗口"/>-->
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ========== 内容区域 ========== -->
+            <ScrollViewer Grid.Row="1" 
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="16">
+                <StackPanel>
+                    <!-- ========== 主持人创建/编辑区域 ========== -->
+                    <Border x:Name="EditPanel"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="16"
+                            Margin="0,0,0,16"
+                            Visibility="{Binding ShowEditPanel, Converter={StaticResource BoolToVisConverter}}">
+                        <StackPanel>
+                            <!-- 问题输入 -->
+                            <TextBlock Text="投票问题"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,8"/>
+                            <ui:TextBox x:Name="QuestionTextBox"
+                                        PlaceholderText="请输入投票问题..."
+                                        Text="{Binding QuestionText, UpdateSourceTrigger=PropertyChanged}"
+                                        Margin="0,0,0,16"/>
+
+                            <!-- 选项列表 -->
+                            <TextBlock Text="投票选项"
+                                       FontWeight="SemiBold"
+                                       Margin="0,0,0,8"/>
+                            
+                            <ItemsControl x:Name="OptionsItemsControl"
+                                          ItemsSource="{Binding OptionInputs}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,0,0,8">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0"
+                                                       Text="{Binding Label}"
+                                                       VerticalAlignment="Center"
+                                                       Width="60"
+                                                       Margin="0,0,8,0"/>
+                                            <ui:TextBox Grid.Column="1"
+                                                        PlaceholderText="请输入选项内容..."
+                                                        Text="{Binding Text, UpdateSourceTrigger=PropertyChanged}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- 操作按钮 -->
+                            <StackPanel Orientation="Horizontal" 
+                                        HorizontalAlignment="Left"
+                                        Margin="0,8,0,0">
+                                <ui:Button Content="添加选项"
+                                           Icon="{ui:SymbolIcon Add24}"
+                                           Appearance="Secondary"
+                                           Click="AddOption_Click"
+                                           Margin="0,0,8,0"/>
+                                <ui:Button Content="删除选项"
+                                           Icon="{ui:SymbolIcon Delete24}"
+                                           Appearance="Secondary"
+                                           Click="RemoveOption_Click"
+                                           IsEnabled="{Binding CanRemoveOption}"
+                                           Margin="0,0,8,0"/>
+                                <ui:Button Content="创建投票"
+                                           Icon="{ui:SymbolIcon Checkmark24}"
+                                           Appearance="Primary"
+                                           Click="CreateVote_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ========== 投票预览区域 ========== -->
+                    <Border x:Name="PreviewPanel"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="16"
+                            Visibility="{Binding HasVote, Converter={StaticResource BoolToVisConverter}}">
+                        <StackPanel>
+                            <!-- 投票标题 -->
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                                <ui:SymbolIcon Symbol="Vote24" FontSize="20" Margin="0,0,8,0"/>
+                                <TextBlock Text="{Binding CurrentVote.Question}"
+                                           FontWeight="SemiBold"
+                                           FontSize="16"
+                                           TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <!-- 投票创建信息 -->
+                            <TextBlock Margin="0,0,0,16"
+                                       FontSize="12"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                <Run Text="由"/>
+                                <Run Text="{Binding CurrentVote.CreatorName}"/>
+                                <Run Text="创建于"/>
+                                <Run Text="{Binding CurrentVote.CreatedTime, StringFormat='{}{0:HH:mm}'}"/>
+                            </TextBlock>
+
+                            <!-- 选项列表（单选框） -->
+                            <ItemsControl x:Name="VoteOptionsControl"
+                                          ItemsSource="{Binding CurrentVote.Options}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{DynamicResource SubtleFillColorTertiaryBrush}"
+                                                CornerRadius="6"
+                                                Padding="12,10"
+                                                Margin="0,0,0,8"
+                                                Cursor="Hand"
+                                                MouseLeftButtonDown="VoteOption_Click">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                    <ColumnDefinition Width="*"/>
+                                                    <ColumnDefinition Width="Auto"/>
+                                                </Grid.ColumnDefinitions>
+
+                                                <!-- 单选框 -->
+                                                <RadioButton Grid.Column="0"
+                                                             GroupName="VoteOptions"
+                                                             IsChecked="{Binding IsSelected}"
+                                                             VerticalAlignment="Center"
+                                                             Margin="0,0,12,0"
+                                                             Click="RadioButton_Click"/>
+
+                                                <!-- 选项内容 -->
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding Text}"
+                                                               Style="{StaticResource OptionTextStyle}"/>
+                                                    
+                                                    <!-- 投票进度条 -->
+                                                    <Grid Margin="0,6,0,0"
+                                                          Visibility="{Binding DataContext.ShowResults, 
+                                                                       RelativeSource={RelativeSource AncestorType=ItemsControl},
+                                                                       Converter={StaticResource BoolToVisConverter}}">
+                                                        <ProgressBar Value="{Binding Percentage}"
+                                                                     Maximum="100"
+                                                                     Height="6"
+                                                                     Background="{DynamicResource ControlStrokeColorDefaultBrush}"/>
+                                                    </Grid>
+                                                </StackPanel>
+
+                                                <!-- 投票数 -->
+                                                <StackPanel Grid.Column="2" 
+                                                            Orientation="Horizontal"
+                                                            VerticalAlignment="Center"
+                                                            Visibility="{Binding DataContext.ShowResults, 
+                                                                         RelativeSource={RelativeSource AncestorType=ItemsControl},
+                                                                         Converter={StaticResource BoolToVisConverter}}">
+                                                    <TextBlock Text="{Binding VoteCount}"
+                                                               FontWeight="SemiBold"
+                                                               Margin="0,0,4,0"/>
+                                                    <TextBlock Text="票"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                                    <TextBlock Text=" ("
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                                    <TextBlock Text="{Binding Percentage, StringFormat='{}{0:F1}%'}"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                                    <TextBlock Text=")"
+                                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <!-- 投票人列表面板 -->
+                            <Border x:Name="VotersPanel"
+                                    Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                                    CornerRadius="6"
+                                    Padding="12"
+                                    Margin="0,8,0,0"
+                                    Visibility="{Binding ShowVoters, Converter={StaticResource BoolToVisConverter}}">
+                                <StackPanel>
+                                    <TextBlock Text="投票详情"
+                                               FontWeight="SemiBold"
+                                               Margin="0,0,0,8"/>
+                                    <ItemsControl ItemsSource="{Binding CurrentVote.Options}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <StackPanel Margin="0,0,0,8"
+                                                            Visibility="{Binding Voters.Count, Converter={StaticResource CountToVisConverter}}">
+                                                    <TextBlock FontWeight="SemiBold" Margin="0,0,0,4">
+                                                        <Run Text="{Binding Text}"/>
+                                                        <Run Text=" ("/>
+                                                        <Run Text="{Binding VoteCount}"/>
+                                                        <Run Text="票)"/>
+                                                    </TextBlock>
+                                                    <ItemsControl ItemsSource="{Binding Voters}">
+                                                        <ItemsControl.ItemTemplate>
+                                                            <DataTemplate>
+                                                                <TextBlock Margin="16,2,0,2"
+                                                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}">
+                                                                    <Run Text="• "/>
+                                                                    <Run Text="{Binding DisplayName}"/>
+                                                                </TextBlock>
+                                                            </DataTemplate>
+                                                        </ItemsControl.ItemTemplate>
+                                                    </ItemsControl>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </StackPanel>
+                            </Border>
+
+                            <!-- 参与者：确认投票按钮 -->
+                            <ui:Button x:Name="SubmitVoteButton"
+                                       Content="确认投票"
+                                       Icon="{ui:SymbolIcon Checkmark24}"
+                                       Appearance="Primary"
+                                       HorizontalAlignment="Stretch"
+                                       Height="40"
+                                       Click="SubmitVote_Click"
+                                       Margin="0,16,0,0"
+                                       Visibility="{Binding CanSubmitVote, Converter={StaticResource BoolToVisConverter}}"/>
+
+                            <!-- 主持人：底部操作按钮 -->
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Left"
+                                        Margin="0,16,0,0"
+                                        Visibility="{Binding IsHost, Converter={StaticResource BoolToVisConverter}}">
+                                <ui:Button Content="显示选民"
+                                           Icon="{ui:SymbolIcon People24}"
+                                           Appearance="Secondary"
+                                           Click="ShowVoters_Click"
+                                           Margin="0,0,8,0"/>
+                                <ui:Button Content="编辑投票"
+                                           Icon="{ui:SymbolIcon Edit24}"
+                                           Appearance="Secondary"
+                                           Click="EditVote_Click"
+                                           Margin="0,0,8,0"/>
+                                <ui:Button Content="删除投票"
+                                           Icon="{ui:SymbolIcon Delete24}"
+                                           Appearance="Danger"
+                                           Click="DeleteVote_Click"/>
+                            </StackPanel>
+
+                            <!-- 已投票提示 -->
+                            <Border Background="{DynamicResource SystemFillColorSuccessBackgroundBrush}"
+                                    CornerRadius="6"
+                                    Padding="12"
+                                    Margin="0,16,0,0"
+                                    Visibility="{Binding HasVoted, Converter={StaticResource BoolToVisConverter}}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ui:SymbolIcon Symbol="CheckmarkCircle24" 
+                                                   Foreground="{DynamicResource SystemFillColorSuccessBrush}"
+                                                   Margin="0,0,8,0"/>
+                                    <TextBlock Text="您已完成投票"
+                                               VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- 空状态提示（参与者无投票时） -->
+                    <Border x:Name="EmptyStatePanel"
+                            Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="32"
+                            Visibility="{Binding ShowEmptyState, Converter={StaticResource BoolToVisConverter}}">
+                        <StackPanel HorizontalAlignment="Center">
+                            <ui:SymbolIcon Symbol="Vote24" 
+                                           FontSize="48"
+                                           Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,0,0,16"/>
+                            <TextBlock Text="暂无投票"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       Margin="0,0,0,8"/>
+                            <TextBlock Text="等待主持人创建投票..."
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       HorizontalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

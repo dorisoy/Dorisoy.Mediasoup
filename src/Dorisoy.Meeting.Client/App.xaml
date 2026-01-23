@@ -32,6 +32,25 @@
             <converters:ConnectedAppearanceConverter x:Key="ConnectedAppearanceConverter"/>
             <converters:RoomAppearanceConverter x:Key="RoomAppearanceConverter"/>
             <converters:MediaAppearanceConverter x:Key="MediaAppearanceConverter"/>
+<<<<<<< HEAD
+=======
+            
+            <!-- 新增转换器 -->
+            <converters:PreviewIconConverter x:Key="PreviewIconConverter"/>
+            <converters:PreviewTextConverter x:Key="PreviewTextConverter"/>
+            <converters:MicrophoneIconConverter x:Key="MicrophoneIconConverter"/>
+            <converters:VideoIconConverter x:Key="VideoIconConverter"/>
+            <converters:LeaveAppearanceConverter x:Key="LeaveAppearanceConverter"/>
+            <converters:LeaveTextConverter x:Key="LeaveTextConverter"/>
+            <converters:TextMessageVisibilityConverter x:Key="TextMessageVisibilityConverter"/>
+            <converters:ImageMessageVisibilityConverter x:Key="ImageMessageVisibilityConverter"/>
+            <converters:FileMessageVisibilityConverter x:Key="FileMessageVisibilityConverter"/>
+            <converters:CountToVisibilityConverter x:Key="CountToVisibilityConverter"/>
+            <converters:InverseBoolToVisConverter x:Key="InverseBoolToVisConverter"/>
+            <converters:MuteTooltipConverter x:Key="MuteTooltipConverter"/>
+            <converters:RemoteVideoMuteTooltipConverter x:Key="RemoteVideoMuteTooltipConverter"/>
+            <converters:BoolToYesNoConverter x:Key="BoolToYesNoConverter"/>
+>>>>>>> pro
         </ResourceDictionary>
     </Application.Resources>
 </Application>

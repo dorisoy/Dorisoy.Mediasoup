@@ -132,3 +132,241 @@ public class ProducerScoreData
     /// </summary>
     public object? Score { get; set; }
 }
+<<<<<<< HEAD
+=======
+
+/// <summary>
+/// 聊天消息数据（用于反序列化）
+/// </summary>
+public class ChatMessageData
+{
+    /// <summary>
+    /// 消息ID
+    /// </summary>
+    public string? Id { get; set; }
+
+    /// <summary>
+    /// 发送者ID
+    /// </summary>
+    public string? SenderId { get; set; }
+
+    /// <summary>
+    /// 发送者名称
+    /// </summary>
+    public string? SenderName { get; set; }
+
+    /// <summary>
+    /// 接收者ID（为空表示群聊）
+    /// </summary>
+    public string? ReceiverId { get; set; }
+
+    /// <summary>
+    /// 消息内容
+    /// </summary>
+    public string? Content { get; set; }
+
+    /// <summary>
+    /// 消息类型
+    /// </summary>
+    public int? MessageType { get; set; }
+
+    /// <summary>
+    /// 文件名
+    /// </summary>
+    public string? FileName { get; set; }
+
+    /// <summary>
+    /// 文件大小
+    /// </summary>
+    public long? FileSize { get; set; }
+
+    /// <summary>
+    /// 文件数据 (Base64 编码)
+    /// 用于图片和文件传输
+    /// </summary>
+    public string? FileData { get; set; }
+
+    /// <summary>
+    /// 文件下载 URL（大文件分片上传后的下载链接）
+    /// </summary>
+    public string? DownloadUrl { get; set; }
+
+    /// <summary>
+    /// 时间戳
+    /// </summary>
+    public DateTime? Timestamp { get; set; }
+}
+
+/// <summary>
+/// 表情反应数据（用于反序列化）
+/// </summary>
+public class EmojiReactionData
+{
+    /// <summary>
+    /// 发送者ID
+    /// </summary>
+    public string? SenderId { get; set; }
+
+    /// <summary>
+    /// 发送者名称
+    /// </summary>
+    public string? SenderName { get; set; }
+
+    /// <summary>
+    /// 表情
+    /// </summary>
+    public string? Emoji { get; set; }
+}
+
+/// <summary>
+/// 屏幕共享请求数据
+/// </summary>
+public class ScreenShareRequestData
+{
+    /// <summary>
+    /// 请求者ID
+    /// </summary>
+    public string? RequesterId { get; set; }
+
+    /// <summary>
+    /// 请求者名称
+    /// </summary>
+    public string? RequesterName { get; set; }
+
+    /// <summary>
+    /// 共享会话ID
+    /// </summary>
+    public string? SessionId { get; set; }
+}
+
+/// <summary>
+/// 屏幕共享响应数据
+/// </summary>
+public class ScreenShareResponseData
+{
+    /// <summary>
+    /// 响应者ID
+    /// </summary>
+    public string? ResponderId { get; set; }
+
+    /// <summary>
+    /// 共享会话ID
+    /// </summary>
+    public string? SessionId { get; set; }
+
+    /// <summary>
+    /// 是否接受
+    /// </summary>
+    public bool Accepted { get; set; }
+}
+
+/// <summary>
+/// 屏幕共享状态通知数据（主持人开始/停止屏幕共享时）
+/// </summary>
+public class ScreenShareNotificationData
+{
+    /// <summary>
+    /// 主持人 PeerId
+    /// </summary>
+    public string? HostPeerId { get; set; }
+
+    /// <summary>
+    /// 主持人名称
+    /// </summary>
+    public string? HostName { get; set; }
+}
+
+/// <summary>
+/// 广播消息数据（从服务器 BroadcastMessage 方法发送的消息）
+/// </summary>
+public class BroadcastMessageData
+{
+    /// <summary>
+    /// 消息类型：chatMessage, emojiReaction, screenShareRequest, screenShareResponse 等
+    /// </summary>
+    public string? Type { get; set; }
+
+    /// <summary>
+    /// 发送者 PeerId
+    /// </summary>
+    public string? SenderId { get; set; }
+
+    /// <summary>
+    /// 发送者显示名
+    /// </summary>
+    public string? SenderName { get; set; }
+
+    /// <summary>
+    /// 消息数据（根据 Type 不同，内容格式不同）
+    /// </summary>
+    public object? Data { get; set; }
+}
+
+/// <summary>
+/// 用户被踢出通知数据
+/// </summary>
+public class PeerKickedData
+{
+    /// <summary>
+    /// 被踢出的用户 ID
+    /// </summary>
+    public string? PeerId { get; set; }
+
+    /// <summary>
+    /// 被踢出的用户名称
+    /// </summary>
+    public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// 主持人 ID
+    /// </summary>
+    public string? HostPeerId { get; set; }
+}
+
+/// <summary>
+/// 房间解散通知数据（主持人离开时）
+/// </summary>
+public class RoomDismissedData
+{
+    /// <summary>
+    /// 房间 ID
+    /// </summary>
+    public string? RoomId { get; set; }
+
+    /// <summary>
+    /// 主持人 ID
+    /// </summary>
+    public string? HostPeerId { get; set; }
+
+    /// <summary>
+    /// 解散原因
+    /// </summary>
+    public string? Reason { get; set; }
+}
+
+/// <summary>
+/// 用户被静音通知数据
+/// </summary>
+public class PeerMutedData
+{
+    /// <summary>
+    /// 被静音/取消静音的用户 ID
+    /// </summary>
+    public string? PeerId { get; set; }
+
+    /// <summary>
+    /// 用户名称
+    /// </summary>
+    public string? DisplayName { get; set; }
+
+    /// <summary>
+    /// 是否静音
+    /// </summary>
+    public bool IsMuted { get; set; }
+
+    /// <summary>
+    /// 主持人 ID
+    /// </summary>
+    public string? HostPeerId { get; set; }
+}
+>>>>>>> pro

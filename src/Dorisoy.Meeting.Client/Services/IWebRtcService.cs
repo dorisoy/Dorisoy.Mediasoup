@@ -97,6 +97,39 @@ public interface IWebRtcService : IDisposable
     Task StopMicrophoneAsync();
 
     /// <summary>
+<<<<<<< HEAD
+=======
+    /// 开始屏幕共享
+    /// </summary>
+    Task StartScreenShareAsync();
+
+    /// <summary>
+    /// 停止屏幕共享
+    /// </summary>
+    Task StopScreenShareAsync();
+    
+    /// <summary>
+    /// 是否正在屏幕共享
+    /// </summary>
+    bool IsScreenSharing { get; }
+    
+    /// <summary>
+    /// 屏幕共享设置
+    /// </summary>
+    ScreenShareSettings? ScreenShareSettings { get; set; }
+    
+    /// <summary>
+    /// 屏幕共享是否显示鼠标指针
+    /// </summary>
+    bool ScreenShareShowCursor { get; set; }
+    
+    /// <summary>
+    /// 屏幕共享帧更新事件
+    /// </summary>
+    event Action<WriteableBitmap>? OnScreenShareFrame;
+
+    /// <summary>
+>>>>>>> pro
     /// 加载设备能力
     /// </summary>
     void LoadDevice(object routerRtpCapabilities);
@@ -153,6 +186,22 @@ public interface IWebRtcService : IDisposable
     /// 关闭所有连接
     /// </summary>
     Task CloseAsync();
+    
+    /// <summary>
+    /// 开始录制
+    /// </summary>
+    /// <param name="outputPath">输出文件路径</param>
+    Task StartRecordingAsync(string outputPath);
+    
+    /// <summary>
+    /// 停止录制
+    /// </summary>
+    Task StopRecordingAsync();
+    
+    /// <summary>
+    /// 是否正在录制
+    /// </summary>
+    bool IsRecording { get; }
 }
 
 /// <summary>

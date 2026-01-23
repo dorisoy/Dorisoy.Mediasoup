@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.SignalR.Client;
 using Microsoft.Extensions.Logging;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Dorisoy.Meeting.Client.Models;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace Dorisoy.Meeting.Client.Services;
 
@@ -16,7 +18,9 @@ public class SignalRService : ISignalRService
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        // 使用 JsonStringEnumMemberConverter 与服务端保持一致
+        Converters = { new JsonStringEnumMemberConverter() }
     };
 
     /// <summary>
@@ -62,6 +66,14 @@ public class SignalRService : ISignalRService
                 options.AccessTokenProvider = () => Task.FromResult<string?>(accessToken);
                 options.SkipNegotiation = true;
                 options.Transports = Microsoft.AspNetCore.Http.Connections.HttpTransportType.WebSockets;
+            })
+            .AddJsonProtocol(options =>
+            {
+                // 与服务端保持一致的 JSON 序列化配置（必须使用相同的枚举转换器）
+                options.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+                options.PayloadSerializerOptions.PropertyNameCaseInsensitive = true;
+                // 重要：必须使用 JsonStringEnumMemberConverter 与服务端一致！
+                options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumMemberConverter());
             })
             .WithAutomaticReconnect(new[]
             {

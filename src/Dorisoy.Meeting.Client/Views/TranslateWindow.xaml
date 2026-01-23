@@ -1,0 +1,344 @@
+<ui:FluentWindow x:Class="Dorisoy.Meeting.Client.Views.TranslateWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 Title="同步转译"
+                 Width="700"
+                 Height="650"
+                 MinWidth="500"
+                 MinHeight="450"
+                 WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True">
+
+    <ui:FluentWindow.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisConverter"/>
+        
+        <Style x:Key="TranscriptTextStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,4"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}"/>
+        </Style>
+        
+        <Style x:Key="TimestampStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+        </Style>
+
+        <Style x:Key="SectionTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,8"/>
+        </Style>
+    </ui:FluentWindow.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- 标题栏 -->
+        <ui:TitleBar Grid.Row="0"
+                     Title="同步转译"
+                     ShowMaximize="True"
+                     ShowMinimize="True">
+            <ui:TitleBar.Icon>
+                <ui:SymbolIcon Symbol="Translate24"/>
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+
+        <!-- 主内容区 -->
+        <Grid Grid.Row="1">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- ========== 头部工具栏 ========== -->
+            <Border Grid.Row="0"
+                    Background="{DynamicResource SubtleFillColorSecondaryBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="0,0,0,1"
+                    Padding="16,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 左侧：话筒状态按钮 -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <ui:Button x:Name="MicStatusButton"
+                                   ToolTip="音频输入状态"
+                                   Padding="8"
+                                   Appearance="Secondary">
+                            <ui:Button.Style>
+                                <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+                                    <Setter Property="Icon" Value="{ui:SymbolIcon Mic24}"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding IsListening}" Value="True">
+                                            <Setter Property="Icon" Value="{ui:SymbolIcon Mic24}"/>
+                                            <Setter Property="Appearance" Value="Success"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </ui:Button.Style>
+                        </ui:Button>
+
+                        <!-- 录音状态指示 -->
+                        <StackPanel Orientation="Horizontal"
+                                    VerticalAlignment="Center"
+                                    Margin="12,0,0,0"
+                                    Visibility="{Binding IsListening, Converter={StaticResource BoolToVisConverter}}">
+                            <Ellipse Width="10" Height="10"
+                                     Fill="#FF5252"
+                                     Margin="0,0,8,0">
+                                <Ellipse.Style>
+                                    <Style TargetType="Ellipse">
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsListening}" Value="True">
+                                                <DataTrigger.EnterActions>
+                                                    <BeginStoryboard>
+                                                        <Storyboard RepeatBehavior="Forever">
+                                                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                             From="1" To="0.3"
+                                                                             Duration="0:0:0.5"
+                                                                             AutoReverse="True"/>
+                                                        </Storyboard>
+                                                    </BeginStoryboard>
+                                                </DataTrigger.EnterActions>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Ellipse.Style>
+                            </Ellipse>
+                            <TextBlock Text="正在录音..."
+                                       FontSize="13"
+                                       Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- 右侧：清除、保存、关闭按钮 -->
+                    <StackPanel Grid.Column="2" 
+                                Orientation="Horizontal" 
+                                HorizontalAlignment="Right">
+                        <ui:Button Content="清除"
+                                   Icon="{ui:SymbolIcon Delete24}"
+                                   Appearance="Secondary"
+                                   Click="ClearTranscripts_Click"
+                                   ToolTip="清除所有转录内容"
+                                   Margin="0,0,8,0"/>
+                        <ui:Button Content="保存"
+                                   Icon="{ui:SymbolIcon Save24}"
+                                   Appearance="Secondary"
+                                   Click="SaveTranscripts_Click"
+                                   ToolTip="保存转录内容"
+                                   Margin="0,0,8,0"/>
+                        <!--<ui:Button Icon="{ui:SymbolIcon Dismiss24}"
+                                   Appearance="Secondary"
+                                   Click="CloseWindow_Click"
+                                   ToolTip="关闭窗口"/>-->
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- ========== 中间内容区域（上下分割） ========== -->
+            <Grid Grid.Row="1" Margin="16">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="8"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- 上半部分：源语音转文字输出 -->
+                <Border Grid.Row="0"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 标题 -->
+                        <Border Grid.Row="0"
+                                Background="{DynamicResource SubtleFillColorTertiaryBrush}"
+                                CornerRadius="8,8,0,0"
+                                Padding="12,8">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Mic24"
+                                               FontSize="16"
+                                               Margin="0,0,8,0"/>
+                                <TextBlock Text="语音识别"
+                                           FontWeight="SemiBold"
+                                           FontSize="13"
+                                           VerticalAlignment="Center"/>
+                                <ui:ProgressRing Width="14" Height="14"
+                                                 IsIndeterminate="True"
+                                                 Margin="12,0,0,0"
+                                                 Visibility="{Binding IsListening, Converter={StaticResource BoolToVisConverter}}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 内容 -->
+                        <ScrollViewer Grid.Row="1"
+                                      x:Name="SourceScrollViewer"
+                                      VerticalScrollBarVisibility="Auto"
+                                      Padding="12">
+                            <StackPanel x:Name="SourceTextPanel">
+                                <TextBlock x:Name="CurrentSourceTextBlock"
+                                           Style="{StaticResource TranscriptTextStyle}"
+                                           Text="{Binding CurrentSourceText}"
+                                           Opacity="0.7"
+                                           FontStyle="Italic"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+
+                <!-- 分隔线 -->
+                <Rectangle Grid.Row="1"
+                           Height="1"
+                           Fill="{DynamicResource ControlStrokeColorDefaultBrush}"
+                           VerticalAlignment="Center"
+                           Margin="20,0"/>
+
+                <!-- 下半部分：翻译转文字输出 -->
+                <Border Grid.Row="2"
+                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                        BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+
+                        <!-- 标题 -->
+                        <Border Grid.Row="0"
+                                Background="{DynamicResource SubtleFillColorTertiaryBrush}"
+                                CornerRadius="8,8,0,0"
+                                Padding="12,8">
+                            <StackPanel Orientation="Horizontal">
+                                <ui:SymbolIcon Symbol="Translate24"
+                                               FontSize="16"
+                                               Margin="0,0,8,0"/>
+                                <TextBlock Text="翻译结果"
+                                           FontWeight="SemiBold"
+                                           FontSize="13"
+                                           VerticalAlignment="Center"/>
+                                <ui:ProgressRing Width="14" Height="14"
+                                                 IsIndeterminate="True"
+                                                 Margin="12,0,0,0"
+                                                 Visibility="{Binding IsTranslating, Converter={StaticResource BoolToVisConverter}}"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 内容 -->
+                        <ScrollViewer Grid.Row="1"
+                                      x:Name="TargetScrollViewer"
+                                      VerticalScrollBarVisibility="Auto"
+                                      Padding="12">
+                            <StackPanel x:Name="TargetTextPanel">
+                                <TextBlock x:Name="CurrentTargetTextBlock"
+                                           Style="{StaticResource TranscriptTextStyle}"
+                                           Text="{Binding CurrentTargetText}"
+                                           Foreground="{DynamicResource AccentTextFillColorPrimaryBrush}"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- ========== 底部工具栏 ========== -->
+            <Border Grid.Row="2"
+                    Background="{DynamicResource SystemFillColorSolidNeutralBackgroundBrush}"
+                    BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="0,1,0,0"
+                    Padding="16,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 左侧：源语言选择 -->
+                    <StackPanel Grid.Column="0" 
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Left">
+                        <TextBlock Text="源语言："
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   FontSize="13"/>
+                        <ComboBox x:Name="SourceLanguageComboBox"
+                                  ItemsSource="{Binding AvailableLanguages}"
+                                  SelectedItem="{Binding SelectedSourceLanguage}"
+                                  DisplayMemberPath="DisplayName"
+                                  MinWidth="120"/>
+                    </StackPanel>
+
+                    <!-- 交换语言按钮 -->
+                    <ui:Button Grid.Column="1"
+                               Icon="{ui:SymbolIcon ArrowSwap24}"
+                               Appearance="Secondary"
+                               ToolTip="交换语言"
+                               Click="SwapLanguages_Click"
+                               Padding="8"
+                               Margin="8,0"/>
+
+                    <!-- 中间偏右：目标语言选择 -->
+                    <StackPanel Grid.Column="2" 
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Left">
+                        <TextBlock Text="目标语言："
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"
+                                   FontSize="13"/>
+                        <ComboBox x:Name="TargetLanguageComboBox"
+                                  ItemsSource="{Binding AvailableLanguages}"
+                                  SelectedItem="{Binding SelectedTargetLanguage}"
+                                  DisplayMemberPath="DisplayName"
+                                  MinWidth="120"/>
+                    </StackPanel>
+
+                    <!-- 最右侧：开始转录按钮 -->
+                    <ui:Button Grid.Column="4"
+                               x:Name="StartStopButton"
+                               MinWidth="120"
+                               Height="38"
+                               Foreground="White"
+                               Click="StartStop_Click"
+                               Margin="16,0,0,0">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button"
+                                   BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Setter Property="Content" Value="开始转录"/>
+                                <Setter Property="Icon" Value="{ui:SymbolIcon Play24}"/>
+                                <Setter Property="Appearance" Value="Primary"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsListening}" Value="True">
+                                        <Setter Property="Content" Value="停止转录"/>
+                                        <Setter Property="Icon" Value="{ui:SymbolIcon Stop24}"/>
+                                        <Setter Property="Appearance" Value="Danger"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                    </ui:Button>
+                </Grid>
+            </Border>
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

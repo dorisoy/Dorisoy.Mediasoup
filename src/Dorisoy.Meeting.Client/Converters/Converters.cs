@@ -342,3 +342,286 @@ public class MediaAppearanceConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
+<<<<<<< HEAD
+=======
+
+/// <summary>
+/// 预览图标转换器 - 根据是否正在预览显示不同图标
+/// </summary>
+public class PreviewIconConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isPreviewing)
+        {
+            return isPreviewing ? SymbolRegular.VideoOff24 : SymbolRegular.Video24;
+        }
+        return SymbolRegular.Video24;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 预览文本转换器 - 根据是否正在预览显示不同文本
+/// </summary>
+public class PreviewTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isPreviewing)
+        {
+            return isPreviewing ? "停止预览" : "开始预览";
+        }
+        return "开始预览";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 麦克风状态图标转换器
+/// </summary>
+public class MicrophoneIconConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isEnabled)
+        {
+            return isEnabled ? SymbolRegular.Mic24 : SymbolRegular.MicOff24;
+        }
+        return SymbolRegular.MicOff24;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 视频状态图标转换器
+/// </summary>
+public class VideoIconConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isEnabled)
+        {
+            return isEnabled ? SymbolRegular.Video24 : SymbolRegular.VideoOff24;
+        }
+        return SymbolRegular.VideoOff24;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 离开按钮外观转换器
+/// </summary>
+public class LeaveAppearanceConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isJoinedRoom)
+        {
+            return isJoinedRoom ? ControlAppearance.Danger : ControlAppearance.Transparent;
+        }
+        return ControlAppearance.Transparent;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 离开按钮文本转换器 - 用于 ToolTip
+/// </summary>
+public class LeaveTextConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isJoinedRoom)
+        {
+            return isJoinedRoom ? "离开房间" : "加入房间";
+        }
+        return "加入房间";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 文本消息可见性转换器
+/// </summary>
+public class TextMessageVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is Models.ChatMessageType messageType)
+        {
+            return messageType == Models.ChatMessageType.Text ? Visibility.Visible : Visibility.Collapsed;
+        }
+        return Visibility.Visible;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 数量转可见性转换器 - 数量大于0时可见
+/// </summary>
+public class CountToVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is int count)
+        {
+            return count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+        return Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 反向布尔转可见性转换器 - false时可见
+/// </summary>
+public class InverseBoolToVisConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool boolValue)
+        {
+            return boolValue ? Visibility.Collapsed : Visibility.Visible;
+        }
+        return Visibility.Visible;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 图片消息可见性转换器
+/// </summary>
+public class ImageMessageVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is Models.ChatMessageType messageType)
+        {
+            return messageType == Models.ChatMessageType.Image ? Visibility.Visible : Visibility.Collapsed;
+        }
+        return Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 文件消息可见性转换器
+/// </summary>
+public class FileMessageVisibilityConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is Models.ChatMessageType messageType)
+        {
+            return messageType == Models.ChatMessageType.File ? Visibility.Visible : Visibility.Collapsed;
+        }
+        return Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 静音状态工具提示转换器 - 根据是否静音显示不同提示
+/// </summary>
+public class MuteTooltipConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isMuted)
+        {
+            return isMuted ? "取消静音" : "静音用户";
+        }
+        return "静音用户";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 远程视频静音状态提示转换器
+/// </summary>
+public class RemoteVideoMuteTooltipConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool isMuted)
+        {
+            return isMuted ? "取消静音" : "静音";
+        }
+        return "静音";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
+/// 布尔值转是/否文本转换器
+/// </summary>
+public class BoolToYesNoConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is bool boolValue)
+        {
+            return boolValue ? "显示" : "隐藏";
+        }
+        return "隐藏";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+>>>>>>> pro

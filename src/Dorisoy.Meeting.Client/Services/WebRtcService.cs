@@ -37,6 +37,14 @@ public class WebRtcService : IWebRtcService
     private Thread? _videoCaptureThread;
     private volatile bool _isVideoCaptureRunning;
     private readonly object _videoCaptureLock = new();
+    
+    // 屏幕共享
+    private ScreenCapture? _screenCapture;
+    private volatile bool _isScreenSharing;
+    
+    // 录制相关
+    private volatile bool _isRecording;
+    private string? _recordingOutputPath;
 
     // 音频采集
     private WaveInEvent? _waveIn;
@@ -103,12 +111,37 @@ public class WebRtcService : IWebRtcService
     /// <summary>
     /// 是否正在生产视频
     /// </summary>
-    public bool IsProducingVideo => _isVideoCaptureRunning;
+    public bool IsProducingVideo => _isVideoCaptureRunning || _isScreenSharing;
 
     /// <summary>
     /// 是否正在生产音频
     /// </summary>
     public bool IsProducingAudio => _isAudioCaptureRunning;
+    
+    /// <summary>
+    /// 是否正在屏幕共享
+    /// </summary>
+    public bool IsScreenSharing => _isScreenSharing;
+    
+    /// <summary>
+    /// 是否正在录制
+    /// </summary>
+    public bool IsRecording => _isRecording;
+    
+    /// <summary>
+    /// 屏幕共享帧更新事件
+    /// </summary>
+    public event Action<WriteableBitmap>? OnScreenShareFrame;
+
+    /// <summary>
+    /// 屏幕共享设置
+    /// </summary>
+    public ScreenShareSettings? ScreenShareSettings { get; set; }
+    
+    /// <summary>
+    /// 屏幕共享是否显示鼠标指针
+    /// </summary>
+    public bool ScreenShareShowCursor { get; set; } = true;
 
     /// <summary>
     /// 当前视频质量配置
@@ -310,7 +343,76 @@ public class WebRtcService : IWebRtcService
 
                 if (!_videoCapture.IsOpened())
                 {
+<<<<<<< HEAD
                     throw new Exception($"Failed to open camera {cameraIndex}");
+=======
+                    // 先确保释放已有资源
+                    if (_videoCapture != null)
+                    {
+                        try
+                        {
+                            _videoCapture.Release();
+                            _videoCapture.Dispose();
+                        }
+                        catch { }
+                        _videoCapture = null;
+                    }
+
+                    // 尝试打开摄像头，最多重试 3 次
+                    Exception? lastException = null;
+                    for (int retry = 0; retry < 3; retry++)
+                    {
+                        try
+                        {
+                            if (retry > 0)
+                            {
+                                _logger.LogInformation("Retrying camera open, attempt {Attempt}", retry + 1);
+                                Thread.Sleep(500); // 等待摄像头资源释放
+                            }
+
+                            _videoCapture = new VideoCapture(cameraIndex, VideoCaptureAPIs.DSHOW);
+
+                            if (_videoCapture.IsOpened())
+                            {
+                                // 设置视频参数
+                                _videoCapture.Set(VideoCaptureProperties.FrameWidth, 640);
+                                _videoCapture.Set(VideoCaptureProperties.FrameHeight, 480);
+                                _videoCapture.Set(VideoCaptureProperties.Fps, 30);
+
+                                _isVideoCaptureRunning = true;
+                                _logger.LogInformation("Camera {Index} opened successfully", cameraIndex);
+                                return; // 成功，退出循环
+                            }
+                            else
+                            {
+                                _videoCapture.Release();
+                                _videoCapture.Dispose();
+                                _videoCapture = null;
+                                lastException = new Exception($"Camera {cameraIndex} exists but failed to open");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            lastException = ex;
+                            _logger.LogWarning(ex, "Camera open attempt {Attempt} failed", retry + 1);
+                            if (_videoCapture != null)
+                            {
+                                try { _videoCapture.Release(); _videoCapture.Dispose(); } catch { }
+                                _videoCapture = null;
+                            }
+                        }
+                    }
+
+                    // 所有重试都失败
+                    throw new Exception(
+                        $"无法打开摄像头 {cameraIndex}。\n" +
+                        $"可能原因：\n" +
+                        $"1. 摄像头被其他应用程序占用\n" +
+                        $"2. 摄像头未正确连接\n" +
+                        $"3. 需要授予摄像头访问权限\n" +
+                        $"请关闭其他使用摄像头的应用后重试。",
+                        lastException);
+>>>>>>> pro
                 }
 
                 // 设置视频参数
@@ -620,6 +722,151 @@ public class WebRtcService : IWebRtcService
         return Task.CompletedTask;
     }
 
+<<<<<<< HEAD
+=======
+    /// <summary>
+    /// 开始屏幕共享
+    /// </summary>
+    public async Task StartScreenShareAsync()
+    {
+        _logger.LogInformation("开始屏幕共享");
+
+        if (_isScreenSharing)
+        {
+            _logger.LogWarning("屏幕共享已在运行");
+            return;
+        }
+
+        try
+        {
+            // 如果摄像头正在运行，先停止
+            if (_isVideoCaptureRunning)
+            {
+                _logger.LogInformation("停止摄像头以开始屏幕共享...");
+                await StopCameraAsync();
+            }
+
+            // 创建屏幕捕获实例
+            _screenCapture = new ScreenCapture(_loggerFactory.CreateLogger<ScreenCapture>());
+            
+            // 应用屏幕共享设置
+            var settings = ScreenShareSettings ?? Models.ScreenShareSettings.GetPreset(ScreenShareQualityPreset.Standard);
+            
+            // 设置分辨率 - 如果是 0 则使用原始屏幕分辨率
+            int targetWidth = settings.Width > 0 ? settings.Width : (int)SystemParameters.PrimaryScreenWidth;
+            int targetHeight = settings.Height > 0 ? settings.Height : (int)SystemParameters.PrimaryScreenHeight;
+            _screenCapture.SetTargetResolution(targetWidth, targetHeight);
+            
+            // 设置帧率
+            _screenCapture.SetTargetFps(settings.FrameRate > 0 ? settings.FrameRate : 15);
+            
+            // 设置是否显示鼠标指针
+            _screenCapture.SetDrawCursor(ScreenShareShowCursor);
+            
+            _logger.LogInformation("屏幕共享设置: {Width}x{Height} @ {Fps}fps, 显示鼠标={ShowCursor}",
+                targetWidth, targetHeight, settings.FrameRate, ScreenShareShowCursor);
+            
+            // 订阅捕获帧事件 - 编码并发送
+            _screenCapture.OnFrameCaptured += OnScreenFrameCaptured;
+            
+            // 订阅 UI 预览事件
+            _screenCapture.OnBitmapCaptured += OnScreenBitmapCaptured;
+            
+            // 开始捕获
+            _screenCapture.Start();
+            _isScreenSharing = true;
+
+            _logger.LogInformation("屏幕共享已启动");
+            OnConnectionStateChanged?.Invoke("screen_share_started");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "开始屏幕共享失败");
+            _isScreenSharing = false;
+            _screenCapture?.Dispose();
+            _screenCapture = null;
+            throw;
+        }
+    }
+    
+    /// <summary>
+    /// 屏幕捕获帧回调 - 编码并发送
+    /// </summary>
+    private void OnScreenFrameCaptured(byte[] imageData, int width, int height)
+    {
+        try
+        {
+            // 触发视频数据事件
+            OnVideoData?.Invoke(imageData, width, height);
+            
+            // 编码并发送视频帧
+            EncodeAndSendVideoFrame(imageData, width, height);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "屏幕捕获帧处理失败");
+        }
+    }
+    
+    /// <summary>
+    /// 屏幕捕获位图回调 - 本地预览
+    /// </summary>
+    private void OnScreenBitmapCaptured(WriteableBitmap bitmap)
+    {
+        try
+        {
+            // 触发屏幕共享预览事件
+            OnScreenShareFrame?.Invoke(bitmap);
+            
+            // 同时触发本地视频帧事件（让共享内容显示在本地视频区域）
+            OnLocalVideoFrame?.Invoke(bitmap);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "屏幕位图处理失败");
+        }
+    }
+
+    /// <summary>
+    /// 停止屏幕共享
+    /// </summary>
+    public Task StopScreenShareAsync()
+    {
+        _logger.LogInformation("停止屏幕共享");
+
+        if (!_isScreenSharing)
+        {
+            return Task.CompletedTask;
+        }
+
+        try
+        {
+            if (_screenCapture != null)
+            {
+                // 取消订阅事件
+                _screenCapture.OnFrameCaptured -= OnScreenFrameCaptured;
+                _screenCapture.OnBitmapCaptured -= OnScreenBitmapCaptured;
+                
+                // 停止并释放
+                _screenCapture.Stop();
+                _screenCapture.Dispose();
+                _screenCapture = null;
+            }
+            
+            _isScreenSharing = false;
+            
+            _logger.LogInformation("屏幕共享已停止");
+            OnConnectionStateChanged?.Invoke("screen_share_stopped");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "停止屏幕共享失败");
+        }
+
+        return Task.CompletedTask;
+    }
+
+>>>>>>> pro
     #endregion
 
     #region 消费者管理
@@ -1241,6 +1488,7 @@ public class WebRtcService : IWebRtcService
 
         await StopCameraAsync();
         await StopMicrophoneAsync();
+        await StopScreenShareAsync();
 
         // 停止音频播放
         StopAudioPlayback();
@@ -1265,6 +1513,68 @@ public class WebRtcService : IWebRtcService
 
         _logger.LogInformation("WebRTC service closed");
     }
+    
+    /// <summary>
+    /// 开始录制 - 录制本地视频和音频
+    /// </summary>
+    /// <param name="outputPath">输出文件路径</param>
+    public Task StartRecordingAsync(string outputPath)
+    {
+        if (_isRecording)
+        {
+            _logger.LogWarning("已在录制中");
+            return Task.CompletedTask;
+        }
+        
+        try
+        {
+            _recordingOutputPath = outputPath;
+            _isRecording = true;
+            
+            // TODO: 实现实际录制逻辑
+            // 可以使用 FFmpeg 或 OpenCV 将视频帧写入文件
+            // 音频可以使用 NAudio 录制
+            
+            _logger.LogInformation("开始录制: {Path}", outputPath);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "开始录制失败");
+            _isRecording = false;
+            throw;
+        }
+        
+        return Task.CompletedTask;
+    }
+    
+    /// <summary>
+    /// 停止录制
+    /// </summary>
+    public Task StopRecordingAsync()
+    {
+        if (!_isRecording)
+        {
+            _logger.LogWarning("未在录制中");
+            return Task.CompletedTask;
+        }
+        
+        try
+        {
+            _isRecording = false;
+            
+            // TODO: 停止录制并保存文件
+            
+            _logger.LogInformation("停止录制: {Path}", _recordingOutputPath);
+            _recordingOutputPath = null;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "停止录制失败");
+            throw;
+        }
+        
+        return Task.CompletedTask;
+    }
 
     /// <summary>
     /// 释放资源 - 使用同步方式避免死锁
@@ -1282,6 +1592,21 @@ public class WebRtcService : IWebRtcService
                 _videoCapture?.Release();
                 _videoCapture?.Dispose();
                 _videoCapture = null;
+            }
+
+            // 停止屏幕共享
+            _isScreenSharing = false;
+            if (_screenCapture != null)
+            {
+                try
+                {
+                    _screenCapture.OnFrameCaptured -= OnScreenFrameCaptured;
+                    _screenCapture.OnBitmapCaptured -= OnScreenBitmapCaptured;
+                    _screenCapture.Stop();
+                    _screenCapture.Dispose();
+                }
+                catch { }
+                _screenCapture = null;
             }
 
             // 停止音频采集

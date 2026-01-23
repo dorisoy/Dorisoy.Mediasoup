@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using Dorisoy.Mediasoup;
+using Dorisoy.Mediasoup.Common;
 
 namespace Dorisoy.Meeting.Server
 {
@@ -62,6 +63,76 @@ namespace Dorisoy.Meeting.Server
         {
             try
             {
+                // 先获取 peer 和 room 信息，用于判断是否是主持人
+                var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId).ConfigureAwait(false);
+                Room? room = null;
+                string? roomId = null;
+                bool isHost = false;
+                string[]? otherPeerIds = null;
+                
+                if (peer != null)
+                {
+                    try
+                    {
+                        room = await peer.GetRoomAsync();
+                        if (room != null)
+                        {
+                            roomId = room.RoomId;
+                            isHost = room.HostPeerId == UserId;
+                            
+                            // 如果是主持人，获取其他用户的 ID
+                            if (isHost)
+                            {
+                                var allPeerIds = await room.GetPeerIdsAsync();
+                                otherPeerIds = allPeerIds.Where(id => id != UserId).ToArray();
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogDebug(ex, "LeaveAsync: 获取房间信息失败");
+                    }
+                }
+                
+                // 如果是主持人异常断开，发送 roomDismissed 通知给其他用户
+                if (isHost && otherPeerIds != null && otherPeerIds.Length > 0)
+                {
+                    _logger.LogWarning("LeaveAsync: 主持人 {HostId} 异常断开，发送 roomDismissed 通知给 {Count} 个用户", 
+                        UserId, otherPeerIds.Length);
+                    
+                    SendNotification(
+                        otherPeerIds,
+                        "roomDismissed",
+                        new RoomDismissedNotification 
+                        { 
+                            RoomId = roomId ?? "",
+                            HostPeerId = UserId,
+                            Reason = "主持人已断开连接"
+                        }
+                    );
+                    
+                    // 等待一小段时间，确保通知发送出去
+                    await Task.Delay(200);
+                    
+                    // 解散房间，清理所有用户的资源
+                    try
+                    {
+                        if (room != null)
+                        {
+                            await _scheduler.DismissRoomAsync(UserId, ConnectionId, room);
+                            _logger.LogInformation("LeaveAsync: 房间 {RoomId} 已解散", roomId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "LeaveAsync: 解散房间失败");
+                    }
+                    
+                    _badDisconnectSocketService.DisconnectClient(peer?.ConnectionId ?? ConnectionId);
+                    return;
+                }
+                
+                // 非主持人或主持人但没有其他用户，使用正常的离开流程
                 var leaveResult = await _scheduler.LeaveAsync(UserId);
                 if (leaveResult != null)
                 {
@@ -147,8 +218,13 @@ namespace Dorisoy.Meeting.Server
                 // Notification: peerJoinRoom
                 SendNotification(otherPeerIds, "peerJoinRoom", new PeerJoinRoomNotification { Peer = joinRoomResult.SelfPeer });
 
-                // 返回包括自身的房间内的所有人的信息
-                var data = new JoinRoomResponse { Peers = joinRoomResult.Peers };
+                // 返回包括自身的房间内的所有人的信息和主持人信息
+                var data = new JoinRoomResponse 
+                { 
+                    Peers = joinRoomResult.Peers,
+                    HostPeerId = joinRoomResult.HostPeerId,
+                    SelfPeerId = joinRoomResult.SelfPeer?.PeerId
+                };
                 return MeetingMessage<JoinRoomResponse>.Success(data, "JoinRoom 成功");
             }
             catch (MeetingException ex)
@@ -171,17 +247,59 @@ namespace Dorisoy.Meeting.Server
         {
             try
             {
-                // FIXME: (alby) 在 Invite 模式下，清除尚未处理的邀请。避免在会议室A受邀请后，离开会议室A进入会议室B，误受邀请。
-                var leaveRoomResult = await _scheduler.LeaveRoomAsync(UserId, ConnectionId);
+                // 获取当前 Peer 和 Room 信息，用于检查是否是主持人
+                var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+                var room = peer != null ? await peer.GetRoomAsync() : null;
+                var isHost = room?.HostPeerId == UserId;
+                var roomId = room?.RoomId;
+                
+                if (isHost && room != null)
+                {
+                    // 主持人离开，调用 DismissRoomAsync 正确清理所有用户的资源
+                    _logger.LogInformation("Host {HostId} leaving room {RoomId}, dismissing room for all users", UserId, roomId);
+                    
+                    // 先获取所有其他用户的 ID，用于发送通知
+                    var allPeerIds = await room.GetPeerIdsAsync();
+                    var otherPeerIds = allPeerIds.Where(id => id != UserId).ToArray();
+                    
+                    // 先发送 roomDismissed 通知给所有其他用户
+                    if (otherPeerIds.Length > 0)
+                    {
+                        _logger.LogInformation("Sending roomDismissed notification to {Count} users", otherPeerIds.Length);
+                        SendNotification(
+                            otherPeerIds,
+                            "roomDismissed",
+                            new RoomDismissedNotification 
+                            { 
+                                RoomId = roomId ?? "",
+                                HostPeerId = UserId,
+                                Reason = "主持人已离开房间"
+                            }
+                        );
+                    }
+                    
+                    // 等待一小段时间，确保通知发送出去
+                    await Task.Delay(200);
+                    
+                    // 然后调用 DismissRoomAsync 按正确顺序清理资源
+                    await _scheduler.DismissRoomAsync(UserId, ConnectionId, room);
+                    
+                    return MeetingMessage.Success("LeaveRoom 成功");
+                }
+                else
+                {
+                    // 普通用户离开，使用普通的 LeaveRoomAsync
+                    var leaveRoomResult = await _scheduler.LeaveRoomAsync(UserId, ConnectionId);
+                    
+                    // 通知其他用户
+                    SendNotification(
+                        leaveRoomResult.OtherPeerIds,
+                        "peerLeaveRoom",
+                        new PeerLeaveRoomNotification { PeerId = UserId }
+                    );
 
-                // Notification: peerLeaveRoom
-                SendNotification(
-                    leaveRoomResult.OtherPeerIds,
-                    "peerLeaveRoom",
-                    new PeerLeaveRoomNotification { PeerId = UserId }
-                );
-
-                return MeetingMessage.Success("LeaveRoom 成功");
+                    return MeetingMessage.Success("LeaveRoom 成功");
+                }
             }
             catch (MeetingException ex)
             {
@@ -1188,6 +1306,135 @@ namespace Dorisoy.Meeting.Server
             return MeetingMessage.Failure("UnsetPeerAppData 失败");
         }
 
+        #endregion
+
+        #region Host Control - 主持人控制
+
+        /// <summary>
+        /// 踢出用户（主持人操作）
+        /// </summary>
+        public async Task<MeetingMessage> KickPeer(KickPeerRequest request)
+        {
+            try
+            {
+                var result = await _scheduler.KickPeerAsync(UserId, ConnectionId, request.TargetPeerId);
+                if (result == null)
+                {
+                    return MeetingMessage.Failure("KickPeer 失败: 未找到目标用户");
+                }
+
+                // 通知被踢的用户
+                SendNotification(
+                    request.TargetPeerId,
+                    "peerKicked",
+                    new PeerKickedNotification
+                    {
+                        PeerId = request.TargetPeerId,
+                        DisplayName = result.KickedPeer.DisplayName,
+                        HostPeerId = UserId
+                    }
+                );
+
+                // 通知房间内其他用户
+                SendNotification(
+                    result.OtherPeerIds,
+                    "peerLeaveRoom",
+                    new PeerLeaveRoomNotification { PeerId = request.TargetPeerId }
+                );
+
+                _logger.LogInformation("Host {HostId} kicked peer {TargetId}", UserId, request.TargetPeerId);
+                return MeetingMessage.Success("KickPeer 成功");
+            }
+            catch (MeetingException ex)
+            {
+                _logger.LogError("KickPeer 调用失败: {Message}", ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "KickPeer 调用失败.");
+            }
+
+            return MeetingMessage.Failure("KickPeer 失败");
+        }
+
+        /// <summary>
+        /// 远程静音用户（主持人操作）
+        /// </summary>
+        public async Task<MeetingMessage> RemoteMutePeer(RemoteMutePeerRequest request)
+        {
+            try
+            {
+                // 获取当前用户信息，验证主持人权限
+                var hostPeer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+                if (hostPeer == null)
+                {
+                    return MeetingMessage.Failure("RemoteMutePeer 失败: 未找到主持人");
+                }
+
+                // 获取房间信息验证主持人权限
+                var room = await hostPeer.GetRoomAsync();
+                if (room == null)
+                {
+                    return MeetingMessage.Failure("RemoteMutePeer 失败: 主持人不在房间中");
+                }
+
+                if (room.HostPeerId != UserId)
+                {
+                    return MeetingMessage.Failure("RemoteMutePeer 失败: 无主持人权限");
+                }
+
+                // 获取目标用户信息
+                var targetPeer = await _scheduler.GetTargetPeerAsync(request.TargetPeerId);
+                if (targetPeer == null)
+                {
+                    return MeetingMessage.Failure("RemoteMutePeer 失败: 未找到目标用户");
+                }
+
+                // 获取房间内其他用户
+                var otherPeerIds = await _scheduler.GetOtherPeerIdsAsync(UserId, ConnectionId);
+
+                // 通知被静音的用户
+                SendNotification(
+                    request.TargetPeerId,
+                    "peerMuted",
+                    new PeerMutedNotification
+                    {
+                        PeerId = request.TargetPeerId,
+                        DisplayName = targetPeer.DisplayName,
+                        IsMuted = request.IsMuted,
+                        HostPeerId = UserId
+                    }
+                );
+
+                // 通知房间内其他用户
+                SendNotification(
+                    otherPeerIds,
+                    "peerMuted",
+                    new PeerMutedNotification
+                    {
+                        PeerId = request.TargetPeerId,
+                        DisplayName = targetPeer.DisplayName,
+                        IsMuted = request.IsMuted,
+                        HostPeerId = UserId
+                    }
+                );
+
+                _logger.LogInformation("Host {HostId} {Action} peer {TargetId}", 
+                    UserId, request.IsMuted ? "muted" : "unmuted", request.TargetPeerId);
+                return MeetingMessage.Success("RemoteMutePeer 成功");
+            }
+            catch (MeetingException ex)
+            {
+                _logger.LogError("RemoteMutePeer 调用失败: {Message}", ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "RemoteMutePeer 调用失败.");
+            }
+
+            return MeetingMessage.Failure("RemoteMutePeer 失败");
+        }
+
         /// <summary>
         /// Clear peer's appData. Then notify other peer, if in a room.
         /// </summary>
@@ -1418,5 +1665,346 @@ namespace Dorisoy.Meeting.Server
         }
 
         #endregion Private Methods
+
+        #region Vote Methods
+
+        /// <summary>
+        /// 创建投票（主持人调用）
+        /// </summary>
+        public async Task CreateVote(CreateVoteRequest request)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("CreateVote: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("CreateVote: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("CreateVote: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            _logger.LogInformation("CreateVote: {Question} by {PeerId}", request.Question, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "voteCreated", request);
+        }
+
+        /// <summary>
+        /// 提交投票
+        /// </summary>
+        public async Task SubmitVote(SubmitVoteRequest request)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("SubmitVote: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("SubmitVote: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            _logger.LogInformation("SubmitVote: VoteId {VoteId}, OptionIndex {OptionIndex} by {PeerId}", 
+                request.VoteId, request.OptionIndex, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "voteSubmitted", request);
+        }
+
+        /// <summary>
+        /// 删除投票（主持人调用）
+        /// </summary>
+        public async Task DeleteVote(string voteId)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("DeleteVote: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("DeleteVote: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("DeleteVote: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            _logger.LogInformation("DeleteVote: VoteId {VoteId} by {PeerId}", voteId, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "voteDeleted", new { VoteId = voteId });
+        }
+
+        /// <summary>
+        /// 更新投票（主持人调用）
+        /// </summary>
+        public async Task UpdateVote(object voteData)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("UpdateVote: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("UpdateVote: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("UpdateVote: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            _logger.LogInformation("UpdateVote by {PeerId}", UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "voteUpdated", voteData);
+        }
+
+        #endregion Vote Methods
+
+        #region Editor Methods
+
+        /// <summary>
+        /// 打开协同编辑器（主持人调用）
+        /// </summary>
+        public async Task OpenEditor(OpenEditorRequest request)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("OpenEditor: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("OpenEditor: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("OpenEditor: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            _logger.LogInformation("OpenEditor: SessionId {SessionId} by {PeerId}", request.SessionId, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "editorOpened", request);
+        }
+
+        /// <summary>
+        /// 更新编辑器内容（所有用户都可调用）
+        /// </summary>
+        public async Task UpdateEditorContent(EditorContentUpdate update)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("UpdateEditorContent: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("UpdateEditorContent: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 广播给房间内所有用户（包括自己，由客户端过滤）
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "editorContentUpdated", update);
+        }
+
+        /// <summary>
+        /// 关闭协同编辑器（主持人调用）
+        /// </summary>
+        public async Task CloseEditor(CloseEditorRequest request)
+        {
+            _logger.LogInformation("CloseEditor: 收到关闭请求 - SessionId={SessionId}, CloserId={CloserId}, CloserName={CloserName}",
+                request.SessionId, request.CloserId, request.CloserName);
+
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("CloseEditor: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("CloseEditor: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            _logger.LogInformation("CloseEditor: room.HostPeerId={HostPeerId}, UserId={UserId}, Match={Match}",
+                room.HostPeerId, UserId, room.HostPeerId == UserId);
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("CloseEditor: PeerId {PeerId} is not the host (HostPeerId={HostPeerId})", UserId, room.HostPeerId);
+                return;
+            }
+
+            _logger.LogInformation("CloseEditor: SessionId {SessionId} by {PeerId} - 广播给所有用户", request.SessionId, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            _logger.LogInformation("CloseEditor: 广播给 {Count} 个用户: {PeerIds}", peerIds.Length, string.Join(", ", peerIds));
+            SendNotification(peerIds, "editorClosed", request);
+        }
+
+        #endregion Editor Methods
+
+        #region Whiteboard Methods
+
+        /// <summary>
+        /// 打开白板（主持人调用）
+        /// </summary>
+        public async Task OpenWhiteboard(OpenWhiteboardRequest request)
+        {
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("OpenWhiteboard: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("OpenWhiteboard: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("OpenWhiteboard: PeerId {PeerId} is not the host", UserId);
+                return;
+            }
+
+            _logger.LogInformation("OpenWhiteboard: SessionId {SessionId} by {PeerId}", request.SessionId, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            SendNotification(peerIds, "whiteboardOpened", request);
+        }
+
+        /// <summary>
+        /// 更新白板笔触（主持人调用）
+        /// 注意：客户端已做主持人检查，服务端不再验证以避免 ID 比较问题
+        /// </summary>
+        public async Task UpdateWhiteboardStroke(WhiteboardStrokeUpdate update)
+        {
+            _logger.LogDebug("UpdateWhiteboardStroke: 收到笔触更新 - Action={Action}, DrawerId={DrawerId}, StrokeId={StrokeId}",
+                update.Action, update.DrawerId, update.Stroke?.Id ?? "N/A");
+
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("UpdateWhiteboardStroke: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("UpdateWhiteboardStroke: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            // 记录日志用于调试（不再阻止非主持人，因为客户端已做检查）
+            _logger.LogDebug("UpdateWhiteboardStroke: room.HostPeerId={HostPeerId}, UserId={UserId}, Match={Match}",
+                room.HostPeerId, UserId, room.HostPeerId == UserId);
+
+            // 广播给房间内所有用户（包括自己，由客户端过滤）
+            var peerIds = await room.GetPeerIdsAsync();
+            _logger.LogDebug("UpdateWhiteboardStroke: 广播给 {Count} 个用户: {PeerIds}", peerIds.Length, string.Join(", ", peerIds));
+            SendNotification(peerIds, "whiteboardStrokeUpdated", update);
+        }
+
+        /// <summary>
+        /// 关闭白板（主持人调用）
+        /// </summary>
+        public async Task CloseWhiteboard(CloseWhiteboardRequest request)
+        {
+            _logger.LogInformation("CloseWhiteboard: 收到关闭请求 - SessionId={SessionId}, CloserId={CloserId}, CloserName={CloserName}",
+                request.SessionId, request.CloserId, request.CloserName);
+
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("CloseWhiteboard: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("CloseWhiteboard: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            _logger.LogInformation("CloseWhiteboard: room.HostPeerId={HostPeerId}, UserId={UserId}, Match={Match}",
+                room.HostPeerId, UserId, room.HostPeerId == UserId);
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("CloseWhiteboard: PeerId {PeerId} is not the host (HostPeerId={HostPeerId})", UserId, room.HostPeerId);
+                return;
+            }
+
+            _logger.LogInformation("CloseWhiteboard: SessionId {SessionId} by {PeerId} - 广播给所有用户", request.SessionId, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            _logger.LogInformation("CloseWhiteboard: 广播给 {Count} 个用户: {PeerIds}", peerIds.Length, string.Join(", ", peerIds));
+            SendNotification(peerIds, "whiteboardClosed", request);
+        }
+
+        #endregion Whiteboard Methods
     }
 }

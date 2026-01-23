@@ -20,6 +20,16 @@ public class JoinRoomResponse
     /// 房间内所有 Peer 列表
     /// </summary>
     public PeerInfo[] Peers { get; set; } = [];
+
+    /// <summary>
+    /// 主持人 PeerId
+    /// </summary>
+    public string? HostPeerId { get; set; }
+
+    /// <summary>
+    /// 当前用户的 PeerId
+    /// </summary>
+    public string? SelfPeerId { get; set; }
 }
 
 /// <summary>
