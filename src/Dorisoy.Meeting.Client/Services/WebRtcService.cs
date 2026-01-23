@@ -1122,6 +1122,9 @@ public class WebRtcService : IWebRtcService
             _recvTransport = null;
         }
         
+        // 重置 DTLS 连接状态 - 这是关键！新的 transport 需要重新建立 DTLS
+        _isRecvTransportDtlsConnected = false;
+        
         // 清理旧的 RTP 解码器
         if (_rtpDecoder != null)
         {
@@ -1679,6 +1682,9 @@ public class WebRtcService : IWebRtcService
         _recvTransport?.Close();
         _recvTransport = null;
         
+        // 重置 DTLS 连接状态
+        _isRecvTransportDtlsConnected = false;
+        
         // 释放解码器
         _rtpDecoder?.Dispose();
         _rtpDecoder = null;
@@ -1812,6 +1818,9 @@ public class WebRtcService : IWebRtcService
 
             _recvTransport?.Dispose();
             _recvTransport = null;
+            
+            // 重置 DTLS 连接状态
+            _isRecvTransportDtlsConnected = false;
             
             // 释放解码器
             _rtpDecoder?.Dispose();
