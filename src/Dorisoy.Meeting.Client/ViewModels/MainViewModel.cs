@@ -846,7 +846,7 @@ public partial class MainViewModel : ObservableObject
     #endregion
 
     /// <summary>
-    /// 录制 - 开始/停止会议录制
+    /// 录制 - 开始/停止会议录制（仅主持人）
     /// </summary>
     [RelayCommand]
     private async Task RecordAsync()
@@ -854,6 +854,12 @@ public partial class MainViewModel : ObservableObject
         if (!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
+            return;
+        }
+        
+        if (!IsHost)
+        {
+            ShowHostOnlyMessage("录制");
             return;
         }
         
@@ -1105,7 +1111,7 @@ public partial class MainViewModel : ObservableObject
     private Vote? _currentVote;
 
     /// <summary>
-    /// 投票 - 发起投票
+    /// 投票 - 发起投票（仅主持人可创建）
     /// </summary>
     [RelayCommand]
     private void Poll()
@@ -1113,6 +1119,12 @@ public partial class MainViewModel : ObservableObject
         if (!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
+            return;
+        }
+        
+        if (!IsHost)
+        {
+            ShowHostOnlyMessage("发起投票");
             return;
         }
         
@@ -1235,7 +1247,7 @@ public partial class MainViewModel : ObservableObject
 
         if (!IsHost)
         {
-            StatusMessage = "只有主持人可以开启协同编辑器";
+            ShowHostOnlyMessage("开启协同编辑器");
             return;
         }
         
@@ -1321,7 +1333,7 @@ public partial class MainViewModel : ObservableObject
 
         if (!IsHost)
         {
-            StatusMessage = "只有主持人可以开启白板";
+            ShowHostOnlyMessage("开启白板");
             return;
         }
         
@@ -1403,7 +1415,7 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 共享屏幕 - 所有用户都可以共享屏幕给其他参与者
+    /// 共享屏幕 - 仅主持人可以共享屏幕给其他参与者
     /// </summary>
     [RelayCommand]
     private async Task ShareScreenAsync()
@@ -1415,6 +1427,12 @@ public partial class MainViewModel : ObservableObject
         {
             StatusMessage = "请先加入房间";
             _logger.LogWarning("尝试共享屏幕但未加入房间");
+            return;
+        }
+        
+        if (!IsHost)
+        {
+            ShowHostOnlyMessage("共享屏幕");
             return;
         }
 
@@ -1627,6 +1645,25 @@ public partial class MainViewModel : ObservableObject
     
     [System.Runtime.InteropServices.DllImport("gdi32.dll")]
     private static extern bool DeleteObject(IntPtr hObject);
+
+    /// <summary>
+    /// 显示仅主持人可用的提示弹窗
+    /// </summary>
+    private void ShowHostOnlyMessage(string featureName)
+    {
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            var messageBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "权限提示",
+                Content = $"“{featureName}”功能仅限主持人使用\n\n请联系主持人进行操作。",
+                CloseButtonText = "我知道了"
+            };
+            _ = messageBox.ShowDialogAsync();
+        });
+        
+        StatusMessage = $"{featureName}仅限主持人使用";
+    }
 
     #endregion
 

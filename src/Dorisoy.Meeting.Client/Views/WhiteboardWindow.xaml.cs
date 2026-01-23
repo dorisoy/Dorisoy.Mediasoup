@@ -619,7 +619,14 @@ namespace Dorisoy.Meeting.Client.Views
             {
                 NotifyWhiteboardClosed(false);
                 _isForceClosing = true;
-                Close();
+                try
+                {
+                    Close();
+                }
+                catch (InvalidOperationException)
+                {
+                    // 窗口已在关闭中，忽略
+                }
             }
         }
 
@@ -629,7 +636,14 @@ namespace Dorisoy.Meeting.Client.Views
 
             NotifyWhiteboardClosed(true);
             _isForceClosing = true;
-            Close();
+            try
+            {
+                Close();
+            }
+            catch (InvalidOperationException)
+            {
+                // 窗口已在关闭中，忽略
+            }
         }
 
         /// <summary>

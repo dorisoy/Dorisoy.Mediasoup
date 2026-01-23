@@ -25,6 +25,7 @@ namespace Dorisoy.Meeting.Client.Views
         private bool _isUpdatingFromRemote;
         private bool _isForceClosing; // 标记是否是强制关闭（主持人关闭通知）
         private bool _isPendingCloseConfirm; // 标记是否正在等待关闭确认
+        private bool _isClosing; // 标记窗口是否正在关闭
         private Timer? _debounceTimer;
         private const int DebounceDelay = 300; // 300ms 防抖
 
@@ -260,6 +261,7 @@ namespace Dorisoy.Meeting.Client.Views
             // 如果是强制关闭（主持人通知），直接允许
             if (_isForceClosing)
             {
+                _isClosing = true;
                 return;
             }
 
@@ -307,7 +309,17 @@ namespace Dorisoy.Meeting.Client.Views
             {
                 NotifyEditorClosed();
                 _isForceClosing = true;
-                Close();
+                _isClosing = true;
+                
+                // 直接关闭，不再检查状态，因为 _isForceClosing 已设置
+                try
+                {
+                    Close();
+                }
+                catch (InvalidOperationException)
+                {
+                    // 窗口已在关闭中，忽略
+                }
             }
         }
 
