@@ -32,15 +32,19 @@ namespace Dorisoy.Meeting.Client.Views
         private bool _isPendingCloseConfirm; // 标记是否正在等待关闭确认
 
         // 当前工具和颜色
-        private WhiteboardTool _currentTool = WhiteboardTool.Pen;
+        private WhiteboardTool _currentTool = WhiteboardTool.Select;
         private Color _currentColor = Colors.Black;
         private double _strokeWidth = 3.0;
 
         // 绘制状态
         private bool _isDrawing;
         private bool _isTextInputActive; // 标记是否正在输入文字
+        private bool _isDragging; // 标记是否正在拖拽图形
         private Point _startPoint;
         private Point _lastPoint;
+        private Point _dragStartPoint; // 拖拽起始点
+        private UIElement? _selectedElement; // 当前选中的元素
+        private string? _selectedStrokeId; // 当前选中的笔触ID
         private List<Point> _currentPoints = new();
         private Shape? _previewShape;
         private Polyline? _currentPolyline;
@@ -104,7 +108,7 @@ namespace Dorisoy.Meeting.Client.Views
                 ToolbarPanel.Visibility = Visibility.Visible;
                 HostActions.Visibility = Visibility.Visible;
                 ViewerHint.Visibility = Visibility.Collapsed;
-                DrawingCanvas.Cursor = Cursors.Cross;
+                DrawingCanvas.Cursor = Cursors.Arrow; // 默认选择工具
             }
             else
             {
@@ -130,8 +134,13 @@ namespace Dorisoy.Meeting.Client.Views
             {
                 CancelTextInput();
             }
+            
+            // 清除选中状态
+            ClearSelection();
 
-            if (sender == BtnPen)
+            if (sender == BtnSelect)
+                _currentTool = WhiteboardTool.Select;
+            else if (sender == BtnPen)
                 _currentTool = WhiteboardTool.Pen;
             else if (sender == BtnRectangle)
                 _currentTool = WhiteboardTool.Rectangle;
@@ -143,9 +152,31 @@ namespace Dorisoy.Meeting.Client.Views
                 _currentTool = WhiteboardTool.Eraser;
 
             // 更新光标
-            DrawingCanvas.Cursor = _currentTool == WhiteboardTool.Eraser
-                ? Cursors.No
-                : (_currentTool == WhiteboardTool.Text ? Cursors.IBeam : Cursors.Cross);
+            UpdateCursor();
+        }
+        
+        /// <summary>
+        /// 更新光标样式
+        /// </summary>
+        private void UpdateCursor()
+        {
+            DrawingCanvas.Cursor = _currentTool switch
+            {
+                WhiteboardTool.Select => Cursors.Arrow,
+                WhiteboardTool.Eraser => Cursors.No,
+                WhiteboardTool.Text => Cursors.IBeam,
+                _ => Cursors.Cross
+            };
+        }
+        
+        /// <summary>
+        /// 切换到选择工具
+        /// </summary>
+        private void SwitchToSelectTool()
+        {
+            _currentTool = WhiteboardTool.Select;
+            BtnSelect.IsChecked = true;
+            UpdateCursor();
         }
 
         private void Color_Checked(object sender, RoutedEventArgs e)
@@ -177,28 +208,40 @@ namespace Dorisoy.Meeting.Client.Views
         {
             if (!_isHost) return;
 
-            _isDrawing = true;
             _startPoint = e.GetPosition(DrawingCanvas);
             _lastPoint = _startPoint;
             _currentPoints.Clear();
             _currentPoints.Add(_startPoint);
 
-            DrawingCanvas.CaptureMouse();
-
             switch (_currentTool)
             {
+                case WhiteboardTool.Select:
+                    // 尝试选中图形
+                    TrySelectElement(_startPoint);
+                    if (_selectedElement != null)
+                    {
+                        _isDragging = true;
+                        _dragStartPoint = _startPoint;
+                        DrawingCanvas.CaptureMouse();
+                    }
+                    break;
                 case WhiteboardTool.Pen:
+                    _isDrawing = true;
+                    DrawingCanvas.CaptureMouse();
                     StartPenDrawing();
                     break;
                 case WhiteboardTool.Rectangle:
                 case WhiteboardTool.Ellipse:
+                    _isDrawing = true;
+                    DrawingCanvas.CaptureMouse();
                     StartShapeDrawing();
                     break;
                 case WhiteboardTool.Text:
                     ShowTextInput(_startPoint);
-                    _isDrawing = false;
                     break;
                 case WhiteboardTool.Eraser:
+                    _isDrawing = true;
+                    DrawingCanvas.CaptureMouse();
                     EraseAt(_startPoint);
                     break;
             }
@@ -206,9 +249,19 @@ namespace Dorisoy.Meeting.Client.Views
 
         private void DrawingCanvas_MouseMove(object sender, MouseEventArgs e)
         {
-            if (!_isHost || !_isDrawing) return;
-
+            if (!_isHost) return;
+            
             var currentPoint = e.GetPosition(DrawingCanvas);
+
+            // 处理拖拽
+            if (_isDragging && _selectedElement != null)
+            {
+                DragSelectedElement(currentPoint);
+                _lastPoint = currentPoint;
+                return;
+            }
+            
+            if (!_isDrawing) return;
 
             switch (_currentTool)
             {
@@ -229,12 +282,22 @@ namespace Dorisoy.Meeting.Client.Views
 
         private void DrawingCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
         {
-            if (!_isHost || !_isDrawing) return;
+            if (!_isHost) return;
+            
+            DrawingCanvas.ReleaseMouseCapture();
+            var endPoint = e.GetPosition(DrawingCanvas);
+
+            // 处理拖拽结束
+            if (_isDragging && _selectedElement != null)
+            {
+                _isDragging = false;
+                FinishDragElement(endPoint);
+                return;
+            }
+            
+            if (!_isDrawing) return;
 
             _isDrawing = false;
-            DrawingCanvas.ReleaseMouseCapture();
-
-            var endPoint = e.GetPosition(DrawingCanvas);
 
             switch (_currentTool)
             {
@@ -383,6 +446,182 @@ namespace Dorisoy.Meeting.Client.Views
 
         #endregion
 
+        #region 选择和拖动
+
+        /// <summary>
+        /// 尝试选中点击位置的图形
+        /// </summary>
+        private void TrySelectElement(Point point)
+        {
+            ClearSelection();
+            
+            var hitRadius = 5.0;
+            
+            // 逆序遍历，优先选中上层图形
+            foreach (var kvp in _strokeElements.Reverse())
+            {
+                var element = kvp.Value;
+                var bounds = GetElementBounds(element);
+                
+                // 扩展检测范围
+                bounds.Inflate(hitRadius, hitRadius);
+                
+                if (bounds.Contains(point))
+                {
+                    _selectedElement = element;
+                    _selectedStrokeId = kvp.Key;
+                    HighlightElement(element, true);
+                    return;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 获取元素的边界框
+        /// </summary>
+        private Rect GetElementBounds(UIElement element)
+        {
+            double left = Canvas.GetLeft(element);
+            double top = Canvas.GetTop(element);
+            
+            // 处理 NaN 情况
+            if (double.IsNaN(left)) left = 0;
+            if (double.IsNaN(top)) top = 0;
+            
+            return new Rect(left, top, element.RenderSize.Width, element.RenderSize.Height);
+        }
+        
+        /// <summary>
+        /// 高亮显示选中元素
+        /// </summary>
+        private void HighlightElement(UIElement element, bool highlight)
+        {
+            if (element is Shape shape)
+            {
+                if (highlight)
+                {
+                    shape.StrokeDashArray = new DoubleCollection(new[] { 5.0, 3.0 });
+                }
+                else
+                {
+                    shape.StrokeDashArray = null;
+                }
+            }
+            else if (element is System.Windows.Controls.TextBlock textBlock)
+            {
+                if (highlight)
+                {
+                    textBlock.TextDecorations = TextDecorations.Underline;
+                }
+                else
+                {
+                    textBlock.TextDecorations = null;
+                }
+            }
+        }
+        
+        /// <summary>
+        /// 清除选中状态
+        /// </summary>
+        private void ClearSelection()
+        {
+            if (_selectedElement != null)
+            {
+                HighlightElement(_selectedElement, false);
+                _selectedElement = null;
+                _selectedStrokeId = null;
+            }
+        }
+        
+        /// <summary>
+        /// 拖动选中的元素
+        /// </summary>
+        private void DragSelectedElement(Point currentPoint)
+        {
+            if (_selectedElement == null) return;
+            
+            var deltaX = currentPoint.X - _dragStartPoint.X;
+            var deltaY = currentPoint.Y - _dragStartPoint.Y;
+            
+            var currentLeft = Canvas.GetLeft(_selectedElement);
+            var currentTop = Canvas.GetTop(_selectedElement);
+            
+            if (double.IsNaN(currentLeft)) currentLeft = 0;
+            if (double.IsNaN(currentTop)) currentTop = 0;
+            
+            Canvas.SetLeft(_selectedElement, currentLeft + deltaX);
+            Canvas.SetTop(_selectedElement, currentTop + deltaY);
+            
+            _dragStartPoint = currentPoint;
+        }
+        
+        /// <summary>
+        /// 完成拖动操作
+        /// </summary>
+        private void FinishDragElement(Point endPoint)
+        {
+            if (_selectedElement == null || _selectedStrokeId == null) return;
+            
+            // 更新笔触数据中的位置
+            var stroke = _strokes.FirstOrDefault(s => s.Id == _selectedStrokeId);
+            if (stroke != null)
+            {
+                var newLeft = Canvas.GetLeft(_selectedElement);
+                var newTop = Canvas.GetTop(_selectedElement);
+                
+                if (double.IsNaN(newLeft)) newLeft = 0;
+                if (double.IsNaN(newTop)) newTop = 0;
+                
+                // 更新笔触位置信息
+                if (stroke.Tool == WhiteboardTool.Pen)
+                {
+                    // 笔触需要更新所有点的位置
+                    var offsetX = newLeft - (stroke.Points?.FirstOrDefault() ?? 0);
+                    var offsetY = newTop - (stroke.Points?.Skip(1).FirstOrDefault() ?? 0);
+                    
+                    if (stroke.Points != null && stroke.Points.Count >= 2)
+                    {
+                        for (int i = 0; i < stroke.Points.Count; i += 2)
+                        {
+                            stroke.Points[i] += offsetX;
+                            if (i + 1 < stroke.Points.Count)
+                                stroke.Points[i + 1] += offsetY;
+                        }
+                    }
+                }
+                else
+                {
+                    // 其他图形更新起始终点
+                    var width = stroke.EndX - stroke.StartX;
+                    var height = stroke.EndY - stroke.StartY;
+                    stroke.StartX = newLeft;
+                    stroke.StartY = newTop;
+                    stroke.EndX = newLeft + width;
+                    stroke.EndY = newTop + height;
+                }
+                
+                // 发送移动更新
+                NotifyStrokeMoved(stroke);
+            }
+        }
+        
+        /// <summary>
+        /// 通知笔触移动
+        /// </summary>
+        private void NotifyStrokeMoved(WhiteboardStroke stroke)
+        {
+            StrokeUpdated?.Invoke(new WhiteboardStrokeUpdate
+            {
+                SessionId = _sessionId,
+                Action = "move",
+                Stroke = stroke,
+                DrawerId = _currentPeerId,
+                UpdateTime = DateTime.Now
+            });
+        }
+
+        #endregion
+
         #region 文字输入
 
         private void ShowTextInput(Point position)
@@ -498,6 +737,9 @@ namespace Dorisoy.Meeting.Client.Views
 
             // 发送更新
             NotifyStrokeAdded(stroke);
+            
+            // 文字输入完成后切换到选择工具
+            SwitchToSelectTool();
         }
 
         #endregion
@@ -798,6 +1040,10 @@ namespace Dorisoy.Meeting.Client.Views
                 e.Handled = true;
             }
             // 工具快捷键
+            else if (e.Key == Key.V)
+            {
+                BtnSelect.IsChecked = true;
+            }
             else if (e.Key == Key.P)
             {
                 BtnPen.IsChecked = true;
@@ -886,6 +1132,14 @@ namespace Dorisoy.Meeting.Client.Views
                         case "clear":
                             System.Diagnostics.Debug.WriteLine("[Whiteboard] 清空画布");
                             ClearCanvas();
+                            break;
+                            
+                        case "move":
+                            if (update.Stroke != null)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[Whiteboard] 移动笔触: Id={update.Stroke.Id}");
+                                MoveStrokeOnCanvas(update.Stroke);
+                            }
                             break;
 
                         default:
@@ -981,6 +1235,36 @@ namespace Dorisoy.Meeting.Client.Views
                 DrawingCanvas.Children.Remove(element);
                 _strokeElements.Remove(strokeId);
                 _strokes.RemoveAll(s => s.Id == strokeId);
+            }
+        }
+        
+        /// <summary>
+        /// 移动画布上的笔触（远程同步）
+        /// </summary>
+        private void MoveStrokeOnCanvas(WhiteboardStroke stroke)
+        {
+            if (!_strokeElements.TryGetValue(stroke.Id, out var element))
+            {
+                System.Diagnostics.Debug.WriteLine($"[Whiteboard] MoveStrokeOnCanvas: 找不到笔触 Id={stroke.Id}");
+                return;
+            }
+            
+            // 更新元素位置
+            Canvas.SetLeft(element, stroke.StartX);
+            Canvas.SetTop(element, stroke.StartY);
+            
+            // 更新本地笔触数据
+            var localStroke = _strokes.FirstOrDefault(s => s.Id == stroke.Id);
+            if (localStroke != null)
+            {
+                localStroke.StartX = stroke.StartX;
+                localStroke.StartY = stroke.StartY;
+                localStroke.EndX = stroke.EndX;
+                localStroke.EndY = stroke.EndY;
+                if (stroke.Points != null)
+                {
+                    localStroke.Points = stroke.Points;
+                }
             }
         }
 

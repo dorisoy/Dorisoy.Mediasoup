@@ -142,8 +142,15 @@
                         <Border Background="{DynamicResource ControlFillColorSecondaryBrush}" 
                                 CornerRadius="8" Padding="4">
                             <StackPanel Orientation="Horizontal">
-                                <RadioButton x:Name="BtnPen" Style="{StaticResource ToolButtonStyle}"
+                                <!-- 选择工具（默认） -->
+                                <RadioButton x:Name="BtnSelect" Style="{StaticResource ToolButtonStyle}"
                                              GroupName="Tools" IsChecked="True"
+                                             ToolTip="选择 (V)" Checked="Tool_Checked">
+                                    <ui:SymbolIcon Symbol="Cursor20" FontSize="20"/>
+                                </RadioButton>
+                                <Rectangle Width="1" Height="28" Fill="{DynamicResource ControlStrokeColorDefaultBrush}" Margin="4,0"/>
+                                <RadioButton x:Name="BtnPen" Style="{StaticResource ToolButtonStyle}"
+                                             GroupName="Tools"
                                              ToolTip="笔触 (P)" Checked="Tool_Checked">
                                     <ui:SymbolIcon Symbol="Pen20" FontSize="20"/>
                                 </RadioButton>
