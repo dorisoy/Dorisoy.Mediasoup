@@ -95,7 +95,6 @@ namespace Dorisoy.Meeting.Client.Views
             {
                 if (_state == CaptureState.Editing)
                 {
-                    // 编辑状态下按 Esc 返回选择状态
                     ResetToSelectingState();
                 }
                 else
@@ -110,6 +109,23 @@ namespace Dorisoy.Meeting.Client.Views
             else if (e.Key == Key.Z && Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && _state == CaptureState.Editing)
             {
                 Undo();
+            }
+            else if (e.Key == Key.S && Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && _state == CaptureState.Editing)
+            {
+                SaveToFile();
+            }
+            // 快捷键切换工具
+            else if (_state == CaptureState.Editing)
+            {
+                switch (e.Key)
+                {
+                    case Key.V: BtnSelect.IsChecked = true; break;
+                    case Key.P: BtnPen.IsChecked = true; break;
+                    case Key.R: BtnRectangle.IsChecked = true; break;
+                    case Key.O: BtnEllipse.IsChecked = true; break;
+                    case Key.A: BtnArrow.IsChecked = true; break;
+                    case Key.T: BtnText.IsChecked = true; break;
+                }
             }
         }
 
@@ -167,19 +183,17 @@ namespace Dorisoy.Meeting.Client.Views
 
             _selectionRect = new Rect(x, y, width, height);
 
-            // 更新选择区域几何
+            // 更新遮罩镂空区域
             SelectionGeometry.Rect = _selectionRect;
 
-            // 更新边框位置
+            // 更新选区边框位置和大小
             SelectionBorder.Margin = new Thickness(x, y, 0, 0);
             SelectionBorder.Width = width;
             SelectionBorder.Height = height;
-            SelectionBorder.HorizontalAlignment = HorizontalAlignment.Left;
-            SelectionBorder.VerticalAlignment = VerticalAlignment.Top;
 
             // 更新尺寸提示
             SizeText.Text = $"{(int)width} × {(int)height}";
-            SizeHint.Margin = new Thickness(x, y - 28, 0, 0);
+            SizeHint.Margin = new Thickness(x, Math.Max(0, y - 24), 0, 0);
         }
 
         #endregion
@@ -196,15 +210,12 @@ namespace Dorisoy.Meeting.Client.Views
             // 截取选区屏幕
             CaptureSelectionToImage();
 
-            // 配置绘图画布
-            DrawingCanvas.Margin = new Thickness(_selectionRect.X, _selectionRect.Y, 0, 0);
-            DrawingCanvas.Width = _selectionRect.Width;
-            DrawingCanvas.Height = _selectionRect.Height;
-            DrawingCanvas.Visibility = Visibility.Visible;
+            // 更新光标
+            Cursor = Cursors.Arrow;
             DrawingCanvas.Cursor = Cursors.Arrow;
 
             // 显示工具栏
-            ShowToolbars();
+            ShowToolbar();
         }
 
         private void CaptureSelectionToImage()
@@ -258,43 +269,43 @@ namespace Dorisoy.Meeting.Client.Views
             }
         }
 
-        private void ShowToolbars()
+        private void ShowToolbar()
         {
-            // 顶部工具栏位置（选区上方）
-            var topToolbarY = _selectionRect.Top - 52;
-            if (topToolbarY < 0) topToolbarY = _selectionRect.Bottom + 8;
-
-            TopToolbar.Margin = new Thickness(_selectionRect.Left, topToolbarY, 0, 0);
-            TopToolbar.Visibility = Visibility.Visible;
-
-            // 底部工具栏位置（选区下方）
-            var bottomToolbarY = _selectionRect.Bottom + 8;
-            if (bottomToolbarY + 50 > ActualHeight)
+            // 工具栏固定宽度约520，放在选区下方居中
+            var toolbarWidth = 520.0;
+            var toolbarHeight = 40.0;
+            
+            // 计算工具栏X位置（选区居中，但不超出屏幕）
+            var toolbarX = _selectionRect.Left + (_selectionRect.Width - toolbarWidth) / 2;
+            if (toolbarX < 0) toolbarX = 0;
+            if (toolbarX + toolbarWidth > ActualWidth) toolbarX = ActualWidth - toolbarWidth;
+            
+            // 计算工具栏Y位置（选区下方，如果空间不足则放在选区上方）
+            var toolbarY = _selectionRect.Bottom + 8;
+            if (toolbarY + toolbarHeight > ActualHeight)
             {
-                bottomToolbarY = _selectionRect.Top - 52;
+                toolbarY = _selectionRect.Top - toolbarHeight - 8;
+                if (toolbarY < 0) toolbarY = _selectionRect.Bottom - toolbarHeight - 8;
             }
 
-            // 右对齐
-            var bottomToolbarX = _selectionRect.Right - 280;
-            if (bottomToolbarX < 0) bottomToolbarX = _selectionRect.Left;
-
-            BottomToolbar.Margin = new Thickness(bottomToolbarX, bottomToolbarY, 0, 0);
-            BottomToolbar.Visibility = Visibility.Visible;
+            Toolbar.Margin = new Thickness(toolbarX, toolbarY, 0, 0);
+            Toolbar.Visibility = Visibility.Visible;
         }
 
         private void ResetToSelectingState()
         {
             _state = CaptureState.Selecting;
 
-            // 隐藏工具栏和绘图层
-            TopToolbar.Visibility = Visibility.Collapsed;
-            BottomToolbar.Visibility = Visibility.Collapsed;
-            DrawingCanvas.Visibility = Visibility.Collapsed;
+            // 隐藏工具栏和重置绘图层
+            Toolbar.Visibility = Visibility.Collapsed;
             SelectionBorder.Visibility = Visibility.Collapsed;
 
             // 清空绘图历史
             DrawingCanvas.Children.Clear();
+            // 重新添加文字输入框
+            DrawingCanvas.Children.Add(TextInputContainer);
             _drawingHistory.Clear();
+            DrawingCanvas.Background = System.Windows.Media.Brushes.Transparent;
 
             // 重置选区
             SelectionGeometry.Rect = new Rect(0, 0, 0, 0);
@@ -302,6 +313,7 @@ namespace Dorisoy.Meeting.Client.Views
 
             // 显示提示
             HintText.Visibility = Visibility.Visible;
+            Cursor = Cursors.Cross;
 
             // 重置工具
             BtnSelect.IsChecked = true;
@@ -616,6 +628,11 @@ namespace Dorisoy.Meeting.Client.Views
 
         private void BtnSave_Click(object sender, MouseButtonEventArgs e)
         {
+            SaveToFile();
+        }
+
+        private void SaveToFile()
+        {
             var dialog = new SaveFileDialog
             {
                 Title = "保存截图",
@@ -684,13 +701,13 @@ namespace Dorisoy.Meeting.Client.Views
             // 隐藏文字输入框
             TextInputContainer.Visibility = Visibility.Collapsed;
 
-            var width = (int)DrawingCanvas.Width;
-            var height = (int)DrawingCanvas.Height;
+            var width = (int)_selectionRect.Width;
+            var height = (int)_selectionRect.Height;
 
-            if (width == 0 || height == 0)
+            if (width <= 0 || height <= 0)
             {
-                width = (int)_selectionRect.Width;
-                height = (int)_selectionRect.Height;
+                width = 100;
+                height = 100;
             }
 
             var dpi = VisualTreeHelper.GetDpi(this);
