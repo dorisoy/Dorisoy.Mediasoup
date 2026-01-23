@@ -296,11 +296,12 @@ public partial class MainWindow : FluentWindow
                 return;
             }
 
-            // 创建新的编辑器窗口
+            // 创建新的编辑器窗口 - 传入主持人ID用于权限控制
             var editorWindow = new CollaborativeEditorWindow(
                 _viewModel.CurrentPeerId,
                 _viewModel.CurrentUserName,
-                data.SessionId
+                data.SessionId,
+                data.HostId  // 主持人ID
             )
             {
                 Owner = this
@@ -312,6 +313,12 @@ public partial class MainWindow : FluentWindow
             editorWindow.ContentChanged += async (update) =>
             {
                 await _viewModel.UpdateEditorContentAsync(update);
+            };
+
+            // 绑定编辑器关闭事件 - 主持人关闭时发送通知
+            editorWindow.EditorClosed += async (request) =>
+            {
+                await _viewModel.CloseEditorAsync(request);
             };
 
             // 窗口关闭时清理引用
@@ -350,7 +357,8 @@ public partial class MainWindow : FluentWindow
         {
             if (_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
             {
-                _currentEditorWindow.Close();
+                // 使用 ForceClose 强制关闭，跳过 Closing 事件检查
+                _currentEditorWindow.ForceClose();
                 _currentEditorWindow = null;
             }
         });
@@ -379,7 +387,8 @@ public partial class MainWindow : FluentWindow
                 data.SessionId,
                 data.HostId,
                 data.HostName,
-                _viewModel.CurrentPeerId
+                _viewModel.CurrentPeerId,
+                _viewModel.CurrentUserName  // 添加当前用户名参数
             );
 
             _currentWhiteboardWindow = whiteboardWindow;

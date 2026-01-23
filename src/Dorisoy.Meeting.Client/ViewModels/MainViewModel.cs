@@ -1248,6 +1248,7 @@ public partial class MainViewModel : ObservableObject
         var request = new
         {
             SessionId = sessionId,
+            HostId = CurrentPeerId,     // 主持人ID，用于权限控制
             InitiatorId = CurrentPeerId,
             InitiatorName = CurrentUserName
         };
@@ -1274,12 +1275,25 @@ public partial class MainViewModel : ObservableObject
             return;
         }
 
-        var request = new
+        var request = new CloseEditorRequest
         {
             SessionId = sessionId,
-            CloserId = CurrentPeerId,
+            CloserId = CurrentPeerId ?? string.Empty,
             CloserName = CurrentUserName
         };
+
+        await CloseEditorAsync(request);
+    }
+
+    /// <summary>
+    /// 关闭编辑器（主持人关闭时广播）
+    /// </summary>
+    public async Task CloseEditorAsync(CloseEditorRequest request)
+    {
+        if (!IsHost)
+        {
+            return;
+        }
 
         await _signalRService.InvokeAsync("CloseEditor", request);
         _currentEditorSessionId = null;
@@ -5005,13 +5019,26 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleWhiteboardStrokeUpdated(object? data)
     {
-        if (data == null) return;
+        if (data == null)
+        {
+            _logger.LogWarning("白板笔触更新通知数据为空");
+            return;
+        }
 
         try
         {
             var json = JsonSerializer.Serialize(data);
+            _logger.LogDebug("收到白板笔触更新: {Json}", json);
+
             var update = JsonSerializer.Deserialize<WhiteboardStrokeUpdate>(json, JsonOptions);
-            if (update == null) return;
+            if (update == null)
+            {
+                _logger.LogWarning("白板笔触更新反序列化失败");
+                return;
+            }
+
+            _logger.LogInformation("白板笔触更新: Action={Action}, DrawerId={DrawerId}, StrokeId={StrokeId}",
+                update.Action, update.DrawerId, update.Stroke?.Id ?? "N/A");
 
             // 触发事件，由窗口处理更新
             WhiteboardStrokeUpdated?.Invoke(update);

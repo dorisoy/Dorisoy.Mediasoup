@@ -77,10 +77,24 @@
         </Style>
 
         <!-- 操作按钮样式 -->
-        <Style x:Key="ActionButtonStyle" TargetType="ui:Button">
-            <Setter Property="Margin" Value="8,0"/>
-            <Setter Property="Padding" Value="16,8"/>
-            <Setter Property="FontSize" Value="14"/>
+        <Style x:Key="ActionButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
+            <Setter Property="Margin" Value="4,0"/>
+            <Setter Property="Padding" Value="12,8"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="MinWidth" Value="70"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+        
+        <!-- 危险操作按钮样式 -->
+        <Style x:Key="DangerButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource ActionButtonStyle}">
+            <Setter Property="Foreground" Value="#FFE81123"/>
+        </Style>
+        
+        <!-- 主要操作按钮样式 -->
+        <Style x:Key="PrimaryButtonStyle" TargetType="ui:Button" BasedOn="{StaticResource ActionButtonStyle}">
+            <Setter Property="Appearance" Value="Primary"/>
+            <Setter Property="MinWidth" Value="80"/>
         </Style>
     </Window.Resources>
 
@@ -257,52 +271,55 @@
 
                 <!-- 右侧：操作按钮（只有主持人可见）-->
                 <StackPanel x:Name="HostActions" Grid.Column="2" Orientation="Horizontal">
-                    <ui:Button x:Name="BtnUndo" Style="{StaticResource ActionButtonStyle}"
+                    <!-- 撤销按钮 -->
+                    <ui:Button x:Name="BtnUndo" 
+                               Style="{StaticResource ActionButtonStyle}"
                                Appearance="Secondary"
+                               Icon="{ui:SymbolIcon ArrowUndo20}"
+                               Content="撤销"
                                ToolTip="撤销上一步 (Ctrl+Z)"
-                               Click="BtnUndo_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="ArrowUndo20" Margin="0,0,6,0"/>
-                            <TextBlock Text="撤销"/>
-                        </StackPanel>
-                    </ui:Button>
-                    <ui:Button x:Name="BtnClear" Style="{StaticResource ActionButtonStyle}"
+                               Click="BtnUndo_Click"/>
+                    
+                    <!-- 清空按钮 -->
+                    <ui:Button x:Name="BtnClear" 
+                               Style="{StaticResource DangerButtonStyle}"
                                Appearance="Secondary"
+                               Icon="{ui:SymbolIcon Delete20}"
+                               Content="清空"
                                ToolTip="清空画布"
-                               Click="BtnClear_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Delete20" Margin="0,0,6,0"/>
-                            <TextBlock Text="清空"/>
-                        </StackPanel>
-                    </ui:Button>
-                    <ui:Button x:Name="BtnSave" Style="{StaticResource ActionButtonStyle}"
+                               Click="BtnClear_Click"/>
+                    
+                    <!-- 保存按钮 -->
+                    <ui:Button x:Name="BtnSave" 
+                               Style="{StaticResource ActionButtonStyle}"
                                Appearance="Secondary"
+                               Icon="{ui:SymbolIcon Save20}"
+                               Content="保存"
                                ToolTip="保存为图片"
-                               Click="BtnSave_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Save20" Margin="0,0,6,0"/>
-                            <TextBlock Text="保存"/>
-                        </StackPanel>
-                    </ui:Button>
-                    <Rectangle Width="1" Height="32" Fill="{DynamicResource ControlStrokeColorDefaultBrush}" Margin="8,0"/>
-                    <ui:Button x:Name="BtnCancel" Style="{StaticResource ActionButtonStyle}"
+                               Click="BtnSave_Click"/>
+                    
+                    <!-- 分隔线 -->
+                    <Border Width="1" Height="24" 
+                            Background="{DynamicResource ControlStrokeColorDefaultBrush}" 
+                            Margin="12,0"
+                            VerticalAlignment="Center"/>
+                    
+                    <!-- 取消按钮 -->
+                    <ui:Button x:Name="BtnCancel" 
+                               Style="{StaticResource ActionButtonStyle}"
                                Appearance="Secondary"
+                               Icon="{ui:SymbolIcon Dismiss20}"
+                               Content="取消"
                                ToolTip="取消并关闭"
-                               Click="BtnCancel_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Dismiss20" Margin="0,0,6,0"/>
-                            <TextBlock Text="取消"/>
-                        </StackPanel>
-                    </ui:Button>
-                    <ui:Button x:Name="BtnFinish" Style="{StaticResource ActionButtonStyle}"
-                               Appearance="Primary"
+                               Click="BtnCancel_Click"/>
+                    
+                    <!-- 完成按钮 -->
+                    <ui:Button x:Name="BtnFinish" 
+                               Style="{StaticResource PrimaryButtonStyle}"
+                               Icon="{ui:SymbolIcon Checkmark20}"
+                               Content="完成"
                                ToolTip="完成并关闭"
-                               Click="BtnFinish_Click">
-                        <StackPanel Orientation="Horizontal">
-                            <ui:SymbolIcon Symbol="Checkmark20" Margin="0,0,6,0"/>
-                            <TextBlock Text="完成"/>
-                        </StackPanel>
-                    </ui:Button>
+                               Click="BtnFinish_Click"/>
                 </StackPanel>
             </Grid>
         </Border>

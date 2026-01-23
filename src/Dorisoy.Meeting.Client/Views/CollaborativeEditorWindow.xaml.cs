@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Threading;
 using System.Windows;
@@ -19,7 +20,10 @@ namespace Dorisoy.Meeting.Client.Views
         private readonly string _peerId;
         private readonly string _peerName;
         private readonly string _sessionId;
+        private readonly string _hostId;
+        private readonly bool _isHost;
         private bool _isUpdatingFromRemote;
+        private bool _isForceClosing; // 标记是否是强制关闭（主持人关闭通知）
         private Timer? _debounceTimer;
         private const int DebounceDelay = 300; // 300ms 防抖
 
@@ -29,20 +33,29 @@ namespace Dorisoy.Meeting.Client.Views
         public event Action<EditorContentUpdate>? ContentChanged;
 
         /// <summary>
-        /// 窗口关闭事件
+        /// 窗口关闭事件（主持人关闭时触发）
         /// </summary>
-        public event Action<string>? EditorClosed;
+        public event Action<CloseEditorRequest>? EditorClosed;
 
-        public CollaborativeEditorWindow(string peerId, string peerName, string sessionId)
+        public CollaborativeEditorWindow(string peerId, string peerName, string sessionId, string hostId)
         {
             InitializeComponent();
             _peerId = peerId;
             _peerName = peerName;
             _sessionId = sessionId;
+            _hostId = hostId;
+            _isHost = peerId == hostId;
 
             TxtSessionId.Text = $"会话: {sessionId.Substring(0, 8)}...";
             UpdateTimeDisplay();
 
+            // 如果不是主持人，隐藏关闭菜单项
+            if (!_isHost)
+            {
+                MenuClose.Visibility = Visibility.Collapsed;
+            }
+
+            Closing += OnWindowClosing;
             Closed += OnWindowClosed;
         }
 
@@ -214,7 +227,79 @@ namespace Dorisoy.Meeting.Client.Views
 
         private void MenuClose_Click(object sender, RoutedEventArgs e)
         {
-            Close();
+            if (_isHost)
+            {
+                // 主持人关闭：发送关闭通知并关闭窗口
+                NotifyEditorClosed();
+                _isForceClosing = true;
+                Close();
+            }
+        }
+
+        /// <summary>
+        /// 窗口关闭前事件 - 非主持人不能自行关闭
+        /// </summary>
+        private void OnWindowClosing(object? sender, CancelEventArgs e)
+        {
+            // 如果是强制关闭（主持人通知），直接允许
+            if (_isForceClosing)
+            {
+                return;
+            }
+
+            // 非主持人不能自行关闭窗口
+            if (!_isHost)
+            {
+                e.Cancel = true;
+                System.Windows.MessageBox.Show(
+                    "在主持人结束协同编辑前，您不能关闭此窗口。",
+                    "提示",
+                    System.Windows.MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+
+            // 主持人关闭窗口时，确认后发送关闭通知
+            var result = System.Windows.MessageBox.Show(
+                "关闭编辑器将结束所有用户的协同编辑会话。确定关闭吗？",
+                "确认关闭",
+                System.Windows.MessageBoxButton.YesNo,
+                MessageBoxImage.Question);
+
+            if (result == System.Windows.MessageBoxResult.Yes)
+            {
+                NotifyEditorClosed();
+                _isForceClosing = true;
+            }
+            else
+            {
+                e.Cancel = true;
+            }
+        }
+
+        /// <summary>
+        /// 发送编辑器关闭通知
+        /// </summary>
+        private void NotifyEditorClosed()
+        {
+            EditorClosed?.Invoke(new CloseEditorRequest
+            {
+                SessionId = _sessionId,
+                CloserId = _peerId,
+                CloserName = _peerName
+            });
+        }
+
+        /// <summary>
+        /// 强制关闭窗口（由主持人远程通知触发）
+        /// </summary>
+        public void ForceClose()
+        {
+            Dispatcher.Invoke(() =>
+            {
+                _isForceClosing = true;
+                Close();
+            });
         }
 
         private void MenuUndo_Click(object sender, RoutedEventArgs e)
@@ -327,7 +412,6 @@ namespace Dorisoy.Meeting.Client.Views
         private void OnWindowClosed(object? sender, EventArgs e)
         {
             _debounceTimer?.Dispose();
-            EditorClosed?.Invoke(_sessionId);
         }
     }
 }

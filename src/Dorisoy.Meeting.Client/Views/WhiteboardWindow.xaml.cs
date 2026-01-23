@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -25,7 +26,9 @@ namespace Dorisoy.Meeting.Client.Views
         private readonly string _hostId;
         private readonly string _hostName;
         private readonly string _currentPeerId;
+        private readonly string _currentPeerName;
         private readonly bool _isHost;
+        private bool _isForceClosing; // 标记是否是强制关闭（主持人关闭通知）
 
         // 当前工具和颜色
         private WhiteboardTool _currentTool = WhiteboardTool.Pen;
@@ -52,7 +55,7 @@ namespace Dorisoy.Meeting.Client.Views
 
         #region 构造函数
 
-        public WhiteboardWindow(string sessionId, string hostId, string hostName, string currentPeerId)
+        public WhiteboardWindow(string sessionId, string hostId, string hostName, string currentPeerId, string currentPeerName)
         {
             InitializeComponent();
 
@@ -60,6 +63,7 @@ namespace Dorisoy.Meeting.Client.Views
             _hostId = hostId;
             _hostName = hostName;
             _currentPeerId = currentPeerId;
+            _currentPeerName = currentPeerName;
             _isHost = currentPeerId == hostId;
 
             TxtHostName.Text = $" - 主持人: {hostName}";
@@ -70,6 +74,9 @@ namespace Dorisoy.Meeting.Client.Views
 
             // 键盘快捷键
             KeyDown += WhiteboardWindow_KeyDown;
+
+            // 窗口关闭控制
+            Closing += WhiteboardWindow_Closing;
 
             Loaded += WhiteboardWindow_Loaded;
         }
@@ -619,6 +626,34 @@ namespace Dorisoy.Meeting.Client.Views
 
         #endregion
 
+        #region 窗口关闭控制
+
+        /// <summary>
+        /// 窗口关闭前事件 - 非主持人不能自行关闭
+        /// </summary>
+        private void WhiteboardWindow_Closing(object? sender, CancelEventArgs e)
+        {
+            // 如果是强制关闭（主持人通知），直接允许
+            if (_isForceClosing)
+            {
+                return;
+            }
+
+            // 非主持人不能自行关闭窗口
+            if (!_isHost)
+            {
+                e.Cancel = true;
+                System.Windows.MessageBox.Show(
+                    "在主持人结束白板演示前，您不能关闭此窗口。",
+                    "提示",
+                    System.Windows.MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+        }
+
+        #endregion
+
         #region 键盘快捷键
 
         private void WhiteboardWindow_KeyDown(object sender, KeyEventArgs e)
@@ -671,33 +706,65 @@ namespace Dorisoy.Meeting.Client.Views
         /// </summary>
         public void ApplyRemoteStroke(WhiteboardStrokeUpdate update)
         {
-            // 忽略自己的更新
-            if (update.DrawerId == _currentPeerId) return;
+            if (update == null)
+            {
+                System.Diagnostics.Debug.WriteLine("[Whiteboard] ApplyRemoteStroke: update is null");
+                return;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"[Whiteboard] ApplyRemoteStroke: Action={update.Action}, DrawerId={update.DrawerId}, CurrentPeerId={_currentPeerId}");
+
+            // 忽略自己的更新 - 使用安全比较
+            if (!string.IsNullOrEmpty(update.DrawerId) && 
+                !string.IsNullOrEmpty(_currentPeerId) && 
+                update.DrawerId == _currentPeerId)
+            {
+                System.Diagnostics.Debug.WriteLine("[Whiteboard] ApplyRemoteStroke: 忽略自己的更新");
+                return;
+            }
 
             Dispatcher.Invoke(() =>
             {
-                switch (update.Action)
+                try
                 {
-                    case "add":
-                        if (update.Stroke != null)
-                        {
-                            AddStrokeToCanvas(update.Stroke);
-                        }
-                        break;
-
-                    case "remove":
-                        if (update.StrokeIds != null)
-                        {
-                            foreach (var id in update.StrokeIds)
+                    switch (update.Action?.ToLower())
+                    {
+                        case "add":
+                            if (update.Stroke != null)
                             {
-                                RemoveStrokeFromCanvas(id);
+                                System.Diagnostics.Debug.WriteLine($"[Whiteboard] 添加笔触: Id={update.Stroke.Id}, Tool={update.Stroke.Tool}");
+                                AddStrokeToCanvas(update.Stroke);
                             }
-                        }
-                        break;
+                            else
+                            {
+                                System.Diagnostics.Debug.WriteLine("[Whiteboard] ApplyRemoteStroke: Stroke is null for add action");
+                            }
+                            break;
 
-                    case "clear":
-                        ClearCanvas();
-                        break;
+                        case "remove":
+                            if (update.StrokeIds != null)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"[Whiteboard] 删除笔触: Count={update.StrokeIds.Count}");
+                                foreach (var id in update.StrokeIds)
+                                {
+                                    RemoveStrokeFromCanvas(id);
+                                }
+                            }
+                            break;
+
+                        case "clear":
+                            System.Diagnostics.Debug.WriteLine("[Whiteboard] 清空画布");
+                            ClearCanvas();
+                            break;
+
+                        default:
+                            System.Diagnostics.Debug.WriteLine($"[Whiteboard] 未知操作: {update.Action}");
+                            break;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[Whiteboard] ApplyRemoteStroke 异常: {ex.Message}");
                 }
             });
         }
@@ -852,6 +919,7 @@ namespace Dorisoy.Meeting.Client.Views
             {
                 SessionId = _sessionId,
                 CloserId = _currentPeerId,
+                CloserName = _currentPeerName,
                 SaveImage = saveImage,
                 ImageData = imageData
             });
@@ -877,11 +945,15 @@ namespace Dorisoy.Meeting.Client.Views
         }
 
         /// <summary>
-        /// 关闭窗口（由主持人触发）
+        /// 强制关闭窗口（由主持人远程通知触发）
         /// </summary>
         public void ForceClose()
         {
-            Dispatcher.Invoke(Close);
+            Dispatcher.Invoke(() =>
+            {
+                _isForceClosing = true;
+                Close();
+            });
         }
 
         #endregion

@@ -244,6 +244,11 @@ namespace Dorisoy.Meeting.Client.Models
         public string SessionId { get; set; } = string.Empty;
 
         /// <summary>
+        /// 主持人ID
+        /// </summary>
+        public string HostId { get; set; } = string.Empty;
+
+        /// <summary>
         /// 发起者ID
         /// </summary>
         public string InitiatorId { get; set; } = string.Empty;
