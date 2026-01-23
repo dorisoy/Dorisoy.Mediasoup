@@ -10,6 +10,9 @@
 
 <img src="https://github.com/dorisoy/Dorisoy.Mediasoup/blob/main/screen/2.png"/>
 
+<img src="https://github.com/dorisoy/Dorisoy.Mediasoup/blob/main/screen/3.png"/>
+
+<img src="https://github.com/dorisoy/Dorisoy.Mediasoup/blob/main/screen/4.png"/>
 ---
 
 ## 核心特性
