@@ -79,19 +79,4 @@
     </PackageReference>
   </ItemGroup>
 
-  <ItemGroup>
-    <EmbeddedResource Update="Resources\Translations.pl-PL.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-      <LastGenOutput>Translations.pl-PL.Designer.cs</LastGenOutput>
-    </EmbeddedResource>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Update="Resources\Translations.pl-PL.Designer.cs">
-      <DesignTime>True</DesignTime>
-      <AutoGen>True</AutoGen>
-      <DependentUpon>Translations.pl-PL.resx</DependentUpon>
-    </Compile>
-  </ItemGroup>
-
 </Project>
