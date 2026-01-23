@@ -2,12 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 
 namespace Dorisoy.Meeting.Client.Models
 {
     /// <summary>
     /// 白板绘制工具类型
     /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum WhiteboardTool
     {
         /// <summary>

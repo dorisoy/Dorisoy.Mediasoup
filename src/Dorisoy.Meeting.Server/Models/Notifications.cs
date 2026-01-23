@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using FBS.RtpParameters;
 
 namespace Dorisoy.Meeting.Server
@@ -524,6 +525,7 @@ namespace Dorisoy.Meeting.Server
     /// <summary>
     /// 白板绘制工具类型
     /// </summary>
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum WhiteboardTool
     {
         Pen,

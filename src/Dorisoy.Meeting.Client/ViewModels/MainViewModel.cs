@@ -25,7 +25,8 @@ public partial class MainViewModel : ObservableObject
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        PropertyNameCaseInsensitive = true
+        PropertyNameCaseInsensitive = true,
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
     };
 
     #region 可观察属性
@@ -5060,7 +5061,8 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            var json = JsonSerializer.Serialize(data);
+            // 序列化和反序列化都使用相同的 JsonOptions，确保枚举类型正确处理
+            var json = JsonSerializer.Serialize(data, JsonOptions);
             _logger.LogDebug("收到白板笔触更新: {Json}", json);
 
             var update = JsonSerializer.Deserialize<WhiteboardStrokeUpdate>(json, JsonOptions);
