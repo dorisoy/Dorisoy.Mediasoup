@@ -474,9 +474,9 @@ namespace Dorisoy.Meeting.Client.Views
             // 选择工具 - 拖动元素
             if (_isDragging && _selectedElement != null && _currentTool == DrawingTool.Select)
             {
-                var currentPoint = e.GetPosition(DrawingCanvas);
-                var deltaX = currentPoint.X - _dragStartPoint.X;
-                var deltaY = currentPoint.Y - _dragStartPoint.Y;
+                var dragPoint = e.GetPosition(DrawingCanvas);
+                var deltaX = dragPoint.X - _dragStartPoint.X;
+                var deltaY = dragPoint.Y - _dragStartPoint.Y;
                 
                 MoveSelectedElement(deltaX, deltaY);
                 return;
