@@ -543,14 +543,28 @@ namespace Dorisoy.Meeting.Client.Views
             var deltaX = currentPoint.X - _dragStartPoint.X;
             var deltaY = currentPoint.Y - _dragStartPoint.Y;
             
-            var currentLeft = Canvas.GetLeft(_selectedElement);
-            var currentTop = Canvas.GetTop(_selectedElement);
-            
-            if (double.IsNaN(currentLeft)) currentLeft = 0;
-            if (double.IsNaN(currentTop)) currentTop = 0;
-            
-            Canvas.SetLeft(_selectedElement, currentLeft + deltaX);
-            Canvas.SetTop(_selectedElement, currentTop + deltaY);
+            // 对于 Polyline，需要移动所有点
+            if (_selectedElement is Polyline polyline)
+            {
+                var newPoints = new PointCollection();
+                foreach (var pt in polyline.Points)
+                {
+                    newPoints.Add(new Point(pt.X + deltaX, pt.Y + deltaY));
+                }
+                polyline.Points = newPoints;
+            }
+            else
+            {
+                // 其他图形使用 Canvas 定位
+                var currentLeft = Canvas.GetLeft(_selectedElement);
+                var currentTop = Canvas.GetTop(_selectedElement);
+                
+                if (double.IsNaN(currentLeft)) currentLeft = 0;
+                if (double.IsNaN(currentTop)) currentTop = 0;
+                
+                Canvas.SetLeft(_selectedElement, currentLeft + deltaX);
+                Canvas.SetTop(_selectedElement, currentTop + deltaY);
+            }
             
             _dragStartPoint = currentPoint;
         }
@@ -566,32 +580,21 @@ namespace Dorisoy.Meeting.Client.Views
             var stroke = _strokes.FirstOrDefault(s => s.Id == _selectedStrokeId);
             if (stroke != null)
             {
-                var newLeft = Canvas.GetLeft(_selectedElement);
-                var newTop = Canvas.GetTop(_selectedElement);
-                
-                if (double.IsNaN(newLeft)) newLeft = 0;
-                if (double.IsNaN(newTop)) newTop = 0;
-                
                 // 更新笔触位置信息
-                if (stroke.Tool == WhiteboardTool.Pen)
+                if (stroke.Tool == WhiteboardTool.Pen && _selectedElement is Polyline polyline)
                 {
-                    // 笔触需要更新所有点的位置
-                    var offsetX = newLeft - (stroke.Points?.FirstOrDefault() ?? 0);
-                    var offsetY = newTop - (stroke.Points?.Skip(1).FirstOrDefault() ?? 0);
-                    
-                    if (stroke.Points != null && stroke.Points.Count >= 2)
-                    {
-                        for (int i = 0; i < stroke.Points.Count; i += 2)
-                        {
-                            stroke.Points[i] += offsetX;
-                            if (i + 1 < stroke.Points.Count)
-                                stroke.Points[i + 1] += offsetY;
-                        }
-                    }
+                    // Polyline 从元素的 Points 获取最新位置
+                    stroke.Points = polyline.Points.SelectMany(p => new[] { p.X, p.Y }).ToList();
                 }
                 else
                 {
-                    // 其他图形更新起始终点
+                    // 其他图形从 Canvas 获取位置
+                    var newLeft = Canvas.GetLeft(_selectedElement);
+                    var newTop = Canvas.GetTop(_selectedElement);
+                    
+                    if (double.IsNaN(newLeft)) newLeft = 0;
+                    if (double.IsNaN(newTop)) newTop = 0;
+                    
                     var width = stroke.EndX - stroke.StartX;
                     var height = stroke.EndY - stroke.StartY;
                     stroke.StartX = newLeft;
@@ -1249,9 +1252,25 @@ namespace Dorisoy.Meeting.Client.Views
                 return;
             }
             
-            // 更新元素位置
-            Canvas.SetLeft(element, stroke.StartX);
-            Canvas.SetTop(element, stroke.StartY);
+            // 根据工具类型分别处理
+            if (stroke.Tool == WhiteboardTool.Pen && element is Polyline polyline)
+            {
+                // Polyline 需要更新所有点
+                if (stroke.Points != null && stroke.Points.Count >= 2)
+                {
+                    polyline.Points.Clear();
+                    for (int i = 0; i < stroke.Points.Count - 1; i += 2)
+                    {
+                        polyline.Points.Add(new Point(stroke.Points[i], stroke.Points[i + 1]));
+                    }
+                }
+            }
+            else
+            {
+                // 其他图形使用 Canvas 定位
+                Canvas.SetLeft(element, stroke.StartX);
+                Canvas.SetTop(element, stroke.StartY);
+            }
             
             // 更新本地笔触数据
             var localStroke = _strokes.FirstOrDefault(s => s.Id == stroke.Id);
@@ -1263,7 +1282,7 @@ namespace Dorisoy.Meeting.Client.Views
                 localStroke.EndY = stroke.EndY;
                 if (stroke.Points != null)
                 {
-                    localStroke.Points = stroke.Points;
+                    localStroke.Points = new List<double>(stroke.Points);
                 }
             }
         }
