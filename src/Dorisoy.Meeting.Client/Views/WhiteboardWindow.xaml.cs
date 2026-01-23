@@ -64,7 +64,10 @@ namespace Dorisoy.Meeting.Client.Views
             _hostName = hostName;
             _currentPeerId = currentPeerId;
             _currentPeerName = currentPeerName;
-            _isHost = currentPeerId == hostId;
+            // 判断是否为主持人：currentPeerId == hostId，且两者都不为空
+            _isHost = !string.IsNullOrEmpty(currentPeerId) && !string.IsNullOrEmpty(hostId) && currentPeerId == hostId;
+            
+            System.Diagnostics.Debug.WriteLine($"[Whiteboard] currentPeerId={currentPeerId}, hostId={hostId}, _isHost={_isHost}");
 
             TxtHostName.Text = $" - 主持人: {hostName}";
             TxtStatus.Text = _isHost ? "正在演示..." : "观看中...";
@@ -513,13 +516,13 @@ namespace Dorisoy.Meeting.Client.Views
         {
             if (!_isHost) return;
 
-            var result = System.Windows.MessageBox.Show(
+            var confirmResult = System.Windows.MessageBox.Show(
                 "确定要清空所有绘制内容吗？",
                 "确认清空",
                 System.Windows.MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
-            if (result == System.Windows.MessageBoxResult.Yes)
+            if (confirmResult == System.Windows.MessageBoxResult.Yes)
             {
                 ClearCanvas();
 
@@ -555,14 +558,24 @@ namespace Dorisoy.Meeting.Client.Views
                 if (dialog.ShowDialog() == true)
                 {
                     SaveCanvasToImage(dialog.FileName);
-                    System.Windows.MessageBox.Show("图片保存成功！", "保存成功",
-                        System.Windows.MessageBoxButton.OK, MessageBoxImage.Information);
+                    var successBox = new Wpf.Ui.Controls.MessageBox
+                    {
+                        Title = "保存成功",
+                        Content = "图片保存成功！",
+                        CloseButtonText = "确定"
+                    };
+                    _ = successBox.ShowDialogAsync();
                 }
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"保存失败: {ex.Message}", "错误",
-                    System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
+                var errorBox = new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = "错误",
+                    Content = $"保存失败: {ex.Message}",
+                    CloseButtonText = "确定"
+                };
+                _ = errorBox.ShowDialogAsync();
             }
         }
 
@@ -603,13 +616,13 @@ namespace Dorisoy.Meeting.Client.Views
         {
             if (!_isHost) return;
 
-            var result = System.Windows.MessageBox.Show(
+            var cancelResult = System.Windows.MessageBox.Show(
                 "确定要取消并关闭白板吗？所有绘制内容将丢失。",
                 "确认取消",
                 System.Windows.MessageBoxButton.YesNo,
                 MessageBoxImage.Warning);
 
-            if (result == System.Windows.MessageBoxResult.Yes)
+            if (cancelResult == System.Windows.MessageBoxResult.Yes)
             {
                 NotifyWhiteboardClosed(false);
                 Close();
@@ -643,11 +656,13 @@ namespace Dorisoy.Meeting.Client.Views
             if (!_isHost)
             {
                 e.Cancel = true;
-                System.Windows.MessageBox.Show(
-                    "在主持人结束白板演示前，您不能关闭此窗口。",
-                    "提示",
-                    System.Windows.MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                var uiMessageBox = new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = "提示",
+                    Content = "在主持人结束白板演示前，您不能关闭此窗口。",
+                    CloseButtonText = "确定"
+                };
+                _ = uiMessageBox.ShowDialogAsync();
                 return;
             }
         }

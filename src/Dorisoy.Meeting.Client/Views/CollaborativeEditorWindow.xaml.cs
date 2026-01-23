@@ -44,7 +44,10 @@ namespace Dorisoy.Meeting.Client.Views
             _peerName = peerName;
             _sessionId = sessionId;
             _hostId = hostId;
-            _isHost = peerId == hostId;
+            // 判断是否为主持人：peerId == hostId，且两者都不为空
+            _isHost = !string.IsNullOrEmpty(peerId) && !string.IsNullOrEmpty(hostId) && peerId == hostId;
+            
+            System.Diagnostics.Debug.WriteLine($"[Editor] peerId={peerId}, hostId={hostId}, _isHost={_isHost}");
 
             TxtSessionId.Text = $"会话: {sessionId.Substring(0, 8)}...";
             UpdateTimeDisplay();
@@ -216,11 +219,23 @@ namespace Dorisoy.Meeting.Client.Views
                     var format = dialog.FileName.EndsWith(".txt") ? DataFormats.Text : DataFormats.Rtf;
                     range.Save(stream, format);
 
-                    System.Windows.MessageBox.Show("文件保存成功！", "保存", System.Windows.MessageBoxButton.OK, MessageBoxImage.Information);
+                    var successBox = new Wpf.Ui.Controls.MessageBox
+                    {
+                        Title = "保存",
+                        Content = "文件保存成功！",
+                        CloseButtonText = "确定"
+                    };
+                    _ = successBox.ShowDialogAsync();
                 }
                 catch (Exception ex)
                 {
-                    System.Windows.MessageBox.Show($"保存失败: {ex.Message}", "错误", System.Windows.MessageBoxButton.OK, MessageBoxImage.Error);
+                    var errorBox = new Wpf.Ui.Controls.MessageBox
+                    {
+                        Title = "错误",
+                        Content = $"保存失败: {ex.Message}",
+                        CloseButtonText = "确定"
+                    };
+                    _ = errorBox.ShowDialogAsync();
                 }
             }
         }
@@ -251,22 +266,25 @@ namespace Dorisoy.Meeting.Client.Views
             if (!_isHost)
             {
                 e.Cancel = true;
-                System.Windows.MessageBox.Show(
-                    "在主持人结束协同编辑前，您不能关闭此窗口。",
-                    "提示",
-                    System.Windows.MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                var uiMessageBox = new Wpf.Ui.Controls.MessageBox
+                {
+                    Title = "提示",
+                    Content = "在主持人结束协同编辑前，您不能关闭此窗口。",
+                    CloseButtonText = "确定"
+                };
+                _ = uiMessageBox.ShowDialogAsync();
                 return;
             }
 
             // 主持人关闭窗口时，确认后发送关闭通知
-            var result = System.Windows.MessageBox.Show(
+            // 使用同步方式处理确认对话框
+            var confirmResult = System.Windows.MessageBox.Show(
                 "关闭编辑器将结束所有用户的协同编辑会话。确定关闭吗？",
                 "确认关闭",
                 System.Windows.MessageBoxButton.YesNo,
                 MessageBoxImage.Question);
 
-            if (result == System.Windows.MessageBoxResult.Yes)
+            if (confirmResult == System.Windows.MessageBoxResult.Yes)
             {
                 NotifyEditorClosed();
                 _isForceClosing = true;
