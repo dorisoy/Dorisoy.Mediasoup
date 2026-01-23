@@ -4,14 +4,13 @@ using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using Wpf.Ui.Controls;
 
 namespace Dorisoy.Meeting.Client.Views
 {
     /// <summary>
     /// 屏幕截取选择遮罩窗口
     /// </summary>
-    public partial class ScreenCaptureOverlay : FluentWindow
+    public partial class ScreenCaptureOverlay : Window
     {
         private bool _isSelecting;
         private System.Windows.Point _startPoint;

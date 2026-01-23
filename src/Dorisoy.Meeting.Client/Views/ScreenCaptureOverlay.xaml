@@ -1,16 +1,16 @@
-<ui:FluentWindow x:Class="Dorisoy.Meeting.Client.Views.ScreenCaptureOverlay"
-                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Title="屏幕截取"
-                 WindowStyle="None"
-                 AllowsTransparency="True"
-                 Background="Transparent"
-                 Topmost="True"
-                 ShowInTaskbar="False"
-                 ResizeMode="NoResize"
-                 WindowState="Maximized"
-                 Cursor="Cross">
+<Window x:Class="Dorisoy.Meeting.Client.Views.ScreenCaptureOverlay"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+        Title="屏幕截取"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        WindowState="Maximized"
+        Cursor="Cross">
     <Grid x:Name="RootGrid">
         <!-- 半透明遮罩层 -->
         <Canvas x:Name="OverlayCanvas" 
@@ -102,4 +102,4 @@
             </TextBlock.Effect>
         </TextBlock>
     </Grid>
-</ui:FluentWindow>
+</Window>

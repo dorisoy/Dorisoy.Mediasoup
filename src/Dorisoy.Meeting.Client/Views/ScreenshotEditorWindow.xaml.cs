@@ -119,8 +119,11 @@ namespace Dorisoy.Meeting.Client.Views
                 _ => DrawingTool.Select
             };
             
-            // 更新光标
-            DrawingCanvas.Cursor = _currentTool == DrawingTool.Select ? Cursors.Arrow : Cursors.Cross;
+            // 更新光标（检查 DrawingCanvas 是否已初始化）
+            if (DrawingCanvas != null)
+            {
+                DrawingCanvas.Cursor = _currentTool == DrawingTool.Select ? Cursors.Arrow : Cursors.Cross;
+            }
         }
 
         private void Color_Checked(object sender, RoutedEventArgs e)
