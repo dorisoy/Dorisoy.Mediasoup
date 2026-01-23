@@ -2,6 +2,7 @@ using Microsoft.Win32;
 using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
 using Dorisoy.Meeting.Client.ViewModels;
@@ -69,6 +70,34 @@ public partial class ChatPanel : UserControl
         {
             _isGroupChat = false;
             UpdateChatTarget();
+        }
+    }
+
+    /// <summary>
+    /// 搜索框文本变化 - 过滤联系人列表
+    /// </summary>
+    private void SearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_viewModel?.ChatUsers == null) return;
+        
+        var view = CollectionViewSource.GetDefaultView(_viewModel.ChatUsers);
+        var searchText = SearchTextBox.Text?.Trim();
+        
+        if (string.IsNullOrEmpty(searchText))
+        {
+            view.Filter = null;
+        }
+        else
+        {
+            view.Filter = obj =>
+            {
+                if (obj is ChatUser user)
+                {
+                    return user.DisplayName?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true ||
+                           user.PeerId?.Contains(searchText, StringComparison.OrdinalIgnoreCase) == true;
+                }
+                return false;
+            };
         }
     }
 
