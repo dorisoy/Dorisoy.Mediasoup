@@ -1,8 +1,5 @@
 # Dorisoy.Mediasoup
 
-<<<<<<< HEAD
-**Dorisoy.Mediasoup** 是一个基于 .NET 8 的完整实时音视频通信解决方案，采用 Mediasoup SFU 架构实现高性能的 WebRTC 媒体服务。项目包含 Mediasoup 核心库（C# 实现）、libuv 异步 I/O 绑定、ASP.NET Core 集成中间件、SignalR 信令服务器，以及 WPF 桌面客户端和 Vue.js Web 客户端。支持 Open/Pull/Invite 三种服务模式，提供房间管理、音视频采集传输、多端互通等功能。技术栈涵盖 WebRTC、SignalR、SIPSorcery、OpenCvSharp、NAudio 等，适用于在线会议、远程协作、直播互动等场景。
-=======
 <div align="center">
 
 [![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/)
@@ -32,7 +29,6 @@ Dorisoy.Mediasoup 是一个基于 .NET 8 和 Mediasoup SFU（选择性转发单�
 | **灵活服务模式** | Open（开放）、Pull（按需）、Invite（邀请）三种模式适配不同会议场景 |
 | **丰富协作工具** | 内置白板、投票、翻译、截图、聊天等协作功能，开箱即用 |
 | **纯 C# 实现** | Mediasoup 核心库纯 C# 实现，与 .NET 生态无缝集成 |
->>>>>>> pro
 
 ---
 
@@ -45,6 +41,7 @@ Dorisoy.Mediasoup 是一个基于 .NET 8 和 Mediasoup SFU（选择性转发单�
 <img src="https://github.com/dorisoy/Dorisoy.Mediasoup/blob/main/screen/3.png"/>
 
 <img src="https://github.com/dorisoy/Dorisoy.Mediasoup/blob/main/screen/4.png"/>
+
 ---
 
 ## 功能特性
@@ -550,6 +547,71 @@ ENTRYPOINT ["dotnet", "Dorisoy.Meeting.Web.dll"]
 
 ---
 
+## 容量规划（局域网部署）
+
+> **基准环境**：10000MB 无线路由器，2.5Gbps 局域网带宽
+
+### 视频质量档位参数
+
+| 档位 | 分辨率 | 比特率 | 帧率 | 适用场景 |
+|------|--------|--------|------|----------|
+| **Low（低画质）** | 320×240 | 300 Kbps | 15 fps | 低带宽环境、大型培训 |
+| **Standard（标准）** | 640×480 | 1 Mbps | 25 fps | 日常会议、协作办公 |
+| **High（高清）** | 1280×720 | 2.5 Mbps | 30 fps | 小型高清会议 |
+| **Ultra（超清）** | 1920×1080 | 5 Mbps | 30 fps | 小型 1080p 会议 |
+
+### 编解码器效率对比
+
+| 编解码器 | 压缩效率 | 相同质量所需带宽 | CPU 负载 | 硬件加速 | 推荐场景 |
+|----------|----------|------------------|----------|----------|----------|
+| **VP8** | 基准 (1.0x) | 100% | 中等 | 无 | 兼容性优先 |
+| **VP9** | 高效 (~1.4x) | ~70% | 较高 | 部分 | 大规模会议、带宽敢感 |
+| **H264** | 基准 (1.0x) | 100% | 低 | 广泛支持 | 硬件编码场景 |
+
+### 2.5Gbps 网络最大客户端数量
+
+> **计算公式**（SFU 架构）：服务器出站带宽 ≈ N × (N-1) × 单路比特率  
+> **预留 20%** 网络开销，可用带宽 ≈ **2000 Mbps**
+
+| 质量档位 | VP8 | VP9 | H264 | 说明 |
+|----------|-----|-----|------|------|
+| **Low (300 Kbps)** | ~82 人 | ~98 人 | ~82 人 | 适合大型会议/培训 |
+| **Standard (1 Mbps)** | ~45 人 | ~54 人 | ~45 人 | 适合中型会议 |
+| **High (2.5 Mbps)** | ~29 人 | ~35 人 | ~29 人 | 适合小型高清会议 |
+| **Ultra (5 Mbps)** | ~20 人 | ~24 人 | ~20 人 | 适合小型 1080p 会议 |
+
+### 详细带宽消耗表（服务器出站带宽）
+
+| 客户端数 | Low (300K) | Standard (1M) | High (2.5M) | Ultra (5M) |
+|----------|------------|---------------|-------------|------------|
+| **5 人** | 6 Mbps | 20 Mbps | 50 Mbps | 100 Mbps |
+| **10 人** | 27 Mbps | 90 Mbps | 225 Mbps | 450 Mbps |
+| **20 人** | 114 Mbps | 380 Mbps | 950 Mbps | 1.9 Gbps |
+| **30 人** | 261 Mbps | 870 Mbps | 2.2 Gbps | 4.4 Gbps ⚠️ |
+| **50 人** | 735 Mbps | 2.5 Gbps ⚠️ | 6.1 Gbps ❌ | 12.3 Gbps ❌ |
+| **100 人** | 2.97 Gbps ⚠️ | 9.9 Gbps ❌ | 24.8 Gbps ❌ | 49.5 Gbps ❌ |
+
+> ⚠️ 接近带宽上限    ❌ 超出带宽限制
+
+### 推荐配置方案
+
+| 会议规模 | 推荐档位 | 推荐编解码器 | 原因 |
+|----------|----------|--------------|------|
+| **5-10 人** | High / Ultra | H264 | 硬件加速，低 CPU 占用 |
+| **10-30 人** | Standard | VP9 | 高压缩效率，节省带宽 |
+| **30-50 人** | Low / Standard | VP9 | 最大化参会人数 |
+| **50+ 人** | Low | VP9 | 带宽优先，保障稳定性 |
+
+### 容量规划注意事项
+
+1. **VP9 优势**：相同视觉质量下比 VP8/H264 节省约 **30%** 带宽
+2. **H264 优势**：支持硬件编解码，CPU 负载最低
+3. **音频带宽**：需预留 **10-20%** 给音频（Opus 约 32-64 Kbps/人）
+4. **网络余量**：建议保持 **30%** 带宽余量应对网络波动
+5. **多路由器**：超过 50 人建议使用 `PipeTransport` 跨路由器通信
+
+---
+
 ## 常见问题
 
 ### Q: WebRTC 连接失败？
@@ -583,19 +645,6 @@ ENTRYPOINT ["dotnet", "Dorisoy.Meeting.Web.dll"]
 2. 使用负载均衡分发到多个服务器
 3. 考虑使用 `PipeTransport` 跨路由器通信
 
-<<<<<<< HEAD
----
-
-## 许可证
-
-本项目采用 MIT 许可证。详见 [LICENSE](LICENSE) 文件。
-
----
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
-=======
 
 ### Q: 编解码器如何选择？
 
@@ -610,7 +659,6 @@ ENTRYPOINT ["dotnet", "Dorisoy.Meeting.Web.dll"]
 ## 开源贡献
 
 欢迎参与项目贡献！
->>>>>>> pro
 
 1. Fork 本仓库
 2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
