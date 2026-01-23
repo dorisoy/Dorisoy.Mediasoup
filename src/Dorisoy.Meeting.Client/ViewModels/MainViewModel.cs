@@ -218,7 +218,7 @@ public partial class MainViewModel : ObservableObject
     /// 选中的视频编解码器
     /// </summary>
     [ObservableProperty]
-    private VideoCodecInfo _selectedVideoCodec = VideoCodecInfo.AvailableCodecs[0]; // 默认 VP8
+    private VideoCodecInfo _selectedVideoCodec = VideoCodecInfo.GetByType(VideoCodecType.VP9); // 默认 VP9
 
     #endregion
 

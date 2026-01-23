@@ -34,7 +34,7 @@ public class WebRtcService : IWebRtcService
     private AudioFramePacketizer? _audioPacketizer;
     
     // 当前视频编解码器类型
-    private VideoCodecType _currentVideoCodec = VideoCodecType.VP8;
+    private VideoCodecType _currentVideoCodec = VideoCodecType.VP9;
 
     // 视频采集
     private VideoCapture? _videoCapture;

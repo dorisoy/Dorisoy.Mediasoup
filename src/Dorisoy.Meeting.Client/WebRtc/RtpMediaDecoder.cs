@@ -28,7 +28,7 @@ public class RtpMediaDecoder : IDisposable
     private readonly ConcurrentDictionary<string, IVideoDecoder> _videoDecoders = new();
     
     // 当前视频编解码器类型（用于发送端）
-    private VideoCodecType _currentVideoCodec = VideoCodecType.VP8;
+    private VideoCodecType _currentVideoCodec = VideoCodecType.VP9;
     
     // 每个 Consumer 独立的编解码器类型（用于接收端）
     private readonly ConcurrentDictionary<string, VideoCodecType> _consumerCodecTypes = new();

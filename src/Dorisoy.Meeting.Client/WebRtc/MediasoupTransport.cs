@@ -1379,7 +1379,7 @@ public class MediasoupTransport : IDisposable
     private const int AUDIO_CLOCK_RATE = 48000; // 48kHz
 
     // 当前视频编解码器类型
-    private VideoCodecType _currentVideoCodec = VideoCodecType.VP8;
+    private VideoCodecType _currentVideoCodec = VideoCodecType.VP9;
     
     /// <summary>
     /// 视频目标比特率 (bps)，用于 RTP 参数协商
