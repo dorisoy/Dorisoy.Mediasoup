@@ -26,7 +26,8 @@ public partial class MainViewModel : ObservableObject
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
-        Converters = { new System.Text.Json.Serialization.JsonStringEnumConverter() }
+        // 使用 JsonStringEnumMemberConverter 与服务端保持一致
+        Converters = { new System.Text.Json.Serialization.JsonStringEnumMemberConverter() }
     };
 
     #region 可观察属性

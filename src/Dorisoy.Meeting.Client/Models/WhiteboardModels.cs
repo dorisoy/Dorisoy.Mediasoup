@@ -8,8 +8,8 @@ namespace Dorisoy.Meeting.Client.Models
 {
     /// <summary>
     /// 白板绘制工具类型
+    /// 注意：全局使用 JsonStringEnumMemberConverter，无需单独标记
     /// </summary>
-    [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum WhiteboardTool
     {
         /// <summary>

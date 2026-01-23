@@ -24,7 +24,8 @@ public class SignalRService : ISignalRService
     {
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         PropertyNameCaseInsensitive = true,
-        Converters = { new JsonStringEnumConverter() }
+        // 使用 JsonStringEnumMemberConverter 与服务端保持一致
+        Converters = { new JsonStringEnumMemberConverter() }
     };
 
     /// <summary>
@@ -94,10 +95,11 @@ public class SignalRService : ISignalRService
             })
             .AddJsonProtocol(options =>
             {
-                // 与服务端保持一致的 JSON 序列化配置
+                // 与服务端保持一致的 JSON 序列化配置（必须使用相同的枚举转换器）
                 options.PayloadSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
                 options.PayloadSerializerOptions.PropertyNameCaseInsensitive = true;
-                options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
+                // 重要：必须使用 JsonStringEnumMemberConverter 与服务端一致！
+                options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumMemberConverter());
             })
             .WithAutomaticReconnect(new[]
             {
