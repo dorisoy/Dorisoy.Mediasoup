@@ -691,6 +691,47 @@ namespace Dorisoy.Meeting.Client.Views
                 _ = uiMessageBox.ShowDialogAsync();
                 return;
             }
+            
+            // 主持人点击 X 按钮关闭窗口时，显示确认对话框
+            if (!_isPendingCloseConfirm)
+            {
+                e.Cancel = true;
+                _isPendingCloseConfirm = true;
+                ShowHostCloseConfirmDialog();
+            }
+        }
+        
+        /// <summary>
+        /// 显示主持人关闭确认对话框
+        /// </summary>
+        private async void ShowHostCloseConfirmDialog()
+        {
+            var confirmBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "确认关闭",
+                Content = "关闭白板将结束所有用户的白板演示。确定关闭吗？",
+                PrimaryButtonText = "确定",
+                CloseButtonText = "取消"
+            };
+
+            var result = await confirmBox.ShowDialogAsync();
+            _isPendingCloseConfirm = false;
+
+            if (result == Wpf.Ui.Controls.MessageBoxResult.Primary)
+            {
+                // 发送关闭通知给所有用户
+                NotifyWhiteboardClosed(false);
+                _isForceClosing = true;
+                
+                try
+                {
+                    Close();
+                }
+                catch (InvalidOperationException)
+                {
+                    // 窗口已在关闭中，忽略
+                }
+            }
         }
 
         #endregion

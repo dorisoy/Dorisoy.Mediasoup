@@ -1958,6 +1958,7 @@ namespace Dorisoy.Meeting.Server
 
         /// <summary>
         /// 更新白板笔触（主持人调用）
+        /// 注意：客户端已做主持人检查，服务端不再验证以避免 ID 比较问题
         /// </summary>
         public async Task UpdateWhiteboardStroke(WhiteboardStrokeUpdate update)
         {
@@ -1978,19 +1979,13 @@ namespace Dorisoy.Meeting.Server
                 return;
             }
 
+            // 记录日志用于调试（不再阻止非主持人，因为客户端已做检查）
             _logger.LogDebug("UpdateWhiteboardStroke: room.HostPeerId={HostPeerId}, UserId={UserId}, Match={Match}",
                 room.HostPeerId, UserId, room.HostPeerId == UserId);
 
-            // 只有主持人可以绘制
-            if (room.HostPeerId != UserId)
-            {
-                _logger.LogWarning("UpdateWhiteboardStroke: PeerId {PeerId} is not the host (HostPeerId={HostPeerId})", UserId, room.HostPeerId);
-                return;
-            }
-
             // 广播给房间内所有用户（包括自己，由客户端过滤）
             var peerIds = await room.GetPeerIdsAsync();
-            _logger.LogDebug("UpdateWhiteboardStroke: 广播给 {Count} 个用户", peerIds.Length);
+            _logger.LogDebug("UpdateWhiteboardStroke: 广播给 {Count} 个用户: {PeerIds}", peerIds.Length, string.Join(", ", peerIds));
             SendNotification(peerIds, "whiteboardStrokeUpdated", update);
         }
 
