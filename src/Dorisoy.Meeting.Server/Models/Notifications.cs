@@ -409,6 +409,11 @@ namespace Dorisoy.Meeting.Server
         public string SessionId { get; set; } = string.Empty;
 
         /// <summary>
+        /// 主持人 ID（用于权限控制）
+        /// </summary>
+        public string HostId { get; set; } = string.Empty;
+
+        /// <summary>
         /// 发起者ID
         /// </summary>
         public string InitiatorId { get; set; } = string.Empty;
