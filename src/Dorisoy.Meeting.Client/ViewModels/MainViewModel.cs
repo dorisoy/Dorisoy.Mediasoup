@@ -5127,6 +5127,60 @@ public partial class MainViewModel : ObservableObject
     #endregion
 
     #endregion
+
+    #region 屏幕截图
+
+    /// <summary>
+    /// 请求打开截图界面
+    /// </summary>
+    public event Action? CaptureScreenRequested;
+
+    /// <summary>
+    /// 截图命令 - 打开屏幕截取工具
+    /// </summary>
+    [RelayCommand]
+    private void CaptureScreen()
+    {
+        _logger.LogInformation("打开屏幕截取工具");
+        StatusMessage = "请选择截图区域";
+        CaptureScreenRequested?.Invoke();
+    }
+
+    /// <summary>
+    /// 发送图片到聊天（供截图后使用）
+    /// </summary>
+    public void SendClipboardImage()
+    {
+        if (Clipboard.ContainsImage())
+        {
+            var image = Clipboard.GetImage();
+            if (image != null)
+            {
+                try
+                {
+                    // 将 BitmapSource 保存到临时文件
+                    var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"screenshot_{DateTime.Now:yyyyMMddHHmmss}.png");
+                    using (var stream = new FileStream(tempPath, FileMode.Create))
+                    {
+                        var encoder = new PngBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(image));
+                        encoder.Save(stream);
+                    }
+                    
+                    // 发送图片消息
+                    SendImageMessage(tempPath, null);
+                    StatusMessage = "截图已发送";
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "发送剪贴板图片失败");
+                    StatusMessage = $"发送截图失败: {ex.Message}";
+                }
+            }
+        }
+    }
+
+    #endregion
 }
 
 /// <summary>

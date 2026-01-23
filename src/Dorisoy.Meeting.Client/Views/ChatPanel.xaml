@@ -496,7 +496,33 @@
                                     x:Name="MessageInput"
                                     PlaceholderText="输入消息..."
                                     VerticalContentAlignment="Center"
-                                    KeyDown="MessageInput_KeyDown"/>
+                                    KeyDown="MessageInput_KeyDown">
+                            <ui:TextBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="粘贴图片" Click="PasteImageMenuItem_Click">
+                                        <MenuItem.Icon>
+                                            <ui:SymbolIcon Symbol="Image24" FontSize="16"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <Separator/>
+                                    <MenuItem Header="粘贴" Command="ApplicationCommands.Paste">
+                                        <MenuItem.Icon>
+                                            <ui:SymbolIcon Symbol="ClipboardPaste24" FontSize="16"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="复制" Command="ApplicationCommands.Copy">
+                                        <MenuItem.Icon>
+                                            <ui:SymbolIcon Symbol="Copy24" FontSize="16"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                    <MenuItem Header="剩切" Command="ApplicationCommands.Cut">
+                                        <MenuItem.Icon>
+                                            <ui:SymbolIcon Symbol="Cut24" FontSize="16"/>
+                                        </MenuItem.Icon>
+                                    </MenuItem>
+                                </ContextMenu>
+                            </ui:TextBox.ContextMenu>
+                        </ui:TextBox>
 
                         <ui:Button Grid.Column="1"
                                    Appearance="Primary"

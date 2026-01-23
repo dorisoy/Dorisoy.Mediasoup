@@ -67,6 +67,9 @@ public partial class MainWindow : FluentWindow
         // 订阅关闭所有子窗口事件（主持人断开/房间解散时）
         _viewModel.CloseAllChildWindowsRequested += OnCloseAllChildWindows;
         
+        // 订阅屏幕截图事件
+        _viewModel.CaptureScreenRequested += OnCaptureScreenRequested;
+        
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
         
@@ -169,6 +172,66 @@ public partial class MainWindow : FluentWindow
         };
         
         translateWindow.Show();
+    }
+    
+    /// <summary>
+    /// 处理屏幕截图请求
+    /// </summary>
+    private void OnCaptureScreenRequested()
+    {
+        // 隐藏当前窗口，避免截取到自己
+        var originalState = WindowState;
+        WindowState = WindowState.Minimized;
+        
+        // 等待窗口最小化完成
+        Dispatcher.InvokeAsync(async () =>
+        {
+            await Task.Delay(200);
+            
+            // 创建屏幕截取遮罩
+            var overlay = new ScreenCaptureOverlay();
+            
+            // 截图完成事件
+            overlay.CaptureCompleted += (screenshot) =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    // 恢复窗口
+                    WindowState = originalState;
+                    Activate();
+                    
+                    // 打开截图编辑器
+                    var editor = new ScreenshotEditorWindow
+                    {
+                        Owner = this
+                    };
+                    editor.SetScreenshot(screenshot);
+                    
+                    // 截图完成后事件
+                    editor.ScreenshotCompleted += (finalImage) =>
+                    {
+                        // 图片已复制到剪贴板，用户可以在聊天中粘贴
+                        _viewModel.StatusMessage = "截图已复制到剪贴板";
+                    };
+                    
+                    editor.ShowDialog();
+                });
+            };
+            
+            // 截图取消事件
+            overlay.CaptureCancelled += () =>
+            {
+                Dispatcher.Invoke(() =>
+                {
+                    // 恢复窗口
+                    WindowState = originalState;
+                    Activate();
+                    _viewModel.StatusMessage = "截图已取消";
+                });
+            };
+            
+            overlay.Show();
+        });
     }
 
     /// <summary>

@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using Dorisoy.Meeting.Client.ViewModels;
 using Dorisoy.Meeting.Client.Models;
 using UserControl = System.Windows.Controls.UserControl;
@@ -277,10 +278,82 @@ public partial class ChatPanel : UserControl
     /// </summary>
     private void MessageInput_KeyDown(object sender, KeyEventArgs e)
     {
+        // Ctrl+V 粘贴图片
+        if (e.Key == Key.V && Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
+        {
+            if (PasteImageFromClipboard())
+            {
+                e.Handled = true;
+                return;
+            }
+        }
+        
         if (e.Key == Key.Enter && !Keyboard.Modifiers.HasFlag(ModifierKeys.Shift))
         {
             SendMessage();
             e.Handled = true;
+        }
+    }
+    
+    /// <summary>
+    /// 从剪贴板粘贴图片
+    /// </summary>
+    /// <returns>是否成功粘贴图片</returns>
+    private bool PasteImageFromClipboard()
+    {
+        try
+        {
+            if (Clipboard.ContainsImage())
+            {
+                var image = Clipboard.GetImage();
+                if (image != null)
+                {
+                    // 保存图片到临时文件
+                    var tempPath = System.IO.Path.Combine(
+                        System.IO.Path.GetTempPath(), 
+                        $"clipboard_{DateTime.Now:yyyyMMddHHmmss}.png");
+                    
+                    using (var stream = new System.IO.FileStream(tempPath, System.IO.FileMode.Create))
+                    {
+                        var encoder = new PngBitmapEncoder();
+                        encoder.Frames.Add(BitmapFrame.Create(image));
+                        encoder.Save(stream);
+                    }
+                    
+                    // 发送图片消息
+                    var receiverId = _isGroupChat ? null : _viewModel?.SelectedChatUser?.PeerId;
+                    _viewModel?.SendImageMessage(tempPath, receiverId);
+                    
+                    // 滚动到底部
+                    MessagesScrollViewer.ScrollToEnd();
+                    
+                    return true;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[粘贴图片] 失败: {ex.Message}");
+        }
+        
+        return false;
+    }
+    
+    /// <summary>
+    /// 右键菜单 - 粘贴图片
+    /// </summary>
+    private void PasteImageMenuItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (!PasteImageFromClipboard())
+        {
+            // 剪贴板中没有图片
+            var msgBox = new Wpf.Ui.Controls.MessageBox
+            {
+                Title = "提示",
+                Content = "剪贴板中没有图片\n\n请先截图或复制图片，然后再粘贴",
+                CloseButtonText = "确定"
+            };
+            _ = msgBox.ShowDialogAsync();
         }
     }
 

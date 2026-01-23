@@ -944,31 +944,15 @@
                                        FontSize="18" />
                     </ui:Button>
 
-                    <!-- 画中画 -->
+                    <!-- 屏幕截取 -->
                     <ui:Button Width="44"
                                Height="44"
                                CornerRadius="8"
                                Margin="0,3"
-                               Command="{Binding PipCommand}">
-                        <ui:Button.Style>
-                            <Style TargetType="ui:Button"
-                                   BasedOn="{StaticResource {x:Type ui:Button}}">
-                                <Setter Property="Appearance"
-                                        Value="Transparent" />
-                                <Setter Property="ToolTip"
-                                        Value="画中画" />
-                                <Style.Triggers>
-                                    <DataTrigger Binding="{Binding IsPipMode}"
-                                                 Value="True">
-                                        <Setter Property="Appearance"
-                                                Value="Info" />
-                                        <Setter Property="ToolTip"
-                                                Value="退出画中画" />
-                                    </DataTrigger>
-                                </Style.Triggers>
-                            </Style>
-                        </ui:Button.Style>
-                        <ui:SymbolIcon Symbol="PictureInPicture24"
+                               ToolTip="屏幕截取 (Ctrl+Shift+A)"
+                               Appearance="Transparent"
+                               Command="{Binding CaptureScreenCommand}">
+                        <ui:SymbolIcon Symbol="Screenshot24"
                                        FontSize="18" />
                     </ui:Button>
 
@@ -1006,17 +990,6 @@
                         </Grid>
                     </ui:Button>
 
-                    <!-- 屏幕截图 -->
-                    <ui:Button Width="44"
-                               Height="44"
-                               CornerRadius="8"
-                               Margin="0,3"
-                               ToolTip="屏幕截图"
-                               Appearance="Transparent"
-                               Command="{Binding ScreenshotCommand}">
-                        <ui:SymbolIcon Symbol="Screenshot24"
-                                       FontSize="18" />
-                    </ui:Button>
                 </StackPanel>
             </Border>
 
