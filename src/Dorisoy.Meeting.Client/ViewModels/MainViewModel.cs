@@ -2038,6 +2038,40 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
+    /// <summary>
+    /// 开始与视频用户私聊
+    /// </summary>
+    [RelayCommand]
+    private void StartPrivateChat(RemoteVideoItem? video)
+    {
+        if (video == null || video.IsLocal) return;
+        
+        // 根据视频项的 PeerId 查找对应的聊天用户
+        var chatUser = ChatUsers.FirstOrDefault(u => u.PeerId == video.PeerId);
+        if (chatUser == null)
+        {
+            // 如果找不到，可能是用户刚加入还没同步到 ChatUsers，尝试创建一个
+            chatUser = new ChatUser
+            {
+                PeerId = video.PeerId,
+                DisplayName = video.DisplayName,
+                IsOnline = true
+            };
+            ChatUsers.Add(chatUser);
+            _logger.LogInformation("动态添加聊天用户: PeerId={PeerId}, DisplayName={DisplayName}", 
+                video.PeerId, video.DisplayName);
+        }
+        
+        // 打开聊天面板
+        IsChatPanelVisible = true;
+        
+        // 选中该用户（这会触发 OnSelectedChatUserChanged 切换到私聊模式）
+        SelectedChatUser = chatUser;
+        
+        _logger.LogInformation("开始与 {DisplayName} 私聊", video.DisplayName);
+        StatusMessage = $"开始与 {video.DisplayName} 私聊";
+    }
+
     #endregion
 
     #region 底部控制栏命令

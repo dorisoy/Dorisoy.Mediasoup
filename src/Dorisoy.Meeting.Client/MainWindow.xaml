@@ -303,6 +303,19 @@
                                                         <ui:SymbolIcon Symbol="ScanCamera20" FontSize="14" Foreground="White"/>
                                                     </ui:Button>
                                                     
+                                                    <!-- 私聊 - 仅远端视频显示 -->
+                                                    <ui:Button Width="32" Height="32"
+                                                               CornerRadius="4"
+                                                               Margin="2,0"
+                                                               Appearance="Transparent"
+                                                               ToolTip="私聊"
+                                                               Padding="0"
+                                                               Command="{Binding DataContext.StartPrivateChatCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                               CommandParameter="{Binding}"
+                                                               Visibility="{Binding IsLocal, Converter={StaticResource InverseBoolToVisConverter}}">
+                                                        <ui:SymbolIcon Symbol="Chat20" FontSize="14" Foreground="White"/>
+                                                    </ui:Button>
+                                                    
                                                     <!-- 分隔线 - 仅远端视频显示 -->
                                                     <Border Width="1" Height="20" 
                                                             Background="#40FFFFFF" 
