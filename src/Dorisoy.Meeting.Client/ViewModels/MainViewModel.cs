@@ -2958,11 +2958,26 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("Switching camera to device: {DeviceId}", deviceId);
             StatusMessage = "正在切换摄像头...";
 
-            // 先停止当前摄像头
+            // 1. 先关闭服务器端的旧 Producer（如果存在）
+            if (!string.IsNullOrEmpty(_videoProducerId))
+            {
+                _logger.LogInformation("Closing old video producer: {ProducerId}", _videoProducerId);
+                await _signalRService.InvokeAsync("CloseProducer", _videoProducerId);
+                _videoProducerId = null;
+            }
+
+            // 2. 停止当前摄像头
             await _webRtcService.StopCameraAsync();
 
-            // 启动新摄像头
+            // 3. 启动新摄像头
             await _webRtcService.StartCameraAsync(deviceId);
+
+            // 4. 如果已加入房间，重新创建 Producer
+            if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
+            {
+                _logger.LogInformation("Re-creating video producer after camera switch");
+                await ProduceVideoAsync();
+            }
 
             StatusMessage = "摄像头已切换";
             _logger.LogInformation("Camera switched to device: {DeviceId}", deviceId);
@@ -2984,11 +2999,26 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("Switching microphone to device: {DeviceId}", deviceId);
             StatusMessage = "正在切换麦克风...";
 
-            // 先停止当前麦克风
+            // 1. 先关闭服务器端的旧 Audio Producer（如果存在）
+            if (!string.IsNullOrEmpty(_audioProducerId))
+            {
+                _logger.LogInformation("Closing old audio producer: {ProducerId}", _audioProducerId);
+                await _signalRService.InvokeAsync("CloseProducer", _audioProducerId);
+                _audioProducerId = null;
+            }
+
+            // 2. 停止当前麦克风
             await _webRtcService.StopMicrophoneAsync();
 
-            // 启动新麦克风
+            // 3. 启动新麦克风
             await _webRtcService.StartMicrophoneAsync(deviceId);
+
+            // 4. 如果已加入房间，重新创建 Audio Producer
+            if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
+            {
+                _logger.LogInformation("Re-creating audio producer after microphone switch");
+                await ProduceAudioAsync();
+            }
 
             StatusMessage = "麦克风已切换";
             _logger.LogInformation("Microphone switched to device: {DeviceId}", deviceId);
