@@ -61,20 +61,35 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                             <ui:SymbolIcon Symbol="Speaker224" Margin="0,0,8,0" />
                             <TextBlock Text="设备选择" FontWeight="SemiBold" />
+                            <!-- 运行时切换提示 -->
+                            <Border Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                                    CornerRadius="4"
+                                    Padding="6,2"
+                                    Margin="8,0,0,0"
+                                    Visibility="{Binding IsCameraEnabled, Converter={StaticResource BoolToVisConverter}}">
+                                <TextBlock Text="实时切换" 
+                                           FontSize="10" 
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}"/>
+                            </Border>
                         </StackPanel>
                         
                         <TextBlock Text="摄像头" Margin="0,0,0,6" Opacity="0.7" />
                         <ComboBox ItemsSource="{Binding Cameras}"
                                   SelectedItem="{Binding SelectedCamera}"
                                   DisplayMemberPath="Label"
-                                  IsEnabled="{Binding IsCameraEnabled, Converter={StaticResource InverseBoolConverter}}"
                                   HorizontalAlignment="Stretch"/>
+                        
+                        <!-- 摄像头切换提示 -->
+                        <TextBlock Text="ℹ️ 视频开启时切换摄像头会短暂中断画面"
+                                   FontSize="11"
+                                   Opacity="0.5"
+                                   Margin="0,4,0,0"
+                                   Visibility="{Binding IsCameraEnabled, Converter={StaticResource BoolToVisConverter}}"/>
 
                         <TextBlock Text="麦克风" Margin="0,12,0,6" Opacity="0.7" />
                         <ComboBox ItemsSource="{Binding Microphones}"
                                   SelectedItem="{Binding SelectedMicrophone}"
                                   DisplayMemberPath="Label"
-                                  IsEnabled="{Binding IsMicrophoneEnabled, Converter={StaticResource InverseBoolConverter}}"
                                   HorizontalAlignment="Stretch"/>
 
                         <ui:Button Content="刷新设备"
@@ -91,13 +106,22 @@
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                             <ui:SymbolIcon Symbol="VideoClip24" Margin="0,0,8,0" />
                             <TextBlock Text="视频质量" FontWeight="SemiBold" />
+                            <!-- 运行时切换提示 -->
+                            <Border Background="{DynamicResource SystemFillColorCautionBackgroundBrush}"
+                                    CornerRadius="4"
+                                    Padding="6,2"
+                                    Margin="8,0,0,0"
+                                    Visibility="{Binding IsCameraEnabled, Converter={StaticResource BoolToVisConverter}}">
+                                <TextBlock Text="实时生效" 
+                                           FontSize="10" 
+                                           Foreground="{DynamicResource SystemFillColorCautionBrush}"/>
+                            </Border>
                         </StackPanel>
                         
                         <TextBlock Text="编解码器" Margin="0,0,0,6" Opacity="0.7" />
                         <ComboBox ItemsSource="{Binding VideoCodecs}"
                                   SelectedItem="{Binding SelectedVideoCodec}"
                                   DisplayMemberPath="DisplayName"
-                                  IsEnabled="{Binding IsCameraEnabled, Converter={StaticResource InverseBoolConverter}}"
                                   HorizontalAlignment="Stretch"/>
                         
                         <!-- 编解码器信息 -->
@@ -120,7 +144,6 @@
                         <ComboBox ItemsSource="{Binding VideoQualityPresets}"
                                   SelectedItem="{Binding SelectedVideoQuality}"
                                   DisplayMemberPath="DisplayName"
-                                  IsEnabled="{Binding IsCameraEnabled, Converter={StaticResource InverseBoolConverter}}"
                                   HorizontalAlignment="Stretch"/>
                         
                         <!-- 当前质量信息 -->
