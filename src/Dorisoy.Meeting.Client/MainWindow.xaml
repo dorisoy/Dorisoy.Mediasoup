@@ -143,8 +143,9 @@
                                               MinHeight="150">
                                             <!-- 视频画面，支持镜像 -->
                                             <Image Source="{Binding VideoFrame}"
-                                                   Stretch="UniformToFill"
+                                                   Stretch="Uniform"
                                                    RenderOptions.BitmapScalingMode="HighQuality"
+                                                   RenderOptions.EdgeMode="Aliased"
                                                    RenderTransformOrigin="0.5,0.5">
                                                 <Image.RenderTransform>
                                                     <ScaleTransform ScaleX="{Binding HorizontalScale}" 
@@ -656,8 +657,9 @@
                         Visibility="{Binding IsSelfViewVisible, Converter={StaticResource BoolToVisConverter}}">
                     <Grid ClipToBounds="True">
                         <Image Source="{Binding LocalVideoFrame}"
-                               Stretch="UniformToFill"
-                               RenderOptions.BitmapScalingMode="HighQuality" />
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"
+                               RenderOptions.EdgeMode="Aliased" />
 
                         <!-- 无本地视频时的占位符 -->
                         <StackPanel HorizontalAlignment="Center"
