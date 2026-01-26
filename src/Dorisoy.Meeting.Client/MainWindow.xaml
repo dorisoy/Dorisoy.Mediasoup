@@ -429,6 +429,87 @@
                                 </TextBlock.Effect>
                             </TextBlock>
                         </Border>
+                        
+                        <!-- 最大化视频覆盖层 -->
+                        <Border Background="{DynamicResource ApplicationBackgroundBrush}"
+                                Visibility="{Binding MaximizedRemoteVideo, Converter={StaticResource NullToCollapsedConverter}}">
+                            <Grid>
+                                <!-- 最大化的视频画面 -->
+                                <Image Source="{Binding MaximizedRemoteVideo.VideoFrame}"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       RenderOptions.EdgeMode="Aliased"
+                                       RenderTransformOrigin="0.5,0.5">
+                                    <Image.RenderTransform>
+                                        <ScaleTransform ScaleX="{Binding MaximizedRemoteVideo.HorizontalScale}" 
+                                                        ScaleY="{Binding MaximizedRemoteVideo.VerticalScale}"/>
+                                    </Image.RenderTransform>
+                                </Image>
+                                
+                                <!-- 无视频时的占位符 -->
+                                <StackPanel HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding MaximizedRemoteVideo.VideoFrame, 
+                                                Converter={StaticResource NullToVisibleConverter}}">
+                                    <ui:SymbolIcon Symbol="Person48"
+                                                   FontSize="80"
+                                                   Opacity="0.3" />
+                                    <TextBlock Text="{Binding MaximizedRemoteVideo.DisplayName}"
+                                               Opacity="0.5"
+                                               FontSize="20"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,16,0,0" />
+                                </StackPanel>
+                                
+                                <!-- 用户名标签 - 左下角 -->
+                                <Border Background="#80000000"
+                                        Padding="12,8"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Bottom"
+                                        Margin="16"
+                                        CornerRadius="6">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="10"
+                                                 Height="10"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,8,0">
+                                            <Ellipse.Style>
+                                                <Style TargetType="Ellipse">
+                                                    <Setter Property="Fill" Value="#4CAF50"/>
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding MaximizedRemoteVideo.IsLocal}" Value="True">
+                                                            <Setter Property="Fill" Value="#2196F3"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </Ellipse.Style>
+                                        </Ellipse>
+                                        <TextBlock Text="{Binding MaximizedRemoteVideo.DisplayName}"
+                                                   Foreground="White"
+                                                   FontSize="14"
+                                                   FontWeight="SemiBold" />
+                                        <!-- 本地视频标识 -->
+                                        <TextBlock Text=" (本地)"
+                                                   Foreground="#64B5F6"
+                                                   FontSize="12"
+                                                   Visibility="{Binding MaximizedRemoteVideo.IsLocal, Converter={StaticResource BoolToVisConverter}}"/>
+                                    </StackPanel>
+                                </Border>
+                                
+                                <!-- 还原按钮 - 右上角 -->
+                                <ui:Button Width="44" Height="44"
+                                           CornerRadius="22"
+                                           HorizontalAlignment="Right"
+                                           VerticalAlignment="Top"
+                                           Margin="16"
+                                           Appearance="Secondary"
+                                           ToolTip="还原"
+                                           Command="{Binding ToggleMaximizeRemoteVideoCommand}"
+                                           CommandParameter="{Binding MaximizedRemoteVideo}">
+                                    <ui:SymbolIcon Symbol="FullScreenMinimize24" FontSize="20"/>
+                                </ui:Button>
+                            </Grid>
+                        </Border>
                     </Grid>
                 </Border>
 

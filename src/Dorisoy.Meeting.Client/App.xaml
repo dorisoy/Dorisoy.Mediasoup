@@ -23,6 +23,7 @@
             <converters:MicrophoneButtonTextConverter x:Key="MicButtonTextConverter"/>
             <converters:NullToVisibilityConverter x:Key="NullToVisConverter"/>
             <converters:NullToVisibleConverter x:Key="NullToVisibleConverter"/>
+            <converters:NullToCollapsedConverter x:Key="NullToCollapsedConverter"/>
             <converters:ServeModeTextConverter x:Key="ServeModeTextConverter"/>
             <converters:VideoGridColumnsConverter x:Key="VideoGridColumnsConverter"/>
             <converters:SidebarArrowConverter x:Key="SidebarArrowConverter"/>
