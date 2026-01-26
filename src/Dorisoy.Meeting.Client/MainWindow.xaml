@@ -322,6 +322,65 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
+                        <!-- 本地视频显示区域（非画中画模式时显示在左下角） -->
+                        <Border Margin="12"
+                                Padding="0"
+                                CornerRadius="8"
+                                Background="{DynamicResource ControlFillColorDefaultBrush}"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Bottom"
+                                Width="280"
+                                Height="180"
+                                ClipToBounds="True"
+                                BorderThickness="2"
+                                BorderBrush="#0078D4"
+                                Visibility="{Binding ShowLocalVideoInGrid, Converter={StaticResource BoolToVisConverter}}">
+                            <Grid ClipToBounds="True">
+                                <Image Source="{Binding LocalVideoFrame}"
+                                       Stretch="Uniform"
+                                       RenderOptions.BitmapScalingMode="HighQuality"
+                                       RenderOptions.EdgeMode="Aliased" />
+
+                                <!-- 无本地视频时的占位符 -->
+                                <StackPanel HorizontalAlignment="Center"
+                                            VerticalAlignment="Center"
+                                            Visibility="{Binding LocalVideoFrame, 
+                                                Converter={StaticResource NullToVisibleConverter}}">
+                                    <ui:SymbolIcon Symbol="Person24"
+                                                   FontSize="36"
+                                                   Opacity="0.3" />
+                                    <TextBlock Text="本地视频"
+                                               Opacity="0.5"
+                                               FontSize="11"
+                                               HorizontalAlignment="Center"
+                                               Margin="0,4,0,0" />
+                                </StackPanel>
+
+                                <!-- 本地视频标签 -->
+                                <Border Background="#80000000"
+                                        Padding="10,6"
+                                        HorizontalAlignment="Left"
+                                        VerticalAlignment="Bottom"
+                                        Margin="6"
+                                        CornerRadius="4">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Ellipse Width="8"
+                                                 Height="8"
+                                                 Fill="#4CAF50"
+                                                 VerticalAlignment="Center"
+                                                 Margin="0,0,6,0" />
+                                        <TextBlock Text="{Binding CurrentUserName, FallbackValue='我'}"
+                                                   Foreground="White"
+                                                   FontSize="12" />
+                                        <TextBlock Text=" (本地)"
+                                                   Foreground="White"
+                                                   FontSize="11"
+                                                   Opacity="0.7" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+
                         <!-- 无远端视频时的占位符 -->
                         <StackPanel HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
@@ -657,7 +716,7 @@
                         Visibility="{Binding IsSelfViewVisible, Converter={StaticResource BoolToVisConverter}}">
                     <Grid ClipToBounds="True">
                         <Image Source="{Binding LocalVideoFrame}"
-                               Stretch="Uniform"
+                               Stretch="UniformToFill"
                                RenderOptions.BitmapScalingMode="HighQuality"
                                RenderOptions.EdgeMode="Aliased" />
 
@@ -777,15 +836,31 @@
                                        FontSize="18" />
                     </ui:Button>
 
-                    <!-- 隐藏自我视图 -->
+                    <!-- 画中画模式 -->
                     <ui:Button Width="44"
                                Height="44"
                                CornerRadius="8"
                                Margin="0,3"
-                               ToolTip="隐藏自我视图"
-                               Appearance="Transparent"
-                               Command="{Binding ToggleSelfViewCommand}">
-                        <ui:SymbolIcon Symbol="EyeOff24"
+                               Command="{Binding TogglePipModeCommand}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button"
+                                   BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Setter Property="Appearance"
+                                        Value="Transparent" />
+                                <Setter Property="ToolTip"
+                                        Value="开启画中画" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsPipMode}"
+                                                 Value="True">
+                                        <Setter Property="Appearance"
+                                                Value="Info" />
+                                        <Setter Property="ToolTip"
+                                                Value="关闭画中画" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                        <ui:SymbolIcon Symbol="PictureInPicture24"
                                        FontSize="18" />
                     </ui:Button>
 

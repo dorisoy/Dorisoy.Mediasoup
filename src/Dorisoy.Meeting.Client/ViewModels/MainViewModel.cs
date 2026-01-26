@@ -90,6 +90,7 @@ public partial class MainViewModel : ObservableObject
     /// 是否开启摄像头
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowLocalVideoInGrid))]
     private bool _isCameraEnabled;
 
     /// <summary>
@@ -159,10 +160,22 @@ public partial class MainViewModel : ObservableObject
     private bool _isSidebarVisible = true;
 
     /// <summary>
-    /// 自我视图是否可见
+    /// 自我视图是否可见（画中画模式时显示右下角预览）
     /// </summary>
     [ObservableProperty]
-    private bool _isSelfViewVisible = true;
+    private bool _isSelfViewVisible = false;
+
+    /// <summary>
+    /// 是否为画中画模式（本地视频显示在右下角而不是视频网格中）
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowLocalVideoInGrid))]
+    private bool _isPipMode = false;
+
+    /// <summary>
+    /// 是否在视频网格中显示本地视频（非画中画模式时显示）
+    /// </summary>
+    public bool ShowLocalVideoInGrid => !IsPipMode && IsCameraEnabled;
 
     /// <summary>
     /// 是否已举手
@@ -787,13 +800,25 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 切换自我视图可见性
+    /// 切换自我视图可见性（已废弃，使用 TogglePipMode）
     /// </summary>
     [RelayCommand]
     private void ToggleSelfView()
     {
-        IsSelfViewVisible = !IsSelfViewVisible;
-        StatusMessage = IsSelfViewVisible ? "已显示自我视图" : "已隐藏自我视图";
+        // 切换画中画模式
+        TogglePipMode();
+    }
+
+    /// <summary>
+    /// 切换画中画模式
+    /// </summary>
+    [RelayCommand]
+    private void TogglePipMode()
+    {
+        IsPipMode = !IsPipMode;
+        IsSelfViewVisible = IsPipMode; // 画中画模式时显示右下角预览
+        
+        StatusMessage = IsPipMode ? "已开启画中画模式" : "已关闭画中画模式";
     }
 
     /// <summary>
@@ -1414,38 +1439,14 @@ public partial class MainViewModel : ObservableObject
     /// 请求打开画中画窗口事件
     /// </summary>
     public event Action? OpenPipRequested;
-    
-    /// <summary>
-    /// 是否处于画中画模式
-    /// </summary>
-    [ObservableProperty]
-    private bool _isPipMode;
 
     /// <summary>
-    /// 画中画 - 将当前视频放入画中画窗口
+    /// 画中画 - 将当前视频放入画中画窗口（已废弃，使用 TogglePipMode）
     /// </summary>
     [RelayCommand]
     private void Pip()
     {
-        if (!IsJoinedRoom)
-        {
-            StatusMessage = "请先加入房间";
-            return;
-        }
-        
-        IsPipMode = !IsPipMode;
-        
-        if (IsPipMode)
-        {
-            _logger.LogInformation("进入画中画模式");
-            OpenPipRequested?.Invoke();
-            StatusMessage = "已进入画中画模式";
-        }
-        else
-        {
-            _logger.LogInformation("退出画中画模式");
-            StatusMessage = "已退出画中画模式";
-        }
+        TogglePipMode();
     }
 
     /// <summary>
