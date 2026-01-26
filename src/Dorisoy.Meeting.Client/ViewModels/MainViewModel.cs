@@ -407,6 +407,13 @@ public partial class MainViewModel : ObservableObject
     #region 私有字段
 
     /// <summary>
+    /// 媒体设置文件路径
+    /// </summary>
+    private static readonly string MediaSettingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Dorisoy.Meeting", "media_settings.json");
+
+    /// <summary>
     /// 当前用户的访问令牌 - 从 JoinRoomInfo 传入
     /// </summary>
     private string _currentAccessToken = string.Empty;
@@ -466,6 +473,9 @@ public partial class MainViewModel : ObservableObject
 
         // 初始化视频质量配置
         _webRtcService.VideoQuality = SelectedVideoQuality;
+
+        // 加载保存的媒体设置
+        LoadMediaSettings();
 
         // 初始化时加载设备列表
         _ = LoadDevicesAsync();
@@ -686,9 +696,20 @@ public partial class MainViewModel : ObservableObject
             {
                 Cameras.Add(camera);
             }
-            if (Cameras.Count > 0 && SelectedCamera == null)
+            
+            // 应用保存的摄像头设备 ID，如果设备仍然可用
+            if (Cameras.Count > 0)
             {
-                SelectedCamera = Cameras[0];
+                if (!string.IsNullOrEmpty(_pendingCameraDeviceId))
+                {
+                    var savedCamera = Cameras.FirstOrDefault(c => c.DeviceId == _pendingCameraDeviceId);
+                    SelectedCamera = savedCamera ?? Cameras[0];
+                    _pendingCameraDeviceId = null;
+                }
+                else if (SelectedCamera == null)
+                {
+                    SelectedCamera = Cameras[0];
+                }
             }
 
             // 获取麦克风列表
@@ -698,9 +719,20 @@ public partial class MainViewModel : ObservableObject
             {
                 Microphones.Add(mic);
             }
-            if (Microphones.Count > 0 && SelectedMicrophone == null)
+            
+            // 应用保存的麦克风设备 ID，如果设备仍然可用
+            if (Microphones.Count > 0)
             {
-                SelectedMicrophone = Microphones[0];
+                if (!string.IsNullOrEmpty(_pendingMicrophoneDeviceId))
+                {
+                    var savedMic = Microphones.FirstOrDefault(m => m.DeviceId == _pendingMicrophoneDeviceId);
+                    SelectedMicrophone = savedMic ?? Microphones[0];
+                    _pendingMicrophoneDeviceId = null;
+                }
+                else if (SelectedMicrophone == null)
+                {
+                    SelectedMicrophone = Microphones[0];
+                }
             }
 
             _logger.LogInformation("Loaded {CameraCount} cameras, {MicCount} microphones",
@@ -1658,7 +1690,7 @@ public partial class MainViewModel : ObservableObject
             var messageBox = new Wpf.Ui.Controls.MessageBox
             {
                 Title = "权限提示",
-                Content = $"“{featureName}”功能仅限主持人使用\n\n请联系主持人进行操作。",
+                Content = $"“{featureName}”功能仅限主持人使用！",
                 CloseButtonText = "我知道了"
             };
             _ = messageBox.ShowDialogAsync();
@@ -2870,10 +2902,16 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnSelectedCameraChanged(MediaDeviceInfo? value)
     {
-        if (value == null || !IsCameraEnabled) return;
+        if (value == null) return;
+
+        // 保存设置
+        SaveMediaSettings();
 
         // 如果摄像头正在运行，切换到新设备
-        _ = SwitchCameraAsync(value.DeviceId);
+        if (IsCameraEnabled)
+        {
+            _ = SwitchCameraAsync(value.DeviceId);
+        }
     }
 
     /// <summary>
@@ -2881,10 +2919,16 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnSelectedMicrophoneChanged(MediaDeviceInfo? value)
     {
-        if (value == null || !IsMicrophoneEnabled) return;
+        if (value == null) return;
+
+        // 保存设置
+        SaveMediaSettings();
 
         // 如果麦克风正在运行，切换到新设备
-        _ = SwitchMicrophoneAsync(value.DeviceId);
+        if (IsMicrophoneEnabled)
+        {
+            _ = SwitchMicrophoneAsync(value.DeviceId);
+        }
     }
 
     /// <summary>
@@ -2931,6 +2975,9 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("视频质量已更改: {Quality} - {Resolution} @ {Bitrate}", 
                 value.DisplayName, value.Resolution, value.BitrateDescription);
             StatusMessage = $"视频质量: {value.DisplayName} ({value.Resolution})";
+            
+            // 保存设置
+            SaveMediaSettings();
         }
     }
     
@@ -2945,7 +2992,67 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("视频编解码器已更改: {Codec} - {Description}", 
                 value.DisplayName, value.Description);
             StatusMessage = $"编解码器: {value.DisplayName}";
+            
+            // 保存设置
+            SaveMediaSettings();
         }
+    }
+
+    /// <summary>
+    /// 屏幕共享设置变化时保存
+    /// </summary>
+    partial void OnSelectedScreenShareSettingsChanged(ScreenShareSettings value)
+    {
+        if (value != null)
+        {
+            SaveMediaSettings();
+        }
+    }
+
+    /// <summary>
+    /// 屏幕共享鼠标指针设置变化时保存
+    /// </summary>
+    partial void OnScreenShareShowCursorChanged(bool value)
+    {
+        SaveMediaSettings();
+    }
+
+    /// <summary>
+    /// 录制存储路径变化时保存
+    /// </summary>
+    partial void OnRecordingSavePathChanged(string value)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            SaveMediaSettings();
+        }
+    }
+
+    /// <summary>
+    /// 录制格式变化时保存
+    /// </summary>
+    partial void OnSelectedRecordingFormatChanged(string value)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            SaveMediaSettings();
+        }
+    }
+
+    /// <summary>
+    /// 录制倒计时设置变化时保存
+    /// </summary>
+    partial void OnRecordingShowCountdownChanged(bool value)
+    {
+        SaveMediaSettings();
+    }
+
+    /// <summary>
+    /// 录制边框高亮设置变化时保存
+    /// </summary>
+    partial void OnRecordingShowBorderChanged(bool value)
+    {
+        SaveMediaSettings();
     }
 
     /// <summary>
@@ -5225,6 +5332,142 @@ public partial class MainViewModel : ObservableObject
                     StatusMessage = $"发送截图失败: {ex.Message}";
                 }
             }
+        }
+    }
+
+    #endregion
+
+    #region 媒体设置持久化
+
+    // 待应用的设备 ID - 等设备列表加载后再选中
+    private string? _pendingCameraDeviceId;
+    private string? _pendingMicrophoneDeviceId;
+
+    /// <summary>
+    /// 加载媒体设置
+    /// </summary>
+    private void LoadMediaSettings()
+    {
+        try
+        {
+            if (!File.Exists(MediaSettingsPath))
+            {
+                _logger.LogDebug("媒体设置文件不存在，使用默认设置");
+                return;
+            }
+
+            var json = File.ReadAllText(MediaSettingsPath);
+            var settings = JsonSerializer.Deserialize<MediaSettings>(json);
+            if (settings == null)
+            {
+                _logger.LogWarning("媒体设置反序列化失败");
+                return;
+            }
+
+            // 加载视频质量设置
+            if (!string.IsNullOrEmpty(settings.VideoQualityPreset))
+            {
+                var quality = VideoQualityPresets.FirstOrDefault(q => 
+                    q.DisplayName == settings.VideoQualityPreset);
+                if (quality != null)
+                {
+                    _selectedVideoQuality = quality;
+                    _webRtcService.VideoQuality = quality;
+                }
+            }
+
+            // 加载视频编解码器
+            if (!string.IsNullOrEmpty(settings.VideoCodec) && 
+                Enum.TryParse<VideoCodecType>(settings.VideoCodec, out var codecType))
+            {
+                var codec = VideoCodecInfo.GetByType(codecType);
+                if (codec != null)
+                {
+                    _selectedVideoCodec = codec;
+                    _webRtcService.CurrentVideoCodec = codecType;
+                }
+            }
+
+            // 加载屏幕共享设置
+            if (!string.IsNullOrEmpty(settings.ScreenSharePreset))
+            {
+                var preset = ScreenSharePresets.FirstOrDefault(p => 
+                    p.DisplayName == settings.ScreenSharePreset);
+                if (preset != null)
+                {
+                    _selectedScreenShareSettings = preset;
+                }
+            }
+            _screenShareShowCursor = settings.ScreenShareShowCursor;
+
+            // 加载录制设置
+            if (!string.IsNullOrEmpty(settings.RecordingSavePath))
+            {
+                _recordingSavePath = settings.RecordingSavePath;
+            }
+            if (!string.IsNullOrEmpty(settings.RecordingFormat))
+            {
+                _selectedRecordingFormat = settings.RecordingFormat;
+            }
+            _recordingShowCountdown = settings.RecordingShowCountdown;
+            _recordingShowBorder = settings.RecordingShowBorder;
+
+            // 设备 ID 会在设备列表加载后应用
+            _pendingCameraDeviceId = settings.CameraDeviceId;
+            _pendingMicrophoneDeviceId = settings.MicrophoneDeviceId;
+
+            _logger.LogInformation("媒体设置加载成功: Quality={Quality}, Codec={Codec}", 
+                settings.VideoQualityPreset, settings.VideoCodec);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "加载媒体设置失败");
+        }
+    }
+
+    /// <summary>
+    /// 保存媒体设置
+    /// </summary>
+    private void SaveMediaSettings()
+    {
+        try
+        {
+            // 确保目录存在
+            var dir = Path.GetDirectoryName(MediaSettingsPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            var settings = new MediaSettings
+            {
+                // 设备设置
+                CameraDeviceId = SelectedCamera?.DeviceId,
+                MicrophoneDeviceId = SelectedMicrophone?.DeviceId,
+
+                // 视频质量设置
+                VideoQualityPreset = SelectedVideoQuality?.DisplayName ?? "High",
+                VideoCodec = SelectedVideoCodec?.CodecType.ToString() ?? "VP9",
+
+                // 屏幕共享设置
+                ScreenSharePreset = SelectedScreenShareSettings?.DisplayName ?? "Standard",
+                ScreenShareShowCursor = ScreenShareShowCursor,
+
+                // 录制设置
+                RecordingSavePath = RecordingSavePath,
+                RecordingFormat = SelectedRecordingFormat,
+                RecordingShowCountdown = RecordingShowCountdown,
+                RecordingShowBorder = RecordingShowBorder
+            };
+
+            var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(MediaSettingsPath, json);
+
+            _logger.LogDebug("媒体设置已保存");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "保存媒体设置失败");
         }
     }
 
