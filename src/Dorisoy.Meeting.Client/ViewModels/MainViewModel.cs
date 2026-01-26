@@ -148,10 +148,25 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<RemoteVideoItem> RemoteVideos { get; } = [];
 
     /// <summary>
+    /// 所有视频集合（本地+远端）- 用于视频网格显示
+    /// </summary>
+    public ObservableCollection<RemoteVideoItem> AllVideos { get; } = [];
+
+    /// <summary>
+    /// 本地视频项 - 显示在视频网格中
+    /// </summary>
+    private RemoteVideoItem? _localVideoItem;
+
+    /// <summary>
     /// 是否没有远端视频
     /// </summary>
     [ObservableProperty]
     private bool _hasNoRemoteVideos = true;
+
+    /// <summary>
+    /// 是否没有任何视频（本地和远端都没有）
+    /// </summary>
+    public bool HasNoVideos => AllVideos.Count == 0;
 
     /// <summary>
     /// 侧边栏是否可见
@@ -476,6 +491,10 @@ public partial class MainViewModel : ObservableObject
 
         // 订阅 Peers 集合变化事件 - 同步更新在线人数
         Peers.CollectionChanged += (s, e) => OnPropertyChanged(nameof(OnlinePeerCount));
+
+        // 订阅 RemoteVideos 集合变化事件 - 同步更新 AllVideos
+        RemoteVideos.CollectionChanged += OnRemoteVideosCollectionChanged;
+        AllVideos.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasNoVideos));
 
         // 订阅重连事件
         _signalRService.OnReconnecting += OnSignalRReconnecting;
@@ -818,7 +837,97 @@ public partial class MainViewModel : ObservableObject
         IsPipMode = !IsPipMode;
         IsSelfViewVisible = IsPipMode; // 画中画模式时显示右下角预览
         
+        // 同步更新视频网格中的本地视频显示
+        UpdateLocalVideoInGrid();
+        
         StatusMessage = IsPipMode ? "已开启画中画模式" : "已关闭画中画模式";
+    }
+
+    /// <summary>
+    /// 更新视频网格中的本地视频显示状态
+    /// </summary>
+    private void UpdateLocalVideoInGrid()
+    {
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            if (!IsPipMode && IsCameraEnabled)
+            {
+                // 非画中画模式且摄像头开启时，将本地视频添加到网格
+                if (_localVideoItem != null && !AllVideos.Contains(_localVideoItem))
+                {
+                    AllVideos.Insert(0, _localVideoItem); // 本地视频始终在第一个位置
+                }
+            }
+            else
+            {
+                // 画中画模式或摄像头关闭时，移除本地视频
+                if (_localVideoItem != null && AllVideos.Contains(_localVideoItem))
+                {
+                    AllVideos.Remove(_localVideoItem);
+                }
+            }
+        });
+    }
+
+    /// <summary>
+    /// RemoteVideos 集合变化时同步到 AllVideos
+    /// </summary>
+    private void OnRemoteVideosCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            switch (e.Action)
+            {
+                case System.Collections.Specialized.NotifyCollectionChangedAction.Add:
+                    if (e.NewItems != null)
+                    {
+                        foreach (RemoteVideoItem item in e.NewItems)
+                        {
+                            // 远端视频添加在本地视频之后
+                            AllVideos.Add(item);
+                        }
+                    }
+                    break;
+                case System.Collections.Specialized.NotifyCollectionChangedAction.Remove:
+                    if (e.OldItems != null)
+                    {
+                        foreach (RemoteVideoItem item in e.OldItems)
+                        {
+                            AllVideos.Remove(item);
+                        }
+                    }
+                    break;
+                case System.Collections.Specialized.NotifyCollectionChangedAction.Reset:
+                    // 清空时保留本地视频
+                    var localItem = _localVideoItem;
+                    AllVideos.Clear();
+                    if (localItem != null && !IsPipMode && IsCameraEnabled)
+                    {
+                        AllVideos.Add(localItem);
+                    }
+                    break;
+            }
+            
+            // 更新无远端视频状态
+            HasNoRemoteVideos = RemoteVideos.Count == 0;
+        });
+    }
+
+    /// <summary>
+    /// 初始化本地视频项
+    /// </summary>
+    private void EnsureLocalVideoItem()
+    {
+        if (_localVideoItem == null)
+        {
+            _localVideoItem = new RemoteVideoItem
+            {
+                PeerId = "local",
+                ProducerId = "local",
+                DisplayName = CurrentUserName,
+                IsLocal = true
+            };
+        }
     }
 
     /// <summary>
@@ -3884,7 +3993,17 @@ public partial class MainViewModel : ObservableObject
                 IsCameraEnabled = camera.Value;
                 OnPropertyChanged(nameof(IsCameraEnabled));
                 OnPropertyChanged(nameof(CanToggleMedia));
+                OnPropertyChanged(nameof(ShowLocalVideoInGrid));
                 _logger.LogDebug("IsCameraEnabled 已更新为 {Value}", camera.Value);
+                
+                // 摄像头状态改变时，更新视频网格中的本地视频
+                if (camera.Value)
+                {
+                    // 开启摄像头时，初始化本地视频项
+                    EnsureLocalVideoItem();
+                }
+                // 更新视频网格中的本地视频显示
+                UpdateLocalVideoInGrid();
             }
             if (mic.HasValue)
             {
@@ -3989,6 +4108,12 @@ public partial class MainViewModel : ObservableObject
     private void OnLocalVideoFrameReceived(WriteableBitmap frame)
     {
         LocalVideoFrame = frame;
+        
+        // 同时更新本地视频项的帧数据（用于视频网格显示）
+        if (_localVideoItem != null)
+        {
+            _localVideoItem.VideoFrame = frame;
+        }
     }
 
     /// <summary>
@@ -5481,6 +5606,7 @@ public partial class MainViewModel : ObservableObject
 public class RemoteVideoItem : ObservableObject
 {
     private string _consumerId = string.Empty;
+    private string _producerId = string.Empty;
     private string _peerId = string.Empty;
     private string _displayName = string.Empty;
     private WriteableBitmap? _videoFrame;
@@ -5490,11 +5616,21 @@ public class RemoteVideoItem : ObservableObject
     private bool _isMuted;
     private double _volume = 100;
     private bool _isMaximized;
+    private bool _isLocal;
 
     public string ConsumerId
     {
         get => _consumerId;
         set => SetProperty(ref _consumerId, value);
+    }
+
+    /// <summary>
+    /// Producer ID
+    /// </summary>
+    public string ProducerId
+    {
+        get => _producerId;
+        set => SetProperty(ref _producerId, value);
     }
 
     public string PeerId
@@ -5599,4 +5735,13 @@ public class RemoteVideoItem : ObservableObject
     /// 获取垂直镜像的 ScaleTransform 值
     /// </summary>
     public double VerticalScale => _isVerticallyMirrored ? -1 : 1;
+
+    /// <summary>
+    /// 是否为本地视频
+    /// </summary>
+    public bool IsLocal
+    {
+        get => _isLocal;
+        set => SetProperty(ref _isLocal, value);
+    }
 }

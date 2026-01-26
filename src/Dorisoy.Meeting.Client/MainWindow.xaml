@@ -107,11 +107,11 @@
                         </Style>
                     </Border.Style>
                     <Grid>
-                        <!-- 远端视频网格列表 -->
-                        <ItemsControl ItemsSource="{Binding RemoteVideos}">
+                        <!-- 视频网格列表（本地+远端视频） -->
+                        <ItemsControl ItemsSource="{Binding AllVideos}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
-                                    <UniformGrid Columns="{Binding RemoteVideos.Count, 
+                                    <UniformGrid Columns="{Binding AllVideos.Count, 
                                         Converter={StaticResource VideoGridColumnsConverter}}" />
                                 </ItemsPanelTemplate>
                             </ItemsControl.ItemsPanel>
@@ -178,18 +178,47 @@
                                                 <StackPanel Orientation="Horizontal">
                                                     <Ellipse Width="8"
                                                              Height="8"
-                                                             Fill="#4CAF50"
                                                              VerticalAlignment="Center"
-                                                             Margin="0,0,6,0" />
+                                                             Margin="0,0,6,0">
+                                                        <Ellipse.Style>
+                                                            <Style TargetType="Ellipse">
+                                                                <Setter Property="Fill" Value="#4CAF50"/>
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding IsLocal}" Value="True">
+                                                                        <Setter Property="Fill" Value="#2196F3"/>
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </Ellipse.Style>
+                                                    </Ellipse>
                                                     <TextBlock Text="{Binding DisplayName}"
                                                                Foreground="White"
                                                                FontSize="12" />
-                                                    <!-- 静音指示 -->
+                                                    <!-- 本地视频标识 -->
+                                                    <TextBlock Text=" (本地)"
+                                                               Foreground="#64B5F6"
+                                                               FontSize="11"
+                                                               Visibility="{Binding IsLocal, Converter={StaticResource BoolToVisConverter}}"/>
+                                                    <!-- 静音指示 - 仅远端视频显示 -->
                                                     <ui:SymbolIcon Symbol="SpeakerOff16"
                                                                    FontSize="12"
                                                                    Foreground="#FF5722"
-                                                                   Margin="6,0,0,0"
-                                                                   Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisConverter}}"/>
+                                                                   Margin="6,0,0,0">
+                                                        <ui:SymbolIcon.Style>
+                                                            <Style TargetType="ui:SymbolIcon">
+                                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                                <Style.Triggers>
+                                                                    <MultiDataTrigger>
+                                                                        <MultiDataTrigger.Conditions>
+                                                                            <Condition Binding="{Binding IsMuted}" Value="True"/>
+                                                                            <Condition Binding="{Binding IsLocal}" Value="False"/>
+                                                                        </MultiDataTrigger.Conditions>
+                                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                                    </MultiDataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </ui:SymbolIcon.Style>
+                                                    </ui:SymbolIcon>
                                                 </StackPanel>
                                             </Border>
 
@@ -274,19 +303,21 @@
                                                         <ui:SymbolIcon Symbol="ScanCamera20" FontSize="14" Foreground="White"/>
                                                     </ui:Button>
                                                     
-                                                    <!-- 分隔线 -->
+                                                    <!-- 分隔线 - 仅远端视频显示 -->
                                                     <Border Width="1" Height="20" 
                                                             Background="#40FFFFFF" 
-                                                            Margin="4,0"/>
+                                                            Margin="4,0"
+                                                            Visibility="{Binding IsLocal, Converter={StaticResource InverseBoolToVisConverter}}"/>
                                                     
-                                                    <!-- 静音 -->
+                                                    <!-- 静音 - 仅远端视频显示 -->
                                                     <ui:Button Width="32" Height="32"
                                                                CornerRadius="4"
                                                                Margin="2,0"
                                                                Padding="0"
                                                                ToolTip="{Binding IsMuted, Converter={StaticResource RemoteVideoMuteTooltipConverter}}"
                                                                Command="{Binding DataContext.ToggleRemoteVideoMuteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                               CommandParameter="{Binding}">
+                                                               CommandParameter="{Binding}"
+                                                               Visibility="{Binding IsLocal, Converter={StaticResource InverseBoolToVisConverter}}">
                                                         <ui:Button.Style>
                                                             <Style TargetType="ui:Button" BasedOn="{StaticResource {x:Type ui:Button}}">
                                                                 <Setter Property="Appearance" Value="Transparent"/>
@@ -305,7 +336,7 @@
                                                         </Grid>
                                                     </ui:Button>
                                                     
-                                                    <!-- 音量滑动条 -->
+                                                    <!-- 音量滑动条 - 仅远端视频显示 -->
                                                     <Slider Width="80"
                                                             Minimum="0"
                                                             Maximum="100"
@@ -313,7 +344,8 @@
                                                             VerticalAlignment="Center"
                                                             Margin="4,0,8,0"
                                                             IsEnabled="{Binding IsMuted, Converter={StaticResource InverseBoolConverter}}"
-                                                            ToolTip="{Binding Volume, StringFormat='音量: {0:F0}%'}"/>
+                                                            ToolTip="{Binding Volume, StringFormat='音量: {0:F0}%'}"
+                                                            Visibility="{Binding IsLocal, Converter={StaticResource InverseBoolToVisConverter}}"/>
                                                 </StackPanel>
                                             </Border>
                                         </Grid>
@@ -322,79 +354,20 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
 
-                        <!-- 本地视频显示区域（非画中画模式时显示在左下角） -->
-                        <Border Margin="12"
-                                Padding="0"
-                                CornerRadius="8"
-                                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Bottom"
-                                Width="280"
-                                Height="180"
-                                ClipToBounds="True"
-                                BorderThickness="2"
-                                BorderBrush="#0078D4"
-                                Visibility="{Binding ShowLocalVideoInGrid, Converter={StaticResource BoolToVisConverter}}">
-                            <Grid ClipToBounds="True">
-                                <Image Source="{Binding LocalVideoFrame}"
-                                       Stretch="Uniform"
-                                       RenderOptions.BitmapScalingMode="HighQuality"
-                                       RenderOptions.EdgeMode="Aliased" />
-
-                                <!-- 无本地视频时的占位符 -->
-                                <StackPanel HorizontalAlignment="Center"
-                                            VerticalAlignment="Center"
-                                            Visibility="{Binding LocalVideoFrame, 
-                                                Converter={StaticResource NullToVisibleConverter}}">
-                                    <ui:SymbolIcon Symbol="Person24"
-                                                   FontSize="36"
-                                                   Opacity="0.3" />
-                                    <TextBlock Text="本地视频"
-                                               Opacity="0.5"
-                                               FontSize="11"
-                                               HorizontalAlignment="Center"
-                                               Margin="0,4,0,0" />
-                                </StackPanel>
-
-                                <!-- 本地视频标签 -->
-                                <Border Background="#80000000"
-                                        Padding="10,6"
-                                        HorizontalAlignment="Left"
-                                        VerticalAlignment="Bottom"
-                                        Margin="6"
-                                        CornerRadius="4">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Ellipse Width="8"
-                                                 Height="8"
-                                                 Fill="#4CAF50"
-                                                 VerticalAlignment="Center"
-                                                 Margin="0,0,6,0" />
-                                        <TextBlock Text="{Binding CurrentUserName, FallbackValue='我'}"
-                                                   Foreground="White"
-                                                   FontSize="12" />
-                                        <TextBlock Text=" (本地)"
-                                                   Foreground="White"
-                                                   FontSize="11"
-                                                   Opacity="0.7" />
-                                    </StackPanel>
-                                </Border>
-                            </Grid>
-                        </Border>
-
-                        <!-- 无远端视频时的占位符 -->
+                        <!-- 无视频时的占位符 -->
                         <StackPanel HorizontalAlignment="Center"
                                     VerticalAlignment="Center"
-                                    Visibility="{Binding HasNoRemoteVideos, 
+                                    Visibility="{Binding HasNoVideos, 
                                         Converter={StaticResource BoolToVisConverter}}">
                             <ui:SymbolIcon Symbol="People24"
                                            FontSize="80"
                                            Opacity="0.2" />
-                            <TextBlock Text="等待其他参与者加入..."
+                            <TextBlock Text="等待开启视频或其他参与者加入..."
                                        Opacity="0.5"
                                        FontSize="18"
                                        HorizontalAlignment="Center"
                                        Margin="0,16,0,0" />
-                            <TextBlock Text="当有用户加入房间并开启视频时，将在此处显示"
+                            <TextBlock Text="当您或其他用户开启视频时，将在此处显示"
                                        Opacity="0.3"
                                        FontSize="12"
                                        HorizontalAlignment="Center"
