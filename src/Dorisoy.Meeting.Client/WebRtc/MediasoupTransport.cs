@@ -355,7 +355,7 @@ public class MediasoupTransport : IDisposable
                     _recvRtpPacketCount, ssrc, payloadType, payload.Length, mediaType);
             }
     
-            // 1. 首先检查 SSRC 映射表
+            // 1. 首先检查 SSRC 映射表（已建立的映射）
             if (_ssrcToConsumerMap.TryGetValue(ssrc, out var mappedConsumerId))
             {
                 if (_remoteConsumers.TryGetValue(mappedConsumerId, out var mappedConsumer))
@@ -374,41 +374,86 @@ public class MediasoupTransport : IDisposable
                 DispatchRtpToConsumer(consumer, rtpPacket);
                 return;
             }
+            
+            // 3. 检查是否是 RTX 重传包（使用 RTX SSRC）
+            var rtxConsumer = _remoteConsumers.Values.FirstOrDefault(c => c.RtxSsrc == ssrc);
+            if (rtxConsumer != null)
+            {
+                _logger.LogDebug("Received RTX packet: SSRC={Ssrc}, ConsumerId={ConsumerId}", ssrc, rtxConsumer.ConsumerId);
+                // RTX 包通常用于重传，我们可以忽略或处理
+                // 这里我们选择忽略，因为解码器会处理丢包
+                return;
+            }
     
-            // 3. SSRC 不匹配，需要动态分配给尚未收到 RTP 的 Consumer
+            // 4. SSRC 不匹配，需要智能分配
+            // 关键改进：只分配给最近创建且尚未收到 RTP 的 Consumer
             var kind = mediaType == SDPMediaTypesEnum.video ? "video" : "audio";
             lock (_ssrcMapLock)
             {
-                // 找到同类型但尚未收到 RTP 包的 Consumer
+                // 找到同类型且尚未收到 RTP 包的 Consumer
+                // 优先选择最近创建的（按创建时间倒序）
                 var unassignedConsumer = _remoteConsumers.Values
-                    .Where(c => c.Kind == kind && !_consumersWithRtp.Contains(c.ConsumerId))
+                    .Where(c => c.Kind == kind && !c.HasReceivedRtp)
+                    .OrderByDescending(c => c.CreatedAt)  // 最近创建的优先
                     .FirstOrDefault();
                     
                 if (unassignedConsumer != null)
                 {
-                    _logger.LogInformation(
-                        "Dynamic SSRC mapping: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind}, expected SSRC={ExpectedSsrc})",
-                        ssrc, unassignedConsumer.ConsumerId, kind, unassignedConsumer.Ssrc);
-                    
-                    // 更新 Consumer 的实际 SSRC
-                    unassignedConsumer.Ssrc = ssrc;
-                    EstablishSsrcMapping(ssrc, unassignedConsumer);
-                    DispatchRtpToConsumer(unassignedConsumer, rtpPacket);
-                    return;
+                    // 检查该 Consumer 是否是在最近 5 秒内创建的
+                    // 如果是很久之前创建的，可能表示该 Consumer 的 Producer 没有发送流
+                    var ageSeconds = (DateTime.UtcNow - unassignedConsumer.CreatedAt).TotalSeconds;
+                    if (ageSeconds < 30)  // 30 秒内创建的 Consumer
+                    {
+                        _logger.LogInformation(
+                            "Dynamic SSRC mapping: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind}, Age={Age:F1}s, expected SSRC={ExpectedSsrc})",
+                            ssrc, unassignedConsumer.ConsumerId, kind, ageSeconds, unassignedConsumer.Ssrc);
+                        
+                        // 更新 Consumer 的实际 SSRC
+                        unassignedConsumer.Ssrc = ssrc;
+                        unassignedConsumer.HasReceivedRtp = true;
+                        EstablishSsrcMapping(ssrc, unassignedConsumer);
+                        DispatchRtpToConsumer(unassignedConsumer, rtpPacket);
+                        return;
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Consumer {ConsumerId} too old for dynamic mapping (Age={Age:F1}s), SSRC={Ssrc}",
+                            unassignedConsumer.ConsumerId, ageSeconds, ssrc);
+                    }
                 }
             }
     
-            // 4. 所有同类型 Consumer 都已分配，可能是新的 SSRC（重传或新流）
-            // 尝试用 PayloadType 匹配
-            consumer = _remoteConsumers.Values.FirstOrDefault(c => c.PayloadType == payloadType && c.Kind == kind);
+            // 5. 所有同类型 Consumer 都已分配，尝试用 PayloadType 匹配已有的 Consumer
+            // 这可能是因为服务端重新分配了 SSRC
+            consumer = _remoteConsumers.Values.FirstOrDefault(c => c.PayloadType == payloadType && c.Kind == kind && c.HasReceivedRtp);
             if (consumer != null)
             {
-                if (_recvRtpPacketCount <= 20)
+                if (_recvRtpPacketCount % 50 == 1)
                 {
                     _logger.LogWarning(
-                        "RTP SSRC mismatch, routing by PT: SSRC={Ssrc}, PT={PayloadType} -> Consumer {ConsumerId}",
-                        ssrc, payloadType, consumer.ConsumerId);
+                        "RTP SSRC changed, updating mapping: old SSRC={OldSsrc}, new SSRC={NewSsrc} -> Consumer {ConsumerId}",
+                        consumer.Ssrc, ssrc, consumer.ConsumerId);
                 }
+                
+                // 更新 SSRC 映射
+                lock (_ssrcMapLock)
+                {
+                    // 移除旧的 SSRC 映射
+                    var oldSsrcKeys = _ssrcToConsumerMap
+                        .Where(kv => kv.Value == consumer.ConsumerId)
+                        .Select(kv => kv.Key)
+                        .ToList();
+                    foreach (var oldSsrc in oldSsrcKeys)
+                    {
+                        _ssrcToConsumerMap.TryRemove(oldSsrc, out _);
+                    }
+                    
+                    // 建立新的 SSRC 映射
+                    consumer.Ssrc = ssrc;
+                    _ssrcToConsumerMap[ssrc] = consumer.ConsumerId;
+                }
+                
                 DispatchRtpToConsumer(consumer, rtpPacket);
                 return;
             }
@@ -418,7 +463,7 @@ public class MediasoupTransport : IDisposable
                 _logger.LogWarning(
                     "Received RTP for unknown SSRC: {Ssrc}, PT: {PayloadType}, MediaType: {MediaType}. Known consumers: {Consumers}",
                     ssrc, payloadType, mediaType,
-                    string.Join(", ", _remoteConsumers.Values.Select(c => $"{c.Kind}:SSRC={c.Ssrc},PT={c.PayloadType},Id={c.ConsumerId}")));
+                    string.Join(", ", _remoteConsumers.Values.Select(c => $"{c.Kind}:SSRC={c.Ssrc},PT={c.PayloadType},Id={c.ConsumerId.Substring(0, Math.Min(8, c.ConsumerId.Length))},HasRtp={c.HasReceivedRtp}")));
             }
         }
         catch (Exception ex)
@@ -435,6 +480,7 @@ public class MediasoupTransport : IDisposable
         lock (_ssrcMapLock)
         {
             _ssrcToConsumerMap[ssrc] = consumer.ConsumerId;
+            consumer.HasReceivedRtp = true;
             _consumersWithRtp.Add(consumer.ConsumerId);
         }
     }
@@ -932,13 +978,16 @@ public class MediasoupTransport : IDisposable
                 ConsumerId = consumerId,
                 Kind = kind,
                 Ssrc = encoding?.Ssrc ?? 0,
+                RtxSsrc = encoding?.Rtx?.Ssrc ?? 0,  // RTX SSRC
                 PayloadType = codec?.PayloadType ?? (kind == "video" ? 96 : 100),
                 ClockRate = codec?.ClockRate ?? (kind == "video" ? 90000 : 48000),
-                MimeType = codec?.MimeType ?? (kind == "video" ? "video/VP8" : "audio/opus")
+                MimeType = codec?.MimeType ?? (kind == "video" ? "video/VP8" : "audio/opus"),
+                CreatedAt = DateTime.UtcNow,
+                HasReceivedRtp = false
             };
 
-            _logger.LogInformation("Consumer {ConsumerId} registered, SSRC: {Ssrc}, Codec: {Codec}",
-                consumerId, encoding?.Ssrc, codec?.MimeType);
+            _logger.LogInformation("Consumer {ConsumerId} registered, SSRC: {Ssrc}, RTX SSRC: {RtxSsrc}, Codec: {Codec}",
+                consumerId, encoding?.Ssrc, encoding?.Rtx?.Ssrc, codec?.MimeType);
 
             // 触发延迟 SDP 协商 - 等待更多 consumer 到达后再统一协商
             TriggerDelayedNegotiation();
@@ -2305,9 +2354,12 @@ public class RemoteConsumerInfo
     public string ConsumerId { get; set; } = string.Empty;
     public string Kind { get; set; } = string.Empty;
     public uint Ssrc { get; set; }
+    public uint RtxSsrc { get; set; }  // RTX 重传 SSRC
     public int PayloadType { get; set; }
     public int ClockRate { get; set; }
     public string MimeType { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;  // 创建时间戳
+    public bool HasReceivedRtp { get; set; }  // 是否已收到 RTP 包
 }
 
 #endregion
