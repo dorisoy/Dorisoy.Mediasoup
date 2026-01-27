@@ -554,7 +554,7 @@
                                                 <DataTrigger Binding="{Binding IsLeftToolbarVisible}"
                                                              Value="True">
                                                     <Setter Property="Appearance"
-                                                            Value="Info" />
+                                                            Value="Transparent" />
                                                     <Setter Property="ToolTip"
                                                             Value="隐藏工具栏" />
                                                 </DataTrigger>
@@ -563,11 +563,11 @@
                                     </ui:Button.Style>
                                     <Grid>
                                         <!-- 工具栏可见时显示隐藏图标 -->
-                                        <ui:SymbolIcon Symbol="PanelLeftContract24"
+                                        <ui:SymbolIcon Symbol="ArrowPrevious24"
                                                        FontSize="24"
                                                        Visibility="{Binding IsLeftToolbarVisible, Converter={StaticResource BoolToVisConverter}}" />
                                         <!-- 工具栏隐藏时显示展开图标 -->
-                                        <ui:SymbolIcon Symbol="PanelLeftExpand24"
+                                        <ui:SymbolIcon Symbol="ArrowNext24"
                                                        FontSize="24"
                                                        Visibility="{Binding IsLeftToolbarVisible, Converter={StaticResource InverseBoolToVisConverter}}" />
                                     </Grid>
