@@ -88,7 +88,8 @@ namespace Dorisoy.Meeting.Server
         {
             await using (await _producersLock.ReadLockAsync())
             {
-                return _producers;
+                // 返回副本以避免并发修改问题
+                return new Dictionary<string, Producer>(_producers);
             }
         }
 
@@ -593,6 +594,10 @@ namespace Dorisoy.Meeting.Server
                             // 已经在消费
                             if (_consumers.Any(m => m.Value.ProducerId == producerId))
                             {
+                                _logger.LogDebug(
+                                    "ConsumeAsync() | Peer:{PeerId} already consuming ProducerId:{ProducerId} from ProducerPeer:{ProducerPeerId}",
+                                    PeerId, producerId, producerPeer.PeerId
+                                );
                                 return null;
                             }
 
@@ -600,14 +605,23 @@ namespace Dorisoy.Meeting.Server
                             {
                                 if (!producerPeer._producers.TryGetValue(producerId, out var producer))
                                 {
+                                    _logger.LogWarning(
+                                        "ConsumeAsync() | Peer:{PeerId} - ProducerPeer:{ProducerPeerId} has no Producer:{ProducerId}, available producers: [{Producers}]",
+                                        PeerId, producerPeer.PeerId, producerId, 
+                                        string.Join(", ", producerPeer._producers.Keys)
+                                    );
                                     throw new Exception(
                                         $"ConsumeAsync() | Peer:{PeerId} - ProducerPeer:{producerPeer.PeerId} has no Producer:{producerId}"
                                     );
                                 }
 
-                                if (!await _room!.Router.CanConsumeAsync(producer.ProducerId, _rtpCapabilities)
-                                )
+                                var canConsume = await _room!.Router.CanConsumeAsync(producer.ProducerId, _rtpCapabilities);
+                                if (!canConsume)
                                 {
+                                    _logger.LogWarning(
+                                        "ConsumeAsync() | Peer:{PeerId} cannot consume ProducerId:{ProducerId} from ProducerPeer:{ProducerPeerId} - RTP capabilities mismatch",
+                                        PeerId, producerId, producerPeer.PeerId
+                                    );
                                     throw new Exception($"ConsumeAsync() | Peer:{PeerId} Can not consume.");
                                 }
 
