@@ -3608,55 +3608,82 @@ public partial class MainViewModel : ObservableObject
     /// <summary>
     /// 延迟刷新订阅关系 - 确保多用户场景下所有视频流都能正确订阅
     /// 在 Ready 之后延迟一段时间检查，如果远端视频数量不足则调用 RefreshSubscriptions
+    /// 采用多次检查机制，确保系统健壮性
     /// </summary>
     private async Task DelayedRefreshSubscriptionsAsync()
     {
+        const int maxRetries = 3;
+        const int initialDelayMs = 2000;
+        const int retryDelayMs = 3000;
+        
         try
         {
-            // 延迟 2 秒，等待其他用户完成 Ready
-            await Task.Delay(2000);
+            _logger.LogInformation("DelayedRefreshSubscriptions: 开始订阅检查流程");
             
-            if (!IsJoinedRoom)
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
             {
-                _logger.LogDebug("DelayedRefreshSubscriptions: 已离开房间，跳过刷新");
-                return;
-            }
-            
-            // 检查远端视频数量是否与其他用户数量一致
-            var expectedRemoteVideos = Peers.Count - 1; // 排除自己
-            var actualRemoteVideos = RemoteVideos.Count;
-            
-            _logger.LogInformation(
-                "DelayedRefreshSubscriptions: 检查订阅关系, ExpectedRemoteVideos={Expected}, ActualRemoteVideos={Actual}",
-                expectedRemoteVideos, actualRemoteVideos
-            );
-            
-            // 如果远端视频数量不足，调用 RefreshSubscriptions
-            if (actualRemoteVideos < expectedRemoteVideos && expectedRemoteVideos > 0)
-            {
-                _logger.LogWarning(
-                    "DelayedRefreshSubscriptions: 远端视频数量不足, 调用 RefreshSubscriptions"
+                // 第一次延迟 2 秒，后续重试延迟 3 秒
+                var delayMs = attempt == 1 ? initialDelayMs : retryDelayMs;
+                await Task.Delay(delayMs);
+                
+                if (!IsJoinedRoom)
+                {
+                    _logger.LogDebug("DelayedRefreshSubscriptions: 已离开房间，跳过刷新");
+                    return;
+                }
+                
+                // 计算期望的远端视频数量
+                // 注意：并非所有用户都开启了摄像头，因此这只是上限
+                var expectedRemoteVideos = Math.Max(0, Peers.Count - 1); // 排除自己
+                var actualRemoteVideos = RemoteVideos.Count;
+                
+                _logger.LogInformation(
+                    "DelayedRefreshSubscriptions: 第 {Attempt}/{MaxRetries} 次检查 - PeerCount={PeerCount}, ExpectedMax={Expected}, Actual={Actual}",
+                    attempt, maxRetries, Peers.Count, expectedRemoteVideos, actualRemoteVideos
                 );
                 
-                var result = await _signalRService.InvokeAsync("RefreshSubscriptions");
-                _logger.LogInformation("RefreshSubscriptions 结果: {Result}", result.Message);
+                // 如果远端视频数量为 0 且有其他用户，很可能是订阅问题
+                // 如果远端视频数量 > 0 且小于期望值，也可能需要刷新
+                var needsRefresh = (actualRemoteVideos == 0 && expectedRemoteVideos > 0) ||
+                                   (actualRemoteVideos > 0 && actualRemoteVideos < expectedRemoteVideos && expectedRemoteVideos > 1);
                 
-                // 再次延迟检查
-                await Task.Delay(2000);
-                
-                if (IsJoinedRoom)
+                if (needsRefresh)
                 {
-                    var newActualRemoteVideos = RemoteVideos.Count;
-                    _logger.LogInformation(
-                        "DelayedRefreshSubscriptions: 刷新后远端视频数量: {Count}",
-                        newActualRemoteVideos
+                    _logger.LogWarning(
+                        "DelayedRefreshSubscriptions: 远端视频数量不足，调用 RefreshSubscriptions (Attempt={Attempt})",
+                        attempt
                     );
+                    
+                    try
+                    {
+                        var result = await _signalRService.InvokeAsync("RefreshSubscriptions");
+                        _logger.LogInformation(
+                            "RefreshSubscriptions 结果: {Result}",
+                            result.Message
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "RefreshSubscriptions 调用失败");
+                    }
+                }
+                else
+                {
+                    // 订阅关系正常或没有其他用户，无需继续检查
+                    _logger.LogInformation(
+                        "DelayedRefreshSubscriptions: 订阅关系正常 (RemoteVideos={Count})，结束检查",
+                        actualRemoteVideos
+                    );
+                    return;
                 }
             }
-            else
-            {
-                _logger.LogInformation("DelayedRefreshSubscriptions: 订阅关系正常，无需刷新");
-            }
+            
+            // 所有重试完成后，记录最终状态
+            var finalRemoteVideos = RemoteVideos.Count;
+            _logger.LogInformation(
+                "DelayedRefreshSubscriptions: 检查流程完成，最终远端视频数量: {Count}",
+                finalRemoteVideos
+            );
         }
         catch (Exception ex)
         {
