@@ -1111,6 +1111,19 @@ public class MediasoupTransport : IDisposable
                 return;
             }
 
+            // 修复 SIPSorcery 在多个同类型 m-line 时将后续 m-line 标记为 inactive 的问题
+            // 将所有 a=inactive 替换为 a=recvonly（针对接收方向的 Transport）
+            var fixedSdp = FixSdpInactiveMediaLines(answer.sdp);
+            if (fixedSdp != answer.sdp)
+            {
+                _logger.LogWarning("Fixed SDP answer: replaced 'a=inactive' with 'a=recvonly' for multi-consumer support");
+                answer = new RTCSessionDescriptionInit
+                {
+                    type = RTCSdpType.answer,
+                    sdp = fixedSdp
+                };
+            }
+
             _logger.LogDebug("Created local answer:\n{Sdp}", answer.sdp);
 
             // 设置本地 SDP
@@ -1316,6 +1329,32 @@ public class MediasoupTransport : IDisposable
         }
         
         _logger.LogInformation("Consumer 已从 Transport 移除: {ConsumerId}", consumerId);
+    }
+
+    /// <summary>
+    /// 修复 SIPSorcery 生成的 SDP answer 中的 inactive 问题
+    /// 当远端 SDP offer 包含多个同类型 m-line 时，SIPSorcery 会将后续的 m-line 标记为 a=inactive
+    /// 这导致多用户场景下部分用户的视频/音频无法接收
+    /// 此方法将所有 a=inactive 替换为 a=recvonly
+    /// </summary>
+    /// <param name="sdp">原始 SDP 字符串</param>
+    /// <returns>修复后的 SDP 字符串</returns>
+    private string FixSdpInactiveMediaLines(string sdp)
+    {
+        if (string.IsNullOrEmpty(sdp)) return sdp;
+        
+        // 将所有 a=inactive 替换为 a=recvonly
+        // 这对于接收方向的 Transport 是安全的，因为我们的 recv transport 只接收不发送
+        var fixedSdp = sdp.Replace("a=inactive", "a=recvonly");
+        
+        if (fixedSdp != sdp)
+        {
+            // 计算替换了多少个
+            int originalCount = sdp.Split(new[] { "a=inactive" }, StringSplitOptions.None).Length - 1;
+            _logger.LogWarning("SDP 修复: 将 {Count} 个 'a=inactive' 替换为 'a=recvonly'", originalCount);
+        }
+        
+        return fixedSdp;
     }
 
     /// <summary>
