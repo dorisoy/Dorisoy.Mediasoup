@@ -3597,9 +3597,71 @@ public partial class MainViewModel : ObservableObject
         if (ServeMode != "Pull")
         {
             await _signalRService.InvokeAsync("Ready");
+            
+            // 延迟检查并刷新订阅关系，确保多用户场景下所有视频流都能正确订阅
+            _ = DelayedRefreshSubscriptionsAsync();
         }
 
         StatusMessage = $"已加入房间 {roomIdToJoin}";
+    }
+    
+    /// <summary>
+    /// 延迟刷新订阅关系 - 确保多用户场景下所有视频流都能正确订阅
+    /// 在 Ready 之后延迟一段时间检查，如果远端视频数量不足则调用 RefreshSubscriptions
+    /// </summary>
+    private async Task DelayedRefreshSubscriptionsAsync()
+    {
+        try
+        {
+            // 延迟 2 秒，等待其他用户完成 Ready
+            await Task.Delay(2000);
+            
+            if (!IsJoinedRoom)
+            {
+                _logger.LogDebug("DelayedRefreshSubscriptions: 已离开房间，跳过刷新");
+                return;
+            }
+            
+            // 检查远端视频数量是否与其他用户数量一致
+            var expectedRemoteVideos = Peers.Count - 1; // 排除自己
+            var actualRemoteVideos = RemoteVideos.Count;
+            
+            _logger.LogInformation(
+                "DelayedRefreshSubscriptions: 检查订阅关系, ExpectedRemoteVideos={Expected}, ActualRemoteVideos={Actual}",
+                expectedRemoteVideos, actualRemoteVideos
+            );
+            
+            // 如果远端视频数量不足，调用 RefreshSubscriptions
+            if (actualRemoteVideos < expectedRemoteVideos && expectedRemoteVideos > 0)
+            {
+                _logger.LogWarning(
+                    "DelayedRefreshSubscriptions: 远端视频数量不足, 调用 RefreshSubscriptions"
+                );
+                
+                var result = await _signalRService.InvokeAsync("RefreshSubscriptions");
+                _logger.LogInformation("RefreshSubscriptions 结果: {Result}", result.Message);
+                
+                // 再次延迟检查
+                await Task.Delay(2000);
+                
+                if (IsJoinedRoom)
+                {
+                    var newActualRemoteVideos = RemoteVideos.Count;
+                    _logger.LogInformation(
+                        "DelayedRefreshSubscriptions: 刷新后远端视频数量: {Count}",
+                        newActualRemoteVideos
+                    );
+                }
+            }
+            else
+            {
+                _logger.LogInformation("DelayedRefreshSubscriptions: 订阅关系正常，无需刷新");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DelayedRefreshSubscriptions 失败");
+        }
     }
     
     /// <summary>

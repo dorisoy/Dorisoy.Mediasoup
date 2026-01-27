@@ -1472,6 +1472,17 @@ namespace Dorisoy.Meeting.Server
             );
         }
 
+        /// <summary>
+        /// 检查 Peer 是否已创建 Recv Transport（用于判断是否可以消费其他 Peer 的视频）
+        /// </summary>
+        public async Task<bool> HasRecvTransportAsync()
+        {
+            await using (await _transportsLock.ReadLockAsync())
+            {
+                return HasConsumingTransport();
+            }
+        }
+
         private void CheckJoined(string tag)
         {
             if (!_joined)

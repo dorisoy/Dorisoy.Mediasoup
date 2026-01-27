@@ -469,39 +469,95 @@ namespace Dorisoy.Meeting.Server
                 var selfPeer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
                 if (selfPeer == null)
                 {
+                    _logger.LogWarning("Ready() | PeerId:{PeerId} not found", UserId);
                     return MeetingMessage.Failure("Ready 失败: 找不到 Peer");
                 }
 
+                // 检查本 Peer 是否已有 Recv Transport
+                var hasRecvTransport = await selfPeer.HasRecvTransportAsync();
+                if (!hasRecvTransport)
+                {
+                    _logger.LogWarning("Ready() | PeerId:{PeerId} has no Recv Transport yet", UserId);
+                    return MeetingMessage.Failure("Ready 失败: Recv Transport 未创建");
+                }
+
                 var otherPeers = await _scheduler.GetOtherPeersAsync(UserId, ConnectionId);
+                var consumeTasks = new List<Task>();
+                var consumeFromOthersCount = 0;
+                var consumeByOthersCount = 0;
+                var skippedPeersCount = 0;
                 
-                // 1. 本 Peer 消费其他 Peer 的 producers（原有逻辑）
+                _logger.LogInformation(
+                    "Ready() | PeerId:{PeerId} starting, OtherPeersCount:{Count}",
+                    UserId, otherPeers.Length
+                );
+                
+                // 1. 本 Peer 消费其他 Peer 的 producers
+                // 本 Peer 已经 Ready，说明本 Peer 已有 Recv Transport，可以消费其他人
                 foreach (var producerPeer in otherPeers.Where(m => m.PeerId != UserId))
                 {
                     var producers = await producerPeer.GetProducersASync();
-                    foreach (var producer in producers.Values)
+                    if (producers.Count > 0)
                     {
-                        // 本 Peer 消费其他 Peer
-                        CreateConsumer(UserId, producerPeer.PeerId, producer).ContinueWithOnFaultedHandleLog(_logger);
-                    }
-                }
-
-                // 2. 其他 Peer 消费本 Peer 的 producers（新增逻辑）
-                // 这是为了修复时序问题：当本 Peer Produce 时，某些其他 Peer 的 Recv Transport 可能还没准备好
-                // 导致 CreateConsumer 失败。现在在 Ready 时重新尝试让其他 Peer 消费本 Peer。
-                var selfProducers = await selfPeer.GetProducersASync();
-                if (selfProducers.Any())
-                {
-                    foreach (var consumerPeer in otherPeers.Where(m => m.PeerId != UserId))
-                    {
-                        foreach (var producer in selfProducers.Values)
+                        _logger.LogInformation(
+                            "Ready() | PeerId:{PeerId} consuming ProducerPeer:{ProducerPeerId}, ProducersCount:{Count}",
+                            UserId, producerPeer.PeerId, producers.Count
+                        );
+                        
+                        foreach (var producer in producers.Values)
                         {
-                            // 其他 Peer 消费本 Peer（补充订阅）
-                            CreateConsumer(consumerPeer.PeerId, UserId, producer).ContinueWithOnFaultedHandleLog(_logger);
+                            // 使用 Task 收集，稍后等待完成
+                            consumeTasks.Add(SafeCreateConsumer(UserId, producerPeer.PeerId, producer));
+                            consumeFromOthersCount++;
                         }
                     }
                 }
 
-                return MeetingMessage.Success("Ready 成功");
+                // 2. 其他 Peer 消费本 Peer 的 producers（双向订阅补充）
+                // 这是为了修复时序问题：当本 Peer Produce 时，某些其他 Peer 的 Recv Transport 可能还没准备好
+                var selfProducers = await selfPeer.GetProducersASync();
+                if (selfProducers.Any())
+                {
+                    _logger.LogInformation(
+                        "Ready() | PeerId:{PeerId} has {Count} producers, starting reverse subscription to {OtherCount} peers",
+                        UserId, selfProducers.Count, otherPeers.Length
+                    );
+                    
+                    foreach (var consumerPeer in otherPeers.Where(m => m.PeerId != UserId))
+                    {
+                        // 只让已经有 Recv Transport 的 Peer 来消费
+                        var consumerHasRecvTransport = await consumerPeer.HasRecvTransportAsync();
+                        if (!consumerHasRecvTransport)
+                        {
+                            _logger.LogDebug(
+                                "Ready() | Skip consumer peer {ConsumerPeerId} - no recv transport yet",
+                                consumerPeer.PeerId
+                            );
+                            skippedPeersCount++;
+                            continue;
+                        }
+                        
+                        foreach (var producer in selfProducers.Values)
+                        {
+                            // 其他 Peer 消费本 Peer（补充订阅）
+                            consumeTasks.Add(SafeCreateConsumer(consumerPeer.PeerId, UserId, producer));
+                            consumeByOthersCount++;
+                        }
+                    }
+                }
+
+                // 3. 等待所有消费操作完成（忽略单个失败）
+                if (consumeTasks.Any())
+                {
+                    await Task.WhenAll(consumeTasks);
+                }
+                
+                _logger.LogInformation(
+                    "Ready() | PeerId:{PeerId} completed - ConsumedFromOthers:{FromOthers}, ConsumedByOthers:{ByOthers}, SkippedPeers:{Skipped}",
+                    UserId, consumeFromOthersCount, consumeByOthersCount, skippedPeersCount
+                );
+
+                return MeetingMessage.Success($"Ready 成功: 消费 {consumeFromOthersCount} 个流，被消费 {consumeByOthersCount} 次");
             }
             catch (MeetingException ex)
             {
@@ -513,6 +569,138 @@ namespace Dorisoy.Meeting.Server
             }
 
             return MeetingMessage.Failure("Ready 失败");
+        }
+
+        /// <summary>
+        /// 刷新订阅关系 - 确保本 Peer 能看到所有其他 Peer 的视频，以及所有其他 Peer 能看到本 Peer 的视频
+        /// 客户端可以在需要时调用此方法来修复订阅关系
+        /// </summary>
+        public async Task<MeetingMessage> RefreshSubscriptions()
+        {
+            if (_meetingServerOptions.ServeMode == ServeMode.Pull)
+            {
+                return MeetingMessage.Failure("RefreshSubscriptions 失败(无需调用)");
+            }
+
+            try
+            {
+                var selfPeer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+                if (selfPeer == null)
+                {
+                    _logger.LogWarning("RefreshSubscriptions() | PeerId:{PeerId} not found", UserId);
+                    return MeetingMessage.Failure("RefreshSubscriptions 失败: 找不到 Peer");
+                }
+
+                // 检查本 Peer 是否有 Recv Transport
+                var hasRecvTransport = await selfPeer.HasRecvTransportAsync();
+                if (!hasRecvTransport)
+                {
+                    _logger.LogWarning("RefreshSubscriptions() | PeerId:{PeerId} has no Recv Transport", UserId);
+                    return MeetingMessage.Failure("RefreshSubscriptions 失败: Recv Transport 未创建");
+                }
+
+                var otherPeers = await _scheduler.GetOtherPeersAsync(UserId, ConnectionId);
+                var consumeTasks = new List<Task>();
+                var consumeFromOthersCount = 0;
+                var consumeByOthersCount = 0;
+                var skippedPeersCount = 0;
+                
+                _logger.LogInformation(
+                    "RefreshSubscriptions() | PeerId:{PeerId} starting full sync, OtherPeersCount:{Count}",
+                    UserId, otherPeers.Length
+                );
+
+                // 1. 本 Peer 消费所有其他 Peer 的 producers
+                foreach (var producerPeer in otherPeers.Where(m => m.PeerId != UserId))
+                {
+                    var producers = await producerPeer.GetProducersASync();
+                    if (producers.Count > 0)
+                    {
+                        _logger.LogDebug(
+                            "RefreshSubscriptions() | PeerId:{PeerId} consuming from {ProducerPeerId}, ProducersCount:{Count}",
+                            UserId, producerPeer.PeerId, producers.Count
+                        );
+                        
+                        foreach (var producer in producers.Values)
+                        {
+                            consumeTasks.Add(SafeCreateConsumer(UserId, producerPeer.PeerId, producer));
+                            consumeFromOthersCount++;
+                        }
+                    }
+                }
+
+                // 2. 让所有有 Recv Transport 的其他 Peer 消费本 Peer 的 producers
+                var selfProducers = await selfPeer.GetProducersASync();
+                if (selfProducers.Any())
+                {
+                    _logger.LogDebug(
+                        "RefreshSubscriptions() | PeerId:{PeerId} has {Count} producers, syncing to other peers",
+                        UserId, selfProducers.Count
+                    );
+                    
+                    foreach (var consumerPeer in otherPeers.Where(m => m.PeerId != UserId))
+                    {
+                        var consumerHasRecvTransport = await consumerPeer.HasRecvTransportAsync();
+                        if (!consumerHasRecvTransport)
+                        {
+                            _logger.LogDebug(
+                                "RefreshSubscriptions() | Skip peer {PeerId} - no recv transport",
+                                consumerPeer.PeerId
+                            );
+                            skippedPeersCount++;
+                            continue;
+                        }
+                        
+                        foreach (var producer in selfProducers.Values)
+                        {
+                            consumeTasks.Add(SafeCreateConsumer(consumerPeer.PeerId, UserId, producer));
+                            consumeByOthersCount++;
+                        }
+                    }
+                }
+
+                // 3. 等待所有操作完成
+                if (consumeTasks.Any())
+                {
+                    await Task.WhenAll(consumeTasks);
+                }
+
+                _logger.LogInformation(
+                    "RefreshSubscriptions() | PeerId:{PeerId} completed - ConsumedFromOthers:{FromOthers}, ConsumedByOthers:{ByOthers}, SkippedPeers:{Skipped}",
+                    UserId, consumeFromOthersCount, consumeByOthersCount, skippedPeersCount
+                );
+
+                return MeetingMessage.Success($"RefreshSubscriptions 成功: 消费 {consumeFromOthersCount} 个流，被消费 {consumeByOthersCount} 次，跳过 {skippedPeersCount} 个");
+            }
+            catch (MeetingException ex)
+            {
+                _logger.LogError("RefreshSubscriptions 调用失败: {Message}", ex.Message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "RefreshSubscriptions 调用失败.");
+            }
+
+            return MeetingMessage.Failure("RefreshSubscriptions 失败");
+        }
+
+        /// <summary>
+        /// 安全创建 Consumer，捕获并记录异常，不会抛出
+        /// </summary>
+        private async Task SafeCreateConsumer(string consumerPeerId, string producerPeerId, Producer producer)
+        {
+            try
+            {
+                await CreateConsumer(consumerPeerId, producerPeerId, producer);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(
+                    ex,
+                    "SafeCreateConsumer failed: ConsumerPeerId={ConsumerPeerId}, ProducerPeerId={ProducerPeerId}, ProducerId={ProducerId}",
+                    consumerPeerId, producerPeerId, producer.ProducerId
+                );
+            }
         }
 
         #endregion
@@ -810,11 +998,45 @@ namespace Dorisoy.Meeting.Server
                         ? produceResult.PullPaddingConsumerPeers
                         : await producerPeer.GetOtherPeersAsync();
 
+                _logger.LogInformation(
+                    "Produce() | PeerId:{PeerId} produced {Kind}, notifying {Count} other peers",
+                    peerId, produceRequest.Kind, otherPeers.Length
+                );
+
+                var consumeTasks = new List<Task>();
+                var notifiedCount = 0;
+                var skippedCount = 0;
+
                 foreach (var consumerPeer in otherPeers)
                 {
+                    // 只让已经有 Recv Transport 的 Peer 来消费
+                    // 这是因为在多用户同时加入时，某些 Peer 可能已经 JoinRoom 但还没创建 Recv Transport
+                    // 那些还没准备好的 Peer 会在它们 Ready 时通过双向订阅来消费本 Peer
+                    if (!await consumerPeer.HasRecvTransportAsync())
+                    {
+                        _logger.LogDebug(
+                            "Produce() | Skip consumer peer {ConsumerPeerId} - no recv transport yet",
+                            consumerPeer.PeerId
+                        );
+                        skippedCount++;
+                        continue;
+                    }
+                    
                     // 其他 Peer 消费本 Peer
-                    CreateConsumer(consumerPeer.PeerId, producerPeer.PeerId, producer).ContinueWithOnFaultedHandleLog(_logger);
+                    consumeTasks.Add(SafeCreateConsumer(consumerPeer.PeerId, producerPeer.PeerId, producer));
+                    notifiedCount++;
                 }
+
+                // 等待所有消费操作完成
+                if (consumeTasks.Any())
+                {
+                    await Task.WhenAll(consumeTasks);
+                }
+
+                _logger.LogInformation(
+                    "Produce() | PeerId:{PeerId} notified {Notified} peers, skipped {Skipped} peers",
+                    peerId, notifiedCount, skippedCount
+                );
 
                 // NOTE: For Testing
                 //CreateConsumer(producerPeer, producerPeer, producer, "1").ContinueWithOnFaultedHandleLog(_logger);
