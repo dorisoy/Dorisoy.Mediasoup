@@ -20,7 +20,7 @@
                                    Opacity="0.5"
                                    Margin="0,0,0,2"/>
                         <Border Background="#0078D4"
-                                CornerRadius="12,12,4,12"
+                                CornerRadius="12,0,12,12"
                                 Padding="12,8">
                             <Grid>
                                 <!-- 文本消息 -->
@@ -80,7 +80,7 @@
                                    Opacity="0.5"/>
                     </StackPanel>
                     <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                            CornerRadius="12,12,12,4"
+                            CornerRadius="0,12,12,12"
                             Padding="12,8"
                             MaxWidth="280">
                         <Grid>
