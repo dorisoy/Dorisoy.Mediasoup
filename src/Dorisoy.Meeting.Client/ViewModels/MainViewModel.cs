@@ -193,6 +193,12 @@ public partial class MainViewModel : ObservableObject
     public bool ShowLocalVideoInGrid => !IsPipMode && IsCameraEnabled;
 
     /// <summary>
+    /// 左侧浮动工具栏是否可见
+    /// </summary>
+    [ObservableProperty]
+    private bool _isLeftToolbarVisible = true;
+
+    /// <summary>
     /// 是否已举手
     /// </summary>
     [ObservableProperty]
@@ -841,6 +847,16 @@ public partial class MainViewModel : ObservableObject
         UpdateLocalVideoInGrid();
         
         StatusMessage = IsPipMode ? "已开启画中画模式" : "已关闭画中画模式";
+    }
+
+    /// <summary>
+    /// 切换左侧浮动工具栏显示/隐藏
+    /// </summary>
+    [RelayCommand]
+    private void ToggleLeftToolbar()
+    {
+        IsLeftToolbarVisible = !IsLeftToolbarVisible;
+        StatusMessage = IsLeftToolbarVisible ? "已显示工具栏" : "已隐藏工具栏";
     }
 
     /// <summary>

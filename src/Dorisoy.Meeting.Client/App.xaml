@@ -50,6 +50,7 @@
             <converters:MuteTooltipConverter x:Key="MuteTooltipConverter"/>
             <converters:RemoteVideoMuteTooltipConverter x:Key="RemoteVideoMuteTooltipConverter"/>
             <converters:BoolToYesNoConverter x:Key="BoolToYesNoConverter"/>
+            <converters:FirstCharacterConverter x:Key="FirstCharacterConverter"/>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

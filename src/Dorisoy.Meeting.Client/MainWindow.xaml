@@ -537,6 +537,43 @@
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center">
 
+                            <!-- 工具栏显隐开关 -->
+                            <StackPanel Margin="12,0">
+                                <ui:Button Command="{Binding ToggleLeftToolbarCommand}"
+                                           Width="56"
+                                           Height="56"
+                                           CornerRadius="28">
+                                    <ui:Button.Style>
+                                        <Style TargetType="ui:Button"
+                                               BasedOn="{StaticResource {x:Type ui:Button}}">
+                                            <Setter Property="Appearance"
+                                                    Value="Transparent" />
+                                            <Setter Property="ToolTip"
+                                                    Value="显示工具栏" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsLeftToolbarVisible}"
+                                                             Value="True">
+                                                    <Setter Property="Appearance"
+                                                            Value="Info" />
+                                                    <Setter Property="ToolTip"
+                                                            Value="隐藏工具栏" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </ui:Button.Style>
+                                    <Grid>
+                                        <!-- 工具栏可见时显示隐藏图标 -->
+                                        <ui:SymbolIcon Symbol="PanelLeftContract24"
+                                                       FontSize="24"
+                                                       Visibility="{Binding IsLeftToolbarVisible, Converter={StaticResource BoolToVisConverter}}" />
+                                        <!-- 工具栏隐藏时显示展开图标 -->
+                                        <ui:SymbolIcon Symbol="PanelLeftExpand24"
+                                                       FontSize="24"
+                                                       Visibility="{Binding IsLeftToolbarVisible, Converter={StaticResource InverseBoolToVisConverter}}" />
+                                    </Grid>
+                                </ui:Button>
+                            </StackPanel>
+
                             <!-- 静音（麦克风开关） -->
                             <StackPanel Margin="12,0">
                                 <ui:Button x:Name="MicrophoneButton"
@@ -889,7 +926,8 @@
                     Background="#40000000"
                     CornerRadius="12"
                     Padding="6,12"
-                    Panel.ZIndex="100">
+                    Panel.ZIndex="100"
+                    Visibility="{Binding IsLeftToolbarVisible, Converter={StaticResource BoolToVisConverter}}">
                 <StackPanel>
                     <!-- 分享教室 -->
                     <ui:Button Width="44"

@@ -10,10 +10,10 @@
         <DataTemplate x:Key="ChatMessageTemplate" DataType="{x:Type models:ChatMessage}">
             <Grid Margin="8,4">
                 <!-- 自己发送的消息 -->
-                <Border HorizontalAlignment="Right"
-                        MaxWidth="280"
-                        Visibility="{Binding IsFromSelf, Converter={StaticResource BoolToVisConverter}}">
-                    <StackPanel>
+                <StackPanel HorizontalAlignment="Right"
+                            Orientation="Horizontal"
+                            Visibility="{Binding IsFromSelf, Converter={StaticResource BoolToVisConverter}}">
+                    <StackPanel MaxWidth="280">
                         <TextBlock Text="{Binding FormattedTime}"
                                    HorizontalAlignment="Right"
                                    FontSize="10"
@@ -64,69 +64,98 @@
                             </Grid>
                         </Border>
                     </StackPanel>
-                </Border>
+                    
+                    <!-- 自己的头像 - 显示用户名第一个字 -->
+                    <Border Width="32" Height="32"
+                            CornerRadius="16"
+                            Background="#0078D4"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Top">
+                        <TextBlock Text="{Binding SenderName, Converter={StaticResource FirstCharacterConverter}}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"/>
+                    </Border>
+                </StackPanel>
                 
                 <!-- 他人发送的消息 -->
                 <StackPanel HorizontalAlignment="Left"
+                            Orientation="Horizontal"
                             Visibility="{Binding IsFromSelf, Converter={StaticResource InverseBoolToVisConverter}}">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                        <TextBlock Text="{Binding SenderName}"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   Opacity="0.7"
-                                   Margin="0,0,8,0"/>
-                        <TextBlock Text="{Binding FormattedTime}"
-                                   FontSize="10"
-                                   Opacity="0.5"/>
-                    </StackPanel>
-                    <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                            CornerRadius="0,12,12,12"
-                            Padding="12,8"
-                            MaxWidth="280">
-                        <Grid>
-                            <!-- 文本消息 -->
-                            <TextBlock Text="{Binding Content}"
-                                       TextWrapping="Wrap"
-                                       FontSize="13"
-                                       Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}"/>
-                            
-                            <!-- 图片消息 -->
-                            <StackPanel Visibility="{Binding MessageType, Converter={StaticResource ImageMessageVisibilityConverter}}">
-                                <Image Source="{Binding ImageSource}"
-                                       MaxWidth="200"
-                                       MaxHeight="200"
-                                       Stretch="Uniform"
-                                       Margin="0,0,0,4"
-                                       Cursor="Hand"
-                                       MouseLeftButtonDown="ImageMessage_DoubleClick"/>
-                                <TextBlock Text="{Binding FileName}"
-                                           FontSize="11"
-                                           Opacity="0.6"/>
-                            </StackPanel>
-                            
-                            <!-- 文件消息 -->
-                            <Border Background="{DynamicResource ControlFillColorTertiaryBrush}"
-                                    CornerRadius="8"
-                                    Padding="8"
-                                    Cursor="Hand"
-                                    Visibility="{Binding MessageType, Converter={StaticResource FileMessageVisibilityConverter}}"
-                                    MouseLeftButtonDown="FileMessage_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="Document24" FontSize="24" Margin="0,0,8,0"/>
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding FileName}"
-                                                   FontSize="13"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   MaxWidth="150"/>
-                                        <TextBlock Text="{Binding FormattedFileSize}"
-                                                   FontSize="11"
-                                                   Opacity="0.6"/>
-                                    </StackPanel>
-                                    <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="18" Margin="8,0,0,0" Opacity="0.6"/>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
+                    <!-- 头像 - 显示用户名第一个字 -->
+                    <Border Width="32" Height="32"
+                            CornerRadius="16"
+                            Background="{DynamicResource ControlFillColorTertiaryBrush}"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Top">
+                        <TextBlock Text="{Binding SenderName, Converter={StaticResource FirstCharacterConverter}}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"/>
                     </Border>
+                    
+                    <StackPanel MaxWidth="280">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                            <TextBlock Text="{Binding SenderName}"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Opacity="0.7"
+                                       Margin="0,0,8,0"/>
+                            <TextBlock Text="{Binding FormattedTime}"
+                                       FontSize="10"
+                                       Opacity="0.5"/>
+                        </StackPanel>
+                        <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                CornerRadius="0,12,12,12"
+                                Padding="12,8">
+                            <Grid>
+                                <!-- 文本消息 -->
+                                <TextBlock Text="{Binding Content}"
+                                           TextWrapping="Wrap"
+                                           FontSize="13"
+                                           Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}"/>
+                                
+                                <!-- 图片消息 -->
+                                <StackPanel Visibility="{Binding MessageType, Converter={StaticResource ImageMessageVisibilityConverter}}">
+                                    <Image Source="{Binding ImageSource}"
+                                           MaxWidth="200"
+                                           MaxHeight="200"
+                                           Stretch="Uniform"
+                                           Margin="0,0,0,4"
+                                           Cursor="Hand"
+                                           MouseLeftButtonDown="ImageMessage_DoubleClick"/>
+                                    <TextBlock Text="{Binding FileName}"
+                                               FontSize="11"
+                                               Opacity="0.6"/>
+                                </StackPanel>
+                                
+                                <!-- 文件消息 -->
+                                <Border Background="{DynamicResource ControlFillColorTertiaryBrush}"
+                                        CornerRadius="8"
+                                        Padding="8"
+                                        Cursor="Hand"
+                                        Visibility="{Binding MessageType, Converter={StaticResource FileMessageVisibilityConverter}}"
+                                        MouseLeftButtonDown="FileMessage_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Document24" FontSize="24" Margin="0,0,8,0"/>
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding FileName}"
+                                                       FontSize="13"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       MaxWidth="150"/>
+                                            <TextBlock Text="{Binding FormattedFileSize}"
+                                                       FontSize="11"
+                                                       Opacity="0.6"/>
+                                        </StackPanel>
+                                        <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="18" Margin="8,0,0,0" Opacity="0.6"/>
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
         </DataTemplate>

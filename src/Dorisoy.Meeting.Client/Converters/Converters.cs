@@ -638,3 +638,23 @@ public class BoolToYesNoConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
+
+/// <summary>
+/// 字符串首字母转换器 - 用于显示用户名的第一个字符作为头像
+/// </summary>
+public class FirstCharacterConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is string str && !string.IsNullOrEmpty(str))
+        {
+            return str[0].ToString();
+        }
+        return "?";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
