@@ -466,7 +466,15 @@ namespace Dorisoy.Meeting.Server
 
             try
             {
+                var selfPeer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+                if (selfPeer == null)
+                {
+                    return MeetingMessage.Failure("Ready 失败: 找不到 Peer");
+                }
+
                 var otherPeers = await _scheduler.GetOtherPeersAsync(UserId, ConnectionId);
+                
+                // 1. 本 Peer 消费其他 Peer 的 producers（原有逻辑）
                 foreach (var producerPeer in otherPeers.Where(m => m.PeerId != UserId))
                 {
                     var producers = await producerPeer.GetProducersASync();
@@ -474,6 +482,22 @@ namespace Dorisoy.Meeting.Server
                     {
                         // 本 Peer 消费其他 Peer
                         CreateConsumer(UserId, producerPeer.PeerId, producer).ContinueWithOnFaultedHandleLog(_logger);
+                    }
+                }
+
+                // 2. 其他 Peer 消费本 Peer 的 producers（新增逻辑）
+                // 这是为了修复时序问题：当本 Peer Produce 时，某些其他 Peer 的 Recv Transport 可能还没准备好
+                // 导致 CreateConsumer 失败。现在在 Ready 时重新尝试让其他 Peer 消费本 Peer。
+                var selfProducers = await selfPeer.GetProducersASync();
+                if (selfProducers.Any())
+                {
+                    foreach (var consumerPeer in otherPeers.Where(m => m.PeerId != UserId))
+                    {
+                        foreach (var producer in selfProducers.Values)
+                        {
+                            // 其他 Peer 消费本 Peer（补充订阅）
+                            CreateConsumer(consumerPeer.PeerId, UserId, producer).ContinueWithOnFaultedHandleLog(_logger);
+                        }
                     }
                 }
 
