@@ -885,7 +885,7 @@
                                 MinWidth="300">
                         <ui:SymbolIcon Symbol="WifiWarning24"
                                        FontSize="64"
-                                       Foreground="#FFA500"
+                                       Foreground="Gray"
                                        Margin="0,0,0,20" />
                         <TextBlock Text="{Binding ReconnectMessage}"
                                    Foreground="White"
@@ -909,11 +909,13 @@
                                          Height="32"
                                          Margin="0,0,0,20"
                                          Visibility="{Binding ShowManualReconnect, Converter={StaticResource InverseBoolToVisConverter}}" />
-                        <ui:Button Content="手动重连"
+                        <ui:Button Content="重试"
                                    Command="{Binding ManualReconnectCommand}"
                                    Appearance="Primary"
+                                   Foreground="White"
                                    Padding="32,12"
                                    FontSize="14"
+                                   HorizontalAlignment="Center"
                                    Visibility="{Binding ShowManualReconnect, Converter={StaticResource BoolToVisConverter}}" />
                     </StackPanel>
                 </Border>
