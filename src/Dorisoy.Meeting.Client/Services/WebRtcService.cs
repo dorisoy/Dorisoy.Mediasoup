@@ -24,7 +24,13 @@ public class WebRtcService : IWebRtcService
     // Mediasoup 设备和 Transport
     private MediasoupDevice? _device;
     private MediasoupTransport? _sendTransport;
-    private MediasoupTransport? _recvTransport;
+    private MediasoupTransport? _recvTransport;  // 保留旧的单一 recv transport 用于兼容
+    
+    // 按 PeerId 存储的多个 recv transport - 解决 SIPSorcery SRTP 限制
+    // 每个远端用户有自己独立的 PeerConnection，避免多 m-line SRTP 解密问题
+    private readonly ConcurrentDictionary<string, MediasoupTransport> _peerRecvTransports = new();
+    private readonly ConcurrentDictionary<string, RtpMediaDecoder> _peerRtpDecoders = new();
+    private readonly ConcurrentDictionary<string, string> _consumerToPeerMap = new();  // ConsumerId -> PeerId 映射
     
     // RTP 媒体解码器
     private RtpMediaDecoder? _rtpDecoder;
@@ -938,7 +944,8 @@ public class WebRtcService : IWebRtcService
     #region 消费者管理
 
     /// <summary>
-    /// 添加远端消费者
+    /// 添加远端消费者（旧方法，使用共享的 recv transport）
+    /// 注意：多用户场景下应使用 AddConsumerForPeerAsync
     /// </summary>
     public async Task AddConsumerAsync(string consumerId, string kind, object? rtpParameters)
     {
@@ -976,6 +983,65 @@ public class WebRtcService : IWebRtcService
         {
             _logger.LogWarning("No recv transport available for consumer {ConsumerId}", consumerId);
         }
+    }
+    
+    /// <summary>
+    /// 为指定 Peer 添加 Consumer（使用该 Peer 的独立 recv transport）
+    /// 这是解决 SIPSorcery SRTP 限制的关键方法
+    /// </summary>
+    public async Task AddConsumerForPeerAsync(string peerId, string consumerId, string kind, object? rtpParameters)
+    {
+        _logger.LogInformation("Adding consumer for peer: PeerId={PeerId}, ConsumerId={ConsumerId}, Kind={Kind}", peerId, consumerId, kind);
+
+        _consumers.TryAdd(consumerId, new ConsumerInfo
+        {
+            ConsumerId = consumerId,
+            Kind = kind,
+            RtpParameters = rtpParameters
+        });
+
+        // 记录 Consumer 到 Peer 的映射
+        _consumerToPeerMap[consumerId] = peerId;
+
+        // 获取该 Peer 的 recv transport
+        if (!_peerRecvTransports.TryGetValue(peerId, out var peerTransport))
+        {
+            _logger.LogWarning("Peer {PeerId} has no recv transport for consumer {ConsumerId}", peerId, consumerId);
+            return;
+        }
+
+        if (rtpParameters != null)
+        {
+            try
+            {
+                await peerTransport.ConsumeAsync(consumerId, kind, rtpParameters);
+                _logger.LogInformation("Consumer {ConsumerId} added to Peer {PeerId} recv transport", consumerId, peerId);
+                
+                // 对于视频 Consumer，根据远端 MimeType 设置解码器类型
+                if (kind == "video" && _peerRtpDecoders.TryGetValue(peerId, out var peerDecoder))
+                {
+                    var remoteCodecType = ExtractCodecTypeFromRtpParameters(rtpParameters);
+                    peerDecoder.SetConsumerVideoCodecType(consumerId, remoteCodecType);
+                    _logger.LogInformation("Consumer {ConsumerId} for Peer {PeerId} 远端编解码器: {Codec}", consumerId, peerId, remoteCodecType);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to consume {ConsumerId} on Peer {PeerId} recv transport", consumerId, peerId);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// 检查指定 Peer 的 recv transport 是否已连接
+    /// </summary>
+    public bool IsPeerRecvTransportConnected(string peerId)
+    {
+        if (_peerRecvTransports.TryGetValue(peerId, out var transport))
+        {
+            return transport.IsConnected;
+        }
+        return false;
     }
     
     /// <summary>
@@ -1101,7 +1167,8 @@ public class WebRtcService : IWebRtcService
     }
 
     /// <summary>
-    /// 创建接收 Transport
+    /// 创建接收 Transport（旧版本，保留兼容）
+    /// 注意：由于 SIPSorcery 的 SRTP 限制，多用户场景应使用 CreatePeerRecvTransport
     /// </summary>
     public void CreateRecvTransport(string transportId, object iceParameters, object iceCandidates, object dtlsParameters)
     {
@@ -1188,6 +1255,173 @@ public class WebRtcService : IWebRtcService
         InitializeAudioPlayback();
 
         _logger.LogInformation("Recv transport created with RTP decoder: {TransportId}", transportId);
+    }
+
+    /// <summary>
+    /// 为指定 Peer 创建独立的接收 Transport
+    /// 每个远端用户有自己的 PeerConnection，解决 SIPSorcery SRTP 限制
+    /// </summary>
+    public void CreatePeerRecvTransport(
+        string peerId, 
+        string transportId, 
+        object iceParameters, 
+        object iceCandidates, 
+        object dtlsParameters)
+    {
+        _logger.LogInformation("Creating per-peer recv transport: PeerId={PeerId}, TransportId={TransportId}", peerId, transportId);
+
+        // 清理该 Peer 旧的 Transport
+        if (_peerRecvTransports.TryRemove(peerId, out var oldTransport))
+        {
+            _logger.LogWarning("清理 Peer {PeerId} 旧的 recv transport: {OldTransportId}", peerId, oldTransport.TransportId);
+            try
+            {
+                oldTransport.Close();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "清理 Peer {PeerId} 旧 recv transport 失败", peerId);
+            }
+        }
+        
+        // 清理该 Peer 旧的 RTP 解码器
+        if (_peerRtpDecoders.TryRemove(peerId, out var oldDecoder))
+        {
+            oldDecoder.OnDecodedVideoFrame -= HandleRemoteVideoFrame;
+            oldDecoder.OnDecodedAudioSamples -= HandleDecodedAudioSamples;
+            oldDecoder.Dispose();
+        }
+
+        var iceParams = ParseIceParameters(iceParameters);
+        var iceCands = ParseIceCandidates(iceCandidates);
+        var dtlsParams = ParseDtlsParameters(dtlsParameters);
+
+        var peerTransport = new MediasoupTransport(
+            _loggerFactory.CreateLogger<MediasoupTransport>(),
+            transportId,
+            TransportDirection.Recv);
+
+        peerTransport.Initialize(iceParams, iceCands, dtlsParams);
+        peerTransport.OnConnectionStateChanged += (state) =>
+        {
+            _logger.LogDebug("Peer {PeerId} recv transport state: {State}", peerId, state);
+            OnConnectionStateChanged?.Invoke($"peer_{peerId}_recv_transport_{state}");
+
+            // 当 DTLS 连接完成时
+            if (state == "connected")
+            {
+                _logger.LogInformation("Peer {PeerId} recv transport DTLS connected", peerId);
+            }
+        };
+
+        // 为该 Peer 创建独立的 RTP 解码器
+        var peerDecoder = new RtpMediaDecoder(_loggerFactory);
+        peerDecoder.OnDecodedVideoFrame += HandleRemoteVideoFrame;
+        peerDecoder.OnDecodedAudioSamples += HandleDecodedAudioSamples;
+
+        // 订阅 RTP 包事件，转发到解码器
+        peerTransport.OnVideoRtpPacketReceived += (consumerId, rtpPacket) =>
+        {
+            peerDecoder.ProcessVideoRtpPacket(consumerId, rtpPacket);
+        };
+        
+        peerTransport.OnAudioRtpPacketReceived += (consumerId, rtpPacket) =>
+        {
+            peerDecoder.ProcessAudioRtpPacket(consumerId, rtpPacket);
+        };
+
+        // 存储到字典
+        _peerRecvTransports[peerId] = peerTransport;
+        _peerRtpDecoders[peerId] = peerDecoder;
+
+        // 初始化音频播放器（共享）
+        InitializeAudioPlayback();
+
+        _logger.LogInformation("Per-peer recv transport created: PeerId={PeerId}, TransportId={TransportId}", peerId, transportId);
+    }
+
+    /// <summary>
+    /// 设置指定 Peer 的 recv transport SDP 协商完成回调
+    /// </summary>
+    public void SetupPeerRecvTransportNegotiationCallback(string peerId, Func<string, object, Task> connectCallback)
+    {
+        if (!_peerRecvTransports.TryGetValue(peerId, out var peerTransport))
+        {
+            _logger.LogWarning("Peer {PeerId} recv transport not found, cannot setup negotiation callback", peerId);
+            return;
+        }
+
+        bool hasConnected = false;
+
+        peerTransport.OnNegotiationCompleted += async () =>
+        {
+            if (hasConnected)
+            {
+                _logger.LogDebug("Peer {PeerId} recv transport already connected, skipping", peerId);
+                return;
+            }
+
+            try
+            {
+                hasConnected = true;
+                var dtlsParameters = peerTransport.GetLocalDtlsParameters();
+                _logger.LogInformation("Peer {PeerId} SDP negotiation completed, connecting with DTLS", peerId);
+
+                await connectCallback(peerTransport.TransportId, dtlsParameters);
+                peerTransport.SetConnected();
+                _logger.LogInformation("Peer {PeerId} recv transport connected", peerId);
+            }
+            catch (Exception ex)
+            {
+                hasConnected = false;
+                _logger.LogError(ex, "Failed to connect Peer {PeerId} recv transport", peerId);
+            }
+        };
+
+        _logger.LogDebug("Peer {PeerId} recv transport negotiation callback setup complete", peerId);
+    }
+
+    /// <summary>
+    /// 获取指定 Peer 的 recv transport
+    /// </summary>
+    public MediasoupTransport? GetPeerRecvTransport(string peerId)
+    {
+        _peerRecvTransports.TryGetValue(peerId, out var transport);
+        return transport;
+    }
+
+    /// <summary>
+    /// 移除指定 Peer 的 recv transport
+    /// </summary>
+    public void RemovePeerRecvTransport(string peerId)
+    {
+        _logger.LogInformation("移除 Peer {PeerId} 的 recv transport", peerId);
+
+        if (_peerRecvTransports.TryRemove(peerId, out var transport))
+        {
+            try
+            {
+                transport.Close();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "关闭 Peer {PeerId} recv transport 失败", peerId);
+            }
+        }
+
+        if (_peerRtpDecoders.TryRemove(peerId, out var decoder))
+        {
+            decoder.OnDecodedVideoFrame -= HandleRemoteVideoFrame;
+            decoder.OnDecodedAudioSamples -= HandleDecodedAudioSamples;
+            decoder.Dispose();
+        }
+
+        // 清理该 Peer 的所有 Consumer 映射
+        var consumersToRemove = _consumerToPeerMap.Where(kv => kv.Value == peerId).Select(kv => kv.Key).ToList();
+        foreach (var consumerId in consumersToRemove)
+        {
+            _consumerToPeerMap.TryRemove(consumerId, out _);
+        }
     }
 
     /// <summary>
@@ -1681,6 +1915,37 @@ public class WebRtcService : IWebRtcService
 
         _recvTransport?.Close();
         _recvTransport = null;
+        
+        // 关闭所有 per-peer recv transports
+        foreach (var kvp in _peerRecvTransports)
+        {
+            try
+            {
+                kvp.Value.Close();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "关闭 Peer {PeerId} recv transport 失败", kvp.Key);
+            }
+        }
+        _peerRecvTransports.Clear();
+        
+        // 释放所有 per-peer RTP 解码器
+        foreach (var kvp in _peerRtpDecoders)
+        {
+            try
+            {
+                kvp.Value.OnDecodedVideoFrame -= HandleRemoteVideoFrame;
+                kvp.Value.OnDecodedAudioSamples -= HandleDecodedAudioSamples;
+                kvp.Value.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "释放 Peer {PeerId} RTP 解码器失败", kvp.Key);
+            }
+        }
+        _peerRtpDecoders.Clear();
+        _consumerToPeerMap.Clear();
         
         // 重置 DTLS 连接状态
         _isRecvTransportDtlsConnected = false;

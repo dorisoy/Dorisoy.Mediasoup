@@ -147,6 +147,32 @@ public interface IWebRtcService : IDisposable
     void CreateRecvTransport(string transportId, object iceParameters, object iceCandidates, object dtlsParameters);
 
     /// <summary>
+    /// 为指定 Peer 创建独立的接收 Transport
+    /// 每个远端用户有自己的 PeerConnection，解决 SIPSorcery SRTP 限制
+    /// </summary>
+    void CreatePeerRecvTransport(string peerId, string transportId, object iceParameters, object iceCandidates, object dtlsParameters);
+
+    /// <summary>
+    /// 设置指定 Peer 的 recv transport SDP 协商完成回调
+    /// </summary>
+    void SetupPeerRecvTransportNegotiationCallback(string peerId, Func<string, object, Task> connectCallback);
+
+    /// <summary>
+    /// 获取指定 Peer 的 recv transport
+    /// </summary>
+    MediasoupTransport? GetPeerRecvTransport(string peerId);
+
+    /// <summary>
+    /// 移除指定 Peer 的 recv transport
+    /// </summary>
+    void RemovePeerRecvTransport(string peerId);
+
+    /// <summary>
+    /// 检查指定 Peer 的 recv transport 是否已连接
+    /// </summary>
+    bool IsPeerRecvTransportConnected(string peerId);
+
+    /// <summary>
     /// 连接发送 Transport - DTLS 握手
     /// </summary>
     /// <param name="connectCallback">回调函数，用于调用服务器 ConnectWebRtcTransport API</param>
@@ -177,6 +203,11 @@ public interface IWebRtcService : IDisposable
     /// <param name="kind">媒体类型</param>
     /// <param name="rtpParameters">RTP参数</param>
     Task AddConsumerAsync(string consumerId, string kind, object? rtpParameters);
+
+    /// <summary>
+    /// 为指定 Peer 添加 Consumer
+    /// </summary>
+    Task AddConsumerForPeerAsync(string peerId, string consumerId, string kind, object? rtpParameters);
 
     /// <summary>
     /// 移除远端消费者

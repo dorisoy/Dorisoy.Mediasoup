@@ -468,6 +468,19 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private readonly List<string> _pendingResumeConsumers = new();
 
+    /// <summary>
+    /// 跟踪每个远端 Peer 是否已创建独立的 recv transport
+    /// Key: PeerId, Value: TransportId
+    /// 解决 SIPSorcery SRTP 限制：每个 PeerConnection 只能解密一个同类型媒体流
+    /// </summary>
+    private readonly Dictionary<string, string> _peerRecvTransportIds = new();
+
+    /// <summary>
+    /// 跟踪每个 Peer 待恢复的 Consumer 列表
+    /// Key: PeerId, Value: ConsumerIds 列表
+    /// </summary>
+    private readonly Dictionary<string, List<string>> _peerPendingResumeConsumers = new();
+
     #endregion
 
     #region 构造函数
@@ -3912,6 +3925,16 @@ public partial class MainViewModel : ObservableObject
             _pendingResumeConsumers.Clear();
         }
         
+        // 清理 per-peer transport 资源
+        lock (_peerRecvTransportIds)
+        {
+            _peerRecvTransportIds.Clear();
+        }
+        lock (_peerPendingResumeConsumers)
+        {
+            _peerPendingResumeConsumers.Clear();
+        }
+        
         StatusMessage = "已被踢出房间";
         _logger.LogInformation("被踢出房间，本地状态清理完成，已断开连接");
     }
@@ -3970,6 +3993,16 @@ public partial class MainViewModel : ObservableObject
         lock (_pendingResumeConsumers)
         {
             _pendingResumeConsumers.Clear();
+        }
+        
+        // 清理 per-peer transport 资源
+        lock (_peerRecvTransportIds)
+        {
+            _peerRecvTransportIds.Clear();
+        }
+        lock (_peerPendingResumeConsumers)
+        {
+            _peerPendingResumeConsumers.Clear();
         }
         
         StatusMessage = "已断开连接";
@@ -4726,56 +4759,165 @@ public partial class MainViewModel : ObservableObject
 
         var json = JsonSerializer.Serialize(data);
         var notification = JsonSerializer.Deserialize<NewConsumerData>(json, JsonOptions);
-        if (notification != null)
+        if (notification == null) return;
+
+        var peerId = notification.ProducerPeerId ?? "unknown";
+        _logger.LogInformation("New consumer: ConsumerId={ConsumerId}, Kind={Kind}, ProducerPeerId={ProducerPeerId}",
+            notification.ConsumerId, notification.Kind, peerId);
+
+        // 如果是视频 Consumer，立即在 UI 中添加占位符
+        if (notification.Kind == "video")
         {
-            _logger.LogInformation("New consumer: ConsumerId={ConsumerId}, Kind={Kind}, ProducerPeerId={ProducerPeerId}",
-                notification.ConsumerId, notification.Kind, notification.ProducerPeerId);
-
-            // 如果是视频 Consumer，立即在 UI 中添加占位符
-            if (notification.Kind == "video")
+            Application.Current?.Dispatcher.Invoke(() =>
             {
-                Application.Current?.Dispatcher.Invoke(() =>
+                // 检查是否已存在
+                var existing = RemoteVideos.FirstOrDefault(v => v.ConsumerId == notification.ConsumerId);
+                if (existing == null)
                 {
-                    // 检查是否已存在
-                    var existing = RemoteVideos.FirstOrDefault(v => v.ConsumerId == notification.ConsumerId);
-                    if (existing == null)
+                    var remoteVideo = new RemoteVideoItem
                     {
-                        var peerName = notification.ProducerPeerId ?? "remote";
-                        var remoteVideo = new RemoteVideoItem
-                        {
-                            ConsumerId = notification.ConsumerId,
-                            PeerId = notification.ProducerPeerId ?? "",
-                            DisplayName = $"远端用户_{peerName.Substring(0, Math.Min(8, peerName.Length))}",
-                            VideoFrame = null // 占位符，等待视频帧
-                        };
-                        RemoteVideos.Add(remoteVideo);
-                        HasNoRemoteVideos = false;
-                        _logger.LogInformation("添加远端视频占位符: {ConsumerId}", notification.ConsumerId);
-                    }
-                });
-            }
-
-            await _webRtcService.AddConsumerAsync(
-                notification.ConsumerId,
-                notification.Kind,
-                notification.RtpParameters);
-
-            // 判断 recv transport 是否已完成 DTLS 连接
-            // 如果已连接，立即恢复 Consumer
-            // 如果未连接，将 Consumer ID 添加到待恢复列表，等待 DTLS 连接后再恢复
-            _logger.LogInformation("检查 Recv Transport DTLS 状态: IsConnected={IsConnected}", _webRtcService.IsRecvTransportDtlsConnected);
-            if (_webRtcService.IsRecvTransportDtlsConnected)
-            {
-                _logger.LogDebug("Recv transport already connected, resuming consumer immediately: {ConsumerId}", notification.ConsumerId);
-                await _signalRService.InvokeAsync("ResumeConsumer", notification.ConsumerId);
-            }
-            else
-            {
-                _logger.LogDebug("Recv transport not yet connected, adding consumer to pending resume list: {ConsumerId}", notification.ConsumerId);
-                lock (_pendingResumeConsumers)
-                {
-                    _pendingResumeConsumers.Add(notification.ConsumerId);
+                        ConsumerId = notification.ConsumerId,
+                        PeerId = peerId,
+                        DisplayName = $"远端用户_{peerId.Substring(0, Math.Min(8, peerId.Length))}",
+                        VideoFrame = null // 占位符，等待视频帧
+                    };
+                    RemoteVideos.Add(remoteVideo);
+                    HasNoRemoteVideos = false;
+                    _logger.LogInformation("添加远端视频占位符: {ConsumerId}, PeerId={PeerId}", notification.ConsumerId, peerId);
                 }
+            });
+        }
+
+        // ==== 核心修改：为每个远端 Peer 创建独立的 recv transport ====
+        // 解决 SIPSorcery SRTP 限制：每个 PeerConnection 只能解密一个同类型媒体流
+        bool transportExists;
+        lock (_peerRecvTransportIds)
+        {
+            transportExists = _peerRecvTransportIds.ContainsKey(peerId);
+        }
+
+        if (!transportExists)
+        {
+            _logger.LogInformation("[多用户视频] 为 Peer {PeerId} 创建独立的 recv transport", peerId);
+            
+            try
+            {
+                // 调用服务端创建新的 recv transport
+                var recvTransportResult = await _signalRService.InvokeAsync<CreateTransportResponse>(
+                    "CreateRecvWebRtcTransport",
+                    new { forceTcp = false, sctpCapabilities = (object?)null });
+
+                if (recvTransportResult.IsSuccess && recvTransportResult.Data != null)
+                {
+                    var transportData = recvTransportResult.Data;
+                    _logger.LogInformation("[多用户视频] 服务端创建 transport 成功: PeerId={PeerId}, TransportId={TransportId}",
+                        peerId, transportData.TransportId);
+
+                    // 记录 PeerId -> TransportId 映射
+                    lock (_peerRecvTransportIds)
+                    {
+                        _peerRecvTransportIds[peerId] = transportData.TransportId;
+                    }
+
+                    // 初始化待恢复列表
+                    lock (_peerPendingResumeConsumers)
+                    {
+                        if (!_peerPendingResumeConsumers.ContainsKey(peerId))
+                        {
+                            _peerPendingResumeConsumers[peerId] = new List<string>();
+                        }
+                    }
+
+                    // 创建客户端的 per-peer recv transport
+                    if (transportData.IceParameters != null && transportData.IceCandidates != null && transportData.DtlsParameters != null)
+                    {
+                        _webRtcService.CreatePeerRecvTransport(
+                            peerId,
+                            transportData.TransportId,
+                            transportData.IceParameters,
+                            transportData.IceCandidates,
+                            transportData.DtlsParameters);
+
+                        // 设置 DTLS 连接回调
+                        _webRtcService.SetupPeerRecvTransportNegotiationCallback(peerId, async (transportId, dtlsParams) =>
+                        {
+                            _logger.LogInformation("[多用户视频] Peer {PeerId} DTLS 协商完成，连接 transport", peerId);
+                            
+                            var connectResult = await _signalRService.InvokeAsync(
+                                "ConnectWebRtcTransport",
+                                new { transportId, dtlsParameters = dtlsParams });
+                            
+                            if (connectResult.IsSuccess)
+                            {
+                                _logger.LogInformation("[多用户视频] Peer {PeerId} transport 连接成功，恢复待处理的 consumers", peerId);
+                                
+                                // DTLS 连接成功后，恢复该 Peer 的所有待恢复 consumers
+                                List<string> consumersToResume;
+                                lock (_peerPendingResumeConsumers)
+                                {
+                                    consumersToResume = _peerPendingResumeConsumers.TryGetValue(peerId, out var list)
+                                        ? new List<string>(list)
+                                        : new List<string>();
+                                    if (list != null) list.Clear();
+                                }
+
+                                foreach (var consumerId in consumersToResume)
+                                {
+                                    _logger.LogInformation("[多用户视频] Resume consumer: {ConsumerId} for Peer {PeerId}", consumerId, peerId);
+                                    await _signalRService.InvokeAsync("ResumeConsumer", consumerId);
+                                }
+                            }
+                            else
+                            {
+                                _logger.LogWarning("[多用户视频] Peer {PeerId} transport 连接失败: {Message}", peerId, connectResult.Message);
+                            }
+                        });
+
+                        _logger.LogInformation("[多用户视频] Peer {PeerId} 的独立 recv transport 创建完成", peerId);
+                    }
+                }
+                else
+                {
+                    _logger.LogWarning("[多用户视频] 为 Peer {PeerId} 创建 recv transport 失败: {Message}",
+                        peerId, recvTransportResult.Message);
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "[多用户视频] 为 Peer {PeerId} 创建 recv transport 异常", peerId);
+            }
+        }
+
+        // 将 Consumer 添加到该 Peer 的独立 transport
+        await _webRtcService.AddConsumerForPeerAsync(
+            peerId,
+            notification.ConsumerId,
+            notification.Kind,
+            notification.RtpParameters);
+
+        // 检查该 Peer 的 recv transport 是否已完成 DTLS 连接
+        var isPeerTransportConnected = _webRtcService.IsPeerRecvTransportConnected(peerId);
+        _logger.LogInformation("[多用户视频] Peer {PeerId} transport DTLS 状态: IsConnected={IsConnected}", 
+            peerId, isPeerTransportConnected);
+
+        if (isPeerTransportConnected)
+        {
+            _logger.LogInformation("[多用户视频] Peer {PeerId} transport 已连接，立即 resume consumer: {ConsumerId}",
+                peerId, notification.ConsumerId);
+            await _signalRService.InvokeAsync("ResumeConsumer", notification.ConsumerId);
+        }
+        else
+        {
+            _logger.LogInformation("[多用户视频] Peer {PeerId} transport 未连接，将 consumer {ConsumerId} 加入待恢复列表",
+                peerId, notification.ConsumerId);
+            lock (_peerPendingResumeConsumers)
+            {
+                if (!_peerPendingResumeConsumers.TryGetValue(peerId, out var list))
+                {
+                    list = new List<string>();
+                    _peerPendingResumeConsumers[peerId] = list;
+                }
+                list.Add(notification.ConsumerId);
             }
         }
     }
