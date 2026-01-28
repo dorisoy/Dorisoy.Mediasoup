@@ -637,6 +637,7 @@
                                    Appearance="Primary"
                                    Margin="8,0,0,0"
                                    Padding="16,8"
+                                   Foreground="White"
                                    Click="SendButton_Click">
                             <StackPanel Orientation="Horizontal">
                                 <ui:SymbolIcon Symbol="Send24"

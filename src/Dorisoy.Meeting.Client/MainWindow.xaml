@@ -172,7 +172,7 @@
                                             <Border Background="#80000000"
                                                     Padding="10,6"
                                                     HorizontalAlignment="Left"
-                                                    VerticalAlignment="Bottom"
+                                                    VerticalAlignment="Top"
                                                     Margin="8"
                                                     CornerRadius="4">
                                                 <StackPanel Orientation="Horizontal">
@@ -195,7 +195,7 @@
                                                                Foreground="White"
                                                                FontSize="12" />
                                                     <!-- 本地视频标识 -->
-                                                    <TextBlock Text=" (本地)"
+                                                    <TextBlock Text=" (我)"
                                                                Foreground="#64B5F6"
                                                                FontSize="11"
                                                                Visibility="{Binding IsLocal, Converter={StaticResource BoolToVisConverter}}"/>

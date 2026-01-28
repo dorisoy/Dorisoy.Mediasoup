@@ -4953,7 +4953,7 @@ public partial class MainViewModel : ObservableObject
             var messageBox = new Wpf.Ui.Controls.MessageBox
             {
                 Title = "会议已结束",
-                Content = $"主持人已离开房间，会议已结束。\n{notification?.Reason ?? ""}",
+                Content = $"主持人已离开房间，{notification?.Reason ?? ""}",
                 CloseButtonText = "确定",
                 CloseButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Primary,
             };
