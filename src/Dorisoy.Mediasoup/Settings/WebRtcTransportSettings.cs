@@ -15,6 +15,6 @@ namespace Dorisoy.Mediasoup
         public uint MaxSctpMessageSize { get; set; }
 
         // Additional options that are not part of WebRtcTransportOptions.
-        public uint? MaximumIncomingBitrate { get; init; }
+        public uint? MaximumIncomingBitrate { get; set; }
     }
 }

@@ -127,6 +127,9 @@ namespace Microsoft.Extensions.DependencyInjection
                 webRtcTransportSettings.MinimumAvailableOutgoingBitrate;
             mediasoupOptions.MediasoupSettings.WebRtcTransportSettings.MaxSctpMessageSize =
                 webRtcTransportSettings.MaxSctpMessageSize;
+            // 添加 MaximumIncomingBitrate 配置绑定 - 用于限制入方向最大码率
+            mediasoupOptions.MediasoupSettings.WebRtcTransportSettings.MaximumIncomingBitrate =
+                webRtcTransportSettings.MaximumIncomingBitrate;
 
             // 如果没有设置 ListenInfos 则获取本机所有的 IPv4 地址进行设置。
             var webRtcTransportListenInfos = mediasoupOptions.MediasoupSettings.WebRtcTransportSettings.ListenInfos;
