@@ -5772,18 +5772,33 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleWhiteboardClosed(object? data)
     {
-        if (data == null) return;
+        if (data == null)
+        {
+            _logger.LogWarning("收到白板关闭通知但 data 为 null");
+            return;
+        }
 
         try
         {
             var json = JsonSerializer.Serialize(data);
+            _logger.LogDebug("白板关闭通知原始数据: {Json}", json);
+            
             var notification = JsonSerializer.Deserialize<CloseWhiteboardRequest>(json, JsonOptions);
-            if (notification == null) return;
+            if (notification == null)
+            {
+                _logger.LogWarning("白板关闭通知反序列化失败");
+                return;
+            }
 
-            _logger.LogInformation("收到白板关闭通知: SessionId={SessionId}, Closer={Closer}",
-                notification.SessionId, notification.CloserName);
+            _logger.LogInformation("收到白板关闭通知: SessionId={SessionId}, CloserId={CloserId}, CloserName={CloserName}",
+                notification.SessionId, notification.CloserId, notification.CloserName);
 
             _currentWhiteboardSessionId = null;
+            
+            // 检查事件订阅者数量
+            var hasSubscribers = WhiteboardClosedReceived != null;
+            _logger.LogInformation("触发 WhiteboardClosedReceived 事件, 有订阅者={HasSubscribers}", hasSubscribers);
+            
             WhiteboardClosedReceived?.Invoke(notification.SessionId);
             StatusMessage = $"{notification.CloserName} 关闭了白板";
         }

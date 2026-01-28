@@ -484,12 +484,32 @@ public partial class MainWindow : FluentWindow
     /// </summary>
     private void OnWhiteboardClosedReceived(string sessionId)
     {
+        System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] 收到白板关闭通知: SessionId={sessionId}");
+        
         Dispatcher.Invoke(() =>
         {
-            if (_currentWhiteboardWindow != null && _currentWhiteboardWindow.IsLoaded)
+            System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] _currentWhiteboardWindow={_currentWhiteboardWindow != null}, IsLoaded={_currentWhiteboardWindow?.IsLoaded}");
+            
+            if (_currentWhiteboardWindow != null)
             {
-                _currentWhiteboardWindow.ForceClose();
-                _currentWhiteboardWindow = null;
+                try
+                {
+                    // 不再检查 IsLoaded，直接尝试关闭
+                    System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] 强制关闭白板窗口...");
+                    _currentWhiteboardWindow.ForceClose();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] 关闭异常: {ex.Message}");
+                }
+                finally
+                {
+                    _currentWhiteboardWindow = null;
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] 窗口已为 null，无需关闭");
             }
         });
     }
@@ -503,13 +523,32 @@ public partial class MainWindow : FluentWindow
     /// </summary>
     private void OnVoteClosedReceived(string voteId)
     {
+        System.Diagnostics.Debug.WriteLine($"[VoteClose] 收到投票关闭通知: VoteId={voteId}");
+        
         Dispatcher.Invoke(() =>
         {
-            if (_currentVoteWindow != null && _currentVoteWindow.IsLoaded)
+            System.Diagnostics.Debug.WriteLine($"[VoteClose] _currentVoteWindow={_currentVoteWindow != null}, IsLoaded={_currentVoteWindow?.IsLoaded}");
+            
+            if (_currentVoteWindow != null)
             {
-                // 使用 ForceClose 强制关闭，跳过 Closing 事件检查
-                _currentVoteWindow.ForceClose();
-                _currentVoteWindow = null;
+                try
+                {
+                    // 不再检查 IsLoaded，直接尝试关闭
+                    System.Diagnostics.Debug.WriteLine($"[VoteClose] 强制关闭投票窗口...");
+                    _currentVoteWindow.ForceClose();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[VoteClose] 关闭异常: {ex.Message}");
+                }
+                finally
+                {
+                    _currentVoteWindow = null;
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[VoteClose] 窗口已为 null，无需关闭");
             }
         });
     }

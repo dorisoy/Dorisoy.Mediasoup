@@ -595,11 +595,31 @@ public partial class VoteWindow : FluentWindow, INotifyPropertyChanged
     /// </summary>
     public void ForceClose()
     {
-        Dispatcher.Invoke(() =>
+        System.Diagnostics.Debug.WriteLine($"[VoteWindow] ForceClose 被调用, CurrentThread={System.Threading.Thread.CurrentThread.ManagedThreadId}");
+        
+        try
         {
-            _isForceClosing = true;
-            Close();
-        });
+            if (Dispatcher.CheckAccess())
+            {
+                System.Diagnostics.Debug.WriteLine($"[VoteWindow] 已在 UI 线程，直接关闭");
+                _isForceClosing = true;
+                Close();
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[VoteWindow] 不在 UI 线程，调用 Dispatcher.Invoke");
+                Dispatcher.Invoke(() =>
+                {
+                    _isForceClosing = true;
+                    Close();
+                });
+            }
+            System.Diagnostics.Debug.WriteLine($"[VoteWindow] ForceClose 完成");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VoteWindow] ForceClose 异常: {ex.Message}");
+        }
     }
 
     #endregion
