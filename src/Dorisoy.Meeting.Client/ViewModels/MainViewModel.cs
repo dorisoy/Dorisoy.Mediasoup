@@ -320,6 +320,11 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private bool _isEmojiReactionVisible;
 
+    /// <summary>
+    /// 收到私聊消息时请求聊天按钮闪烁
+    /// </summary>
+    public event Action? PrivateMessageFlashRequested;
+
     #endregion
 
     #region 主持人相关属性
@@ -3049,6 +3054,13 @@ public partial class MainViewModel : ObservableObject
                     {
                         user.UnreadCount++;
                     }
+                    
+                    // 如果聊天面板不可见，触发聊天按钮闪烁3次
+                    if (!IsChatPanelVisible)
+                    {
+                        _logger.LogInformation("收到私聊消息，聊天面板未打开，触发按钮闪烁: Sender={Sender}", message.SenderName);
+                        PrivateMessageFlashRequested?.Invoke();
+                    }
                 }
             }
         }
@@ -5376,6 +5388,13 @@ public partial class MainViewModel : ObservableObject
                     {
                         user.UnreadCount++;
                         _logger.LogInformation("私聊未读数增加: User={User}, Count={Count}", user.DisplayName, user.UnreadCount);
+                    }
+                    
+                    // 如果聊天面板不可见，触发聊天按钮闪烁3次
+                    if (!IsChatPanelVisible)
+                    {
+                        _logger.LogInformation("收到私聊消息，聊天面板未打开，触发按钮闪烁: Sender={Sender}", message.SenderName);
+                        PrivateMessageFlashRequested?.Invoke();
                     }
                 }
             }

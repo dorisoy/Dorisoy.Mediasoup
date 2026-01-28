@@ -73,6 +73,9 @@ public partial class MainWindow : FluentWindow
         // 订阅屏幕截图事件
         _viewModel.CaptureScreenRequested += OnCaptureScreenRequested;
         
+        // 订阅私聊消息闪烁事件
+        _viewModel.PrivateMessageFlashRequested += OnPrivateMessageFlashRequested;
+        
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
         
@@ -207,6 +210,38 @@ public partial class MainWindow : FluentWindow
         
         // 显示截图遮罩
         overlay.Show();
+    }
+    
+    /// <summary>
+    /// 私聊消息收到时聊天按钮闪烁3次
+    /// </summary>
+    private void OnPrivateMessageFlashRequested()
+    {
+        Dispatcher.Invoke(async () =>
+        {
+            try
+            {
+                // 创建闪烁动画 - 背景颜色从透明变成高亮再变回透明，重复3次
+                var originalBrush = ChatButton.Background;
+                var highlightBrush = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(255, 0, 120, 212)); // 蓝色高亮
+                
+                for (int i = 0; i < 3; i++)
+                {
+                    // 高亮
+                    ChatButton.Background = highlightBrush;
+                    await Task.Delay(200);
+                    
+                    // 恢复
+                    ChatButton.Background = originalBrush;
+                    await Task.Delay(200);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[聊天闪烁] 异常: {ex.Message}");
+            }
+        });
     }
 
     /// <summary>
@@ -681,6 +716,7 @@ public partial class MainWindow : FluentWindow
             _viewModel.WhiteboardClosedReceived -= OnWhiteboardClosedReceived;
             _viewModel.VoteClosedReceived -= OnVoteClosedReceived;
             _viewModel.CloseAllChildWindowsRequested -= OnCloseAllChildWindows;
+            _viewModel.PrivateMessageFlashRequested -= OnPrivateMessageFlashRequested;
             KeyDown -= OnWindowKeyDown;
             
             // 异步清理资源

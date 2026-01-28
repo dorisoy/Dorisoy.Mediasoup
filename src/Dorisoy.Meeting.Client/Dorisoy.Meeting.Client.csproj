@@ -7,12 +7,13 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <UseWPF>true</UseWPF>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-        <ApplicationIcon></ApplicationIcon>
+        <ApplicationIcon>favicon.ico</ApplicationIcon>
         <AssemblyName>Dorisoy.Meeting.Client</AssemblyName>
         <RootNamespace>Dorisoy.Meeting.Client</RootNamespace>
         <Version>1.0.0</Version>
         <Authors>Dorisoy</Authors>
         <Description>Dorisoy Meeting WPF Desktop Client</Description>
+        <PackageIcon>sfu.png</PackageIcon>
     </PropertyGroup>
 
     <ItemGroup>
@@ -81,6 +82,23 @@
         </None>
     </ItemGroup>
     <ItemGroup>
+      <None Remove="Assets\favicon.ico" />
+      <None Remove="Assets\favicon64.ico" />
+      <None Remove="favicon.ico" />
+    </ItemGroup>
+    <ItemGroup>
+      <Content Include="favicon.ico" />
+    </ItemGroup>
+    <ItemGroup>
+      <Resource Include="Assets\favicon.ico" />
+      <Resource Include="Assets\favicon64.ico" />
+      <Resource Include="Assets\sfu.png" />
+    </ItemGroup>
+    <ItemGroup>
+      <None Update="Assets\sfu.png">
+        <Pack>True</Pack>
+        <PackagePath>\</PackagePath>
+      </None>
       <None Update="FFmpeg\avcodec-60.dll">
         <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       </None>

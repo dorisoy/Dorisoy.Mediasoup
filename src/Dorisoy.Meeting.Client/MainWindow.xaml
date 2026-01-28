@@ -742,7 +742,8 @@
 
                             <!-- 聊天 -->
                             <StackPanel Margin="12,0">
-                                <ui:Button Command="{Binding ChatCommand}"
+                                <ui:Button x:Name="ChatButton"
+                                           Command="{Binding ChatCommand}"
                                            ToolTip="聊天"
                                            Appearance="Transparent"
                                            Width="56"
