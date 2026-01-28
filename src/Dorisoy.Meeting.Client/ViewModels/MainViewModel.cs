@@ -4051,6 +4051,17 @@ public partial class MainViewModel : ObservableObject
             _pendingResumeConsumers.Clear();
         }
         
+        // 关键修复：清理 per-peer transport 资源，避免重新加入时残留
+        lock (_peerRecvTransportIds)
+        {
+            _peerRecvTransportIds.Clear();
+            _peerTransportCreatingSet.Clear();
+        }
+        lock (_peerPendingResumeConsumers)
+        {
+            _peerPendingResumeConsumers.Clear();
+        }
+        
         StatusMessage = "已回到大厅";
         _logger.LogInformation("离开房间完成，回到大厅");
         

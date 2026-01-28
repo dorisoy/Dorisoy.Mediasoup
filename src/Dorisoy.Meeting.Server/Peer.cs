@@ -1195,6 +1195,24 @@ namespace Dorisoy.Meeting.Server
                         {
                             await transport.CloseAsync();
                         }
+                        
+                        // 关键修复：显式清理 _transports 字典，避免重新加入时残留
+                        _transports.Clear();
+                        _logger.LogDebug("LeaveRoomAsync() | Peer:{PeerId} cleared _transports", PeerId);
+                    }
+                    
+                    // 关键修复：显式清理 _consumers 和 _producers 字典
+                    // 虽然 Transport 关闭会触发事件清理，但显式清理可确保状态干净
+                    await using (await _consumersLock.WriteLockAsync())
+                    {
+                        _consumers.Clear();
+                        _logger.LogDebug("LeaveRoomAsync() | Peer:{PeerId} cleared _consumers", PeerId);
+                    }
+                    
+                    await using (await _producersLock.WriteLockAsync())
+                    {
+                        _producers.Clear();
+                        _logger.LogDebug("LeaveRoomAsync() | Peer:{PeerId} cleared _producers", PeerId);
                     }
 
                     var result = await _room!.PeerLeaveAsync(PeerId);
@@ -1232,6 +1250,23 @@ namespace Dorisoy.Meeting.Server
                         {
                             await transport.CloseAsync();
                         }
+                        
+                        // 关键修复：显式清理 _transports 字典
+                        _transports.Clear();
+                        _logger.LogDebug("ForceLeaveRoomAsync() | Peer:{PeerId} cleared _transports", PeerId);
+                    }
+                    
+                    // 关键修复：显式清理 _consumers 和 _producers 字典
+                    await using (await _consumersLock.WriteLockAsync())
+                    {
+                        _consumers.Clear();
+                        _logger.LogDebug("ForceLeaveRoomAsync() | Peer:{PeerId} cleared _consumers", PeerId);
+                    }
+                    
+                    await using (await _producersLock.WriteLockAsync())
+                    {
+                        _producers.Clear();
+                        _logger.LogDebug("ForceLeaveRoomAsync() | Peer:{PeerId} cleared _producers", PeerId);
                     }
 
                     // 不调用 Room.PeerLeaveAsync，因为在被踢出场景中 peer 已经被 Room.KickPeerAsync 移除
@@ -1272,6 +1307,23 @@ namespace Dorisoy.Meeting.Server
                         {
                             await transport.CloseAsync();
                         }
+                        
+                        // 关键修复：显式清理 _transports 字典
+                        _transports.Clear();
+                        _logger.LogDebug("LeaveAsync() | Peer:{PeerId} cleared _transports", PeerId);
+                    }
+                    
+                    // 关键修复：显式清理 _consumers 和 _producers 字典
+                    await using (await _consumersLock.WriteLockAsync())
+                    {
+                        _consumers.Clear();
+                        _logger.LogDebug("LeaveAsync() | Peer:{PeerId} cleared _consumers", PeerId);
+                    }
+                    
+                    await using (await _producersLock.WriteLockAsync())
+                    {
+                        _producers.Clear();
+                        _logger.LogDebug("LeaveAsync() | Peer:{PeerId} cleared _producers", PeerId);
                     }
 
                     if (_room != null)
