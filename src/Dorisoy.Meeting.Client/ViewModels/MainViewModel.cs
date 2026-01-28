@@ -1397,6 +1397,16 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 关闭投票窗口（主持人关闭时广播给其他用户）
+    /// </summary>
+    public async Task CloseVoteAsync(CloseVoteRequest request)
+    {
+        _logger.LogInformation("发送投票窗口关闭请求: VoteId={VoteId}, CloserId={CloserId}", 
+            request.VoteId, request.CloserId);
+        await _signalRService.InvokeAsync("CloseVote", request);
+    }
+
+    /// <summary>
     /// 请求打开编辑器窗口事件
     /// </summary>
     public event Action? OpenEditorRequested;
@@ -1430,6 +1440,11 @@ public partial class MainViewModel : ObservableObject
     /// 收到白板关闭事件
     /// </summary>
     public event Action<string>? WhiteboardClosedReceived;
+
+    /// <summary>
+    /// 收到投票关闭事件（主持人关闭投票窗口时广播给其他用户）
+    /// </summary>
+    public event Action<string>? VoteClosedReceived;
 
     /// <summary>
     /// 当前编辑器会话ID
@@ -4678,6 +4693,9 @@ public partial class MainViewModel : ObservableObject
                     case "whiteboardClosed":
                         HandleWhiteboardClosed(notification.Data);
                         break;
+                    case "voteClosed":
+                        HandleVoteClosed(notification.Data);
+                        break;
                     default:
                         _logger.LogDebug("Unhandled notification: {Type}", notification.Type);
                         break;
@@ -5772,6 +5790,32 @@ public partial class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             _logger.LogError(ex, "处理白板关闭通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理投票窗口关闭通知
+    /// </summary>
+    private void HandleVoteClosed(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var notification = JsonSerializer.Deserialize<CloseVoteRequest>(json, JsonOptions);
+            if (notification == null) return;
+
+            _logger.LogInformation("收到投票窗口关闭通知: VoteId={VoteId}, Closer={Closer}",
+                notification.VoteId, notification.CloserName);
+
+            _currentVote = null;
+            VoteClosedReceived?.Invoke(notification.VoteId);
+            StatusMessage = $"{notification.CloserName} 关闭了投票";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理投票窗口关闭通知失败");
         }
     }
 

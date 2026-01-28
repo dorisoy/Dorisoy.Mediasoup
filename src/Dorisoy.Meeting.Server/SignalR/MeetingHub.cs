@@ -2453,6 +2453,46 @@ namespace Dorisoy.Meeting.Server
             SendNotification(peerIds, "voteUpdated", voteData);
         }
 
+        /// <summary>
+        /// 关闭投票窗口（主持人关闭窗口时调用，通知其他用户关闭）
+        /// </summary>
+        public async Task CloseVote(CloseVoteRequest request)
+        {
+            _logger.LogInformation("CloseVote: 收到关闭请求 - VoteId={VoteId}, CloserId={CloserId}, CloserName={CloserName}",
+                request.VoteId, request.CloserId, request.CloserName);
+
+            var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+            if (peer == null)
+            {
+                _logger.LogWarning("CloseVote: Peer {PeerId} not found", UserId);
+                return;
+            }
+
+            var room = await peer.GetRoomAsync();
+            if (room == null)
+            {
+                _logger.LogWarning("CloseVote: PeerId {PeerId} not in any room", UserId);
+                return;
+            }
+
+            _logger.LogInformation("CloseVote: room.HostPeerId={HostPeerId}, UserId={UserId}, Match={Match}",
+                room.HostPeerId, UserId, room.HostPeerId == UserId);
+
+            // 验证是否为主持人
+            if (room.HostPeerId != UserId)
+            {
+                _logger.LogWarning("CloseVote: PeerId {PeerId} is not the host (HostPeerId={HostPeerId})", UserId, room.HostPeerId);
+                return;
+            }
+
+            _logger.LogInformation("CloseVote: VoteId {VoteId} by {PeerId} - 广播给所有用户", request.VoteId, UserId);
+
+            // 广播给房间内所有用户
+            var peerIds = await room.GetPeerIdsAsync();
+            _logger.LogInformation("CloseVote: 广播给 {Count} 个用户: {PeerIds}", peerIds.Length, string.Join(", ", peerIds));
+            SendNotification(peerIds, "voteClosed", request);
+        }
+
         #endregion Vote Methods
 
         #region Editor Methods

@@ -321,3 +321,24 @@ public class VoteNotification
     /// </summary>
     public string? VoteId { get; set; }
 }
+
+/// <summary>
+/// 关闭投票窗口请求
+/// </summary>
+public class CloseVoteRequest
+{
+    /// <summary>
+    /// 投票ID
+    /// </summary>
+    public string VoteId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 关闭者ID
+    /// </summary>
+    public string CloserId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// 关闭者名称
+    /// </summary>
+    public string CloserName { get; set; } = string.Empty;
+}

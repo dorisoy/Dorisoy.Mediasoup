@@ -64,6 +64,9 @@ public partial class MainWindow : FluentWindow
         _viewModel.WhiteboardStrokeUpdated += OnWhiteboardStrokeUpdated;
         _viewModel.WhiteboardClosedReceived += OnWhiteboardClosedReceived;
         
+        // 订阅投票窗口关闭事件
+        _viewModel.VoteClosedReceived += OnVoteClosedReceived;
+        
         // 订阅关闭所有子窗口事件（主持人断开/房间解散时）
         _viewModel.CloseAllChildWindowsRequested += OnCloseAllChildWindows;
         
@@ -291,6 +294,12 @@ public partial class MainWindow : FluentWindow
             await _viewModel.DeleteVoteAsync(voteId);
         };
         
+        // 绑定投票窗口关闭事件 - 主持人关闭时发送通知给其他用户
+        voteWindow.VoteClosed += async (request) =>
+        {
+            await _viewModel.CloseVoteAsync(request);
+        };
+        
         // 绑定投票结果更新事件
         _viewModel.VoteResultUpdated += (submitData) =>
         {
@@ -487,6 +496,26 @@ public partial class MainWindow : FluentWindow
 
     #endregion
 
+    #region 投票窗口关闭
+
+    /// <summary>
+    /// 收到投票窗口关闭通知（主持人关闭时广播给其他用户）
+    /// </summary>
+    private void OnVoteClosedReceived(string voteId)
+    {
+        Dispatcher.Invoke(() =>
+        {
+            if (_currentVoteWindow != null && _currentVoteWindow.IsLoaded)
+            {
+                // 使用 ForceClose 强制关闭，跳过 Closing 事件检查
+                _currentVoteWindow.ForceClose();
+                _currentVoteWindow = null;
+            }
+        });
+    }
+
+    #endregion
+
     #region 关闭所有子窗口
 
     /// <summary>
@@ -611,6 +640,7 @@ public partial class MainWindow : FluentWindow
             _viewModel.WhiteboardOpenedReceived -= OnWhiteboardOpenedReceived;
             _viewModel.WhiteboardStrokeUpdated -= OnWhiteboardStrokeUpdated;
             _viewModel.WhiteboardClosedReceived -= OnWhiteboardClosedReceived;
+            _viewModel.VoteClosedReceived -= OnVoteClosedReceived;
             _viewModel.CloseAllChildWindowsRequested -= OnCloseAllChildWindows;
             KeyDown -= OnWindowKeyDown;
             
