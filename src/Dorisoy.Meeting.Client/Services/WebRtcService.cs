@@ -144,6 +144,12 @@ public class WebRtcService : IWebRtcService
     public event Action<WriteableBitmap>? OnScreenShareFrame;
 
     /// <summary>
+    /// 解码失败时请求关键帧事件
+    /// 参数: ConsumerId
+    /// </summary>
+    public event Action<string>? OnKeyFrameRequestNeeded;
+
+    /// <summary>
     /// 屏幕共享设置
     /// </summary>
     public ScreenShareSettings? ScreenShareSettings { get; set; }
@@ -1233,6 +1239,13 @@ public class WebRtcService : IWebRtcService
         
         // 订阅解码后的音频采样事件
         _rtpDecoder.OnDecodedAudioSamples += HandleDecodedAudioSamples;
+        
+        // 订阅关键帧请求事件 - 解码失败时向上传递
+        _rtpDecoder.OnKeyFrameRequestNeeded += (consumerId) =>
+        {
+            _logger.LogInformation("解码器请求关键帧: ConsumerId={ConsumerId}", consumerId);
+            OnKeyFrameRequestNeeded?.Invoke(consumerId);
+        };
 
         // 订阅 RTP 包事件，转发到解码器
         _recvTransport.OnVideoRtpPacketReceived += (consumerId, rtpPacket) =>
@@ -1318,6 +1331,13 @@ public class WebRtcService : IWebRtcService
         var peerDecoder = new RtpMediaDecoder(_loggerFactory);
         peerDecoder.OnDecodedVideoFrame += HandleRemoteVideoFrame;
         peerDecoder.OnDecodedAudioSamples += HandleDecodedAudioSamples;
+        
+        // 订阅关键帧请求事件 - 解码失败时向上传递
+        peerDecoder.OnKeyFrameRequestNeeded += (consumerId) =>
+        {
+            _logger.LogInformation("解码器请求关键帧(Peer {PeerId}): ConsumerId={ConsumerId}", peerId, consumerId);
+            OnKeyFrameRequestNeeded?.Invoke(consumerId);
+        };
 
         // 订阅 RTP 包事件，转发到解码器
         peerTransport.OnVideoRtpPacketReceived += (consumerId, rtpPacket) =>

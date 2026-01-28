@@ -40,17 +40,18 @@ public unsafe class Vp9Encoder : IVideoEncoder
     /// <summary>
     /// 目标比特率 (bps)
     /// </summary>
-    public int Bitrate { get; set; } = 1500000;
+    public int Bitrate { get; set; } = 2500000;
 
     /// <summary>
     /// CPU 使用率 (0-8, 越低质量越好但 CPU 消耗更高)
+    /// 注意：VP9 的 cpu-used 影响质量，2-4 为推荐值
     /// </summary>
-    public int CpuUsed { get; set; } = 4;
+    public int CpuUsed { get; set; } = 3;
 
     /// <summary>
-    /// 关键帧间隔（秒）
+    /// 关键帧间隔（秒）- 较短的间隔有助于快速恢复和减少马赛克
     /// </summary>
-    public int KeyFrameInterval { get; set; } = 2;
+    public int KeyFrameInterval { get; set; } = 1;
 
     public Vp9Encoder(ILogger logger, int width = 640, int height = 480)
     {
@@ -101,38 +102,51 @@ public unsafe class Vp9Encoder : IVideoEncoder
             _codecContext->framerate = new AVRational { num = FrameRate, den = 1 };
             _codecContext->pix_fmt = AVPixelFormat.AV_PIX_FMT_YUV420P;
             _codecContext->bit_rate = Bitrate;
-            _codecContext->rc_min_rate = Bitrate / 2;  // 最小码率 = 50%
-            _codecContext->rc_max_rate = Bitrate * 2;  // 最大码率 = 200%
-            _codecContext->rc_buffer_size = Bitrate;   // 缓冲区大小 = 1秒
-            _codecContext->gop_size = FrameRate * KeyFrameInterval;
-            _codecContext->max_b_frames = 0;
-            _codecContext->thread_count = Environment.ProcessorCount;
-            _codecContext->qmin = 4;   // 最小量化参数 (质量上限)
-            _codecContext->qmax = 48;  // 最大量化参数 (质量下限)
+            _codecContext->rc_min_rate = (long)(Bitrate * 0.6);  // 最小码率 = 60% (提高下限保证质量)
+            _codecContext->rc_max_rate = (long)(Bitrate * 1.5);  // 最大码率 = 150% (避免过度波动)
+            _codecContext->rc_buffer_size = Bitrate / 2;   // 缓冲区大小 = 500ms (减少延迟)
+            _codecContext->gop_size = FrameRate * KeyFrameInterval; // 关键帧间隔
+            _codecContext->max_b_frames = 0;  // 禁用 B 帧，减少延迟
+            _codecContext->thread_count = Math.Max(4, Environment.ProcessorCount); // 至少4线程
+            _codecContext->qmin = 2;   // 最小量化参数 (提高质量上限)
+            _codecContext->qmax = 40;  // 最大量化参数 (提高质量下限)
             
             _isFirstFrame = true;
 
-            // VP9 特定选项
+            // VP9 特定选项 - 针对实时视频会议优化
             ffmpeg.av_opt_set(_codecContext->priv_data, "deadline", "realtime", 0);
             
-            // cpu-used: 0-8, 越低质量越好，但最低限制为 1 以确保实时性
-            var effectiveCpuUsed = Math.Clamp(CpuUsed, 1, 8);
+            // cpu-used: 0-8, 越低质量越好，2-4 为实时视频推荐值
+            var effectiveCpuUsed = Math.Clamp(CpuUsed, 2, 6);
             ffmpeg.av_opt_set(_codecContext->priv_data, "cpu-used", effectiveCpuUsed.ToString(), 0);
             
-            ffmpeg.av_opt_set(_codecContext->priv_data, "auto-alt-ref", "0", 0);
-            ffmpeg.av_opt_set(_codecContext->priv_data, "lag-in-frames", "0", 0);
+            ffmpeg.av_opt_set(_codecContext->priv_data, "auto-alt-ref", "0", 0);  // 禁用自动参考帧，减少延迟
+            ffmpeg.av_opt_set(_codecContext->priv_data, "lag-in-frames", "0", 0); // 无延迟帧
             ffmpeg.av_opt_set(_codecContext->priv_data, "row-mt", "1", 0); // 启用行级多线程
-            ffmpeg.av_opt_set(_codecContext->priv_data, "tile-columns", "2", 0); // tile 列数
-            ffmpeg.av_opt_set(_codecContext->priv_data, "tile-rows", "2", 0); // tile 行数
+            ffmpeg.av_opt_set(_codecContext->priv_data, "tile-columns", "2", 0); // tile 列数，提高并行度
+            ffmpeg.av_opt_set(_codecContext->priv_data, "tile-rows", "1", 0); // tile 行数
             
-            // 设置质量模式为 VBR
-            ffmpeg.av_opt_set(_codecContext->priv_data, "end-usage", "vbr", 0);
+            // 使用 CQ (恒定质量) 模式获得更稳定的画质
+            ffmpeg.av_opt_set(_codecContext->priv_data, "end-usage", "cq", 0);
+            ffmpeg.av_opt_set(_codecContext->priv_data, "crf", "28", 0);  // CRF 值，越低质量越好
             
-            // 启用错误弹性
-            ffmpeg.av_opt_set(_codecContext->priv_data, "error-resilient", "1", 0);
+            // 启用错误弹性 - 提高丢包恢复能力
+            ffmpeg.av_opt_set(_codecContext->priv_data, "error-resilient", "default", 0);
             
-            // 设置 aq-mode (自适应量化)
+            // 自适应量化模式 - 2 为复杂度模式，更好的质量
             ffmpeg.av_opt_set(_codecContext->priv_data, "aq-mode", "2", 0);
+            
+            // 提高清晰度 - 0-7，0 为最锐利
+            ffmpeg.av_opt_set(_codecContext->priv_data, "sharpness", "0", 0);
+            
+            // 静态区域阈值 - 0 禁用，提高静态区域质量
+            ffmpeg.av_opt_set(_codecContext->priv_data, "static-thresh", "0", 0);
+            
+            // 帧内预测优化
+            ffmpeg.av_opt_set(_codecContext->priv_data, "frame-parallel", "0", 0);  // 禁用帧并行提高质量
+            
+            // 设置 profile 为 0 (profile 0 是最兼容的)
+            ffmpeg.av_opt_set(_codecContext->priv_data, "profile", "0", 0);
 
             var result = ffmpeg.avcodec_open2(_codecContext, codec, null);
             if (result < 0)

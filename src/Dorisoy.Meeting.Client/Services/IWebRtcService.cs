@@ -30,6 +30,12 @@ public interface IWebRtcService : IDisposable
     event Action? OnRecvTransportDtlsConnected;
 
     /// <summary>
+    /// 解码失败时请求关键帧事件
+    /// 参数: ConsumerId
+    /// </summary>
+    event Action<string>? OnKeyFrameRequestNeeded;
+
+    /// <summary>
     /// 是否正在生产视频
     /// </summary>
     bool IsProducingVideo { get; }

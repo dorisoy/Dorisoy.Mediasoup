@@ -23,11 +23,20 @@ public unsafe class Vp9Decoder : IVideoDecoder
     
     private int _lastWidth;
     private int _lastHeight;
+    
+    // 解码统计 - 用于检测需要请求关键帧的情况
+    private int _consecutiveDecodeFailures;
+    private const int MAX_CONSECUTIVE_FAILURES = 5;  // 连续失败5次后需要关键帧
 
     /// <summary>
     /// 解码后的视频帧事件 (BGR24 数据, 宽度, 高度)
     /// </summary>
     public event Action<byte[], int, int>? OnFrameDecoded;
+    
+    /// <summary>
+    /// 请求关键帧事件 - 当解码失败多次时触发
+    /// </summary>
+    public event Action? OnKeyFrameRequested;
 
     public Vp9Decoder(ILogger logger)
     {
@@ -69,7 +78,10 @@ public unsafe class Vp9Decoder : IVideoDecoder
                 return;
             }
 
-            // 打开编解码器
+            // 打开编解码器 - 启用多线程解码
+            _codecContext->thread_count = Math.Max(4, Environment.ProcessorCount);  // 至少4线程
+            _codecContext->thread_type = ffmpeg.FF_THREAD_FRAME | ffmpeg.FF_THREAD_SLICE;  // 帧+切片多线程
+            
             var result = ffmpeg.avcodec_open2(_codecContext, codec, null);
             if (result < 0)
             {
@@ -140,8 +152,20 @@ public unsafe class Vp9Decoder : IVideoDecoder
                             {
                                 _logger.LogTrace("Failed to receive frame: {Error}", GetErrorMessage(receiveResult));
                             }
+                            
+                            // 增加连续失败计数
+                            _consecutiveDecodeFailures++;
+                            if (_consecutiveDecodeFailures >= MAX_CONSECUTIVE_FAILURES)
+                            {
+                                _logger.LogWarning("VP9 解码连续失败 {Count} 次，请求关键帧", _consecutiveDecodeFailures);
+                                OnKeyFrameRequested?.Invoke();
+                                _consecutiveDecodeFailures = 0;  // 重置计数
+                            }
                             return false;
                         }
+                        
+                        // 解码成功，重置失败计数
+                        _consecutiveDecodeFailures = 0;
 
                         ConvertToBgr24();
                         return true;
@@ -193,7 +217,8 @@ public unsafe class Vp9Decoder : IVideoDecoder
             _swsContext = ffmpeg.sws_getContext(
                 width, height, (AVPixelFormat)_frame->format,
                 width, height, AVPixelFormat.AV_PIX_FMT_BGR24,
-                ffmpeg.SWS_BILINEAR, null, null, null);
+                ffmpeg.SWS_BICUBIC,  // 使用双三次插值，画质更好
+                null, null, null);
 
             if (_swsContext == null)
             {

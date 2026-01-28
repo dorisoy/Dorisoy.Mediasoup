@@ -90,63 +90,67 @@ public class VideoQualitySettings
     
     /// <summary>
     /// 预定义的质量档位
+    /// 优化说明：
+    /// - 提高各档位码率以改善画质，减少马赛克
+    /// - 降低 CpuUsed 值以获得更好的编码质量（值越低质量越好）
+    /// - 调整关键帧间隔，高画质模式更频繁发送关键帧以便快速恢复
     /// </summary>
     public static readonly VideoQualitySettings[] Presets = 
     [
-        // 低画质 - 320x240, 300Kbps
+        // 低画质 - 480x360, 500Kbps (提高分辨率和码率)
         new VideoQualitySettings
         {
             Preset = VideoQualityPreset.Low,
             DisplayName = "低画质",
-            Description = "适合低带宽网络 (300Kbps)",
-            Width = 320,
-            Height = 240,
-            Bitrate = 300_000,
-            FrameRate = 15,
+            Description = "适合低带宽网络 (500Kbps)",
+            Width = 480,
+            Height = 360,
+            Bitrate = 500_000,
+            FrameRate = 20,
             KeyFrameInterval = 2,
-            CpuUsed = 8  // 最快编码
+            CpuUsed = 6  // 平衡速度和质量
         },
         
-        // 标准画质 - 640x480, 1Mbps
+        // 标准画质 - 640x480, 1.5Mbps (提高码率)
         new VideoQualitySettings
         {
             Preset = VideoQualityPreset.Standard,
             DisplayName = "标准画质",
-            Description = "平衡模式 (1 Mbps)",
+            Description = "平衡模式 (1.5 Mbps)",
             Width = 640,
             Height = 480,
-            Bitrate = 1_000_000,
+            Bitrate = 1_500_000,
             FrameRate = 25,
             KeyFrameInterval = 2,
-            CpuUsed = 5
+            CpuUsed = 4  // 提高质量
         },
         
-        // 高画质 - 1280x720, 2.5Mbps
+        // 高画质 - 1280x720, 4Mbps (大幅提高码率)
         new VideoQualitySettings
         {
             Preset = VideoQualityPreset.High,
             DisplayName = "高画质",
-            Description = "高清 720p (2.5 Mbps)",
+            Description = "高清 720p (4 Mbps)",
             Width = 1280,
             Height = 720,
-            Bitrate = 2_500_000,
+            Bitrate = 4_000_000,
             FrameRate = 30,
-            KeyFrameInterval = 1,
-            CpuUsed = 4
+            KeyFrameInterval = 1,  // 更频繁的关键帧
+            CpuUsed = 3  // 高质量编码
         },
         
-        // 超高画质 - 1920x1080, 5Mbps
+        // 超高画质 - 1920x1080, 8Mbps (大幅提高码率)
         new VideoQualitySettings
         {
             Preset = VideoQualityPreset.Ultra,
             DisplayName = "超高画质",
-            Description = "全高清 1080p (5 Mbps)",
+            Description = "全高清 1080p (8 Mbps)",
             Width = 1920,
             Height = 1080,
-            Bitrate = 5_000_000,
+            Bitrate = 8_000_000,
             FrameRate = 30,
-            KeyFrameInterval = 1,
-            CpuUsed = 2  // 最低为 2，避免实时编码问题
+            KeyFrameInterval = 1,  // 每秒一个关键帧
+            CpuUsed = 2  // 最高质量编码
         }
     ];
     

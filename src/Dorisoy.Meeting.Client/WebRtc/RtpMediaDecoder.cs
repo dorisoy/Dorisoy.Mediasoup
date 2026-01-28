@@ -54,6 +54,12 @@ public class RtpMediaDecoder : IDisposable
     /// </summary>
     public event Action<string, byte[], bool>? OnVp8FrameReceived;
 
+    /// <summary>
+    /// 关键帧请求事件 - 当解码失败多次时触发，需要向服务器请求关键帧
+    /// 参数: ConsumerId
+    /// </summary>
+    public event Action<string>? OnKeyFrameRequestNeeded;
+
     public RtpMediaDecoder(ILogger logger)
     {
         _logger = logger;
@@ -326,6 +332,17 @@ public class RtpMediaDecoder : IDisposable
                 {
                     OnDecodedVideoFrame?.Invoke(consumerId, bgrData, width, height);
                 };
+                
+                // 对于 VP9 解码器，订阅关键帧请求事件
+                if (decoder is Vp9Decoder vp9Decoder)
+                {
+                    vp9Decoder.OnKeyFrameRequested += () =>
+                    {
+                        _logger.LogInformation("VP9 解码器请求关键帧: ConsumerId={ConsumerId}", consumerId);
+                        OnKeyFrameRequestNeeded?.Invoke(consumerId);
+                    };
+                }
+                
                 _videoDecoders[consumerId] = decoder;
                 _logger.LogInformation("创建 {Codec} 解码器: Consumer={ConsumerId}", codecType, consumerId);
             }

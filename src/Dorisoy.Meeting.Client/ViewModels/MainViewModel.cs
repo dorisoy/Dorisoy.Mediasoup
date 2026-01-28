@@ -518,6 +518,9 @@ public partial class MainViewModel : ObservableObject
 
         // 订阅 recv transport DTLS 连接完成事件 - 在这之后才能 Resume Consumer
         _webRtcService.OnRecvTransportDtlsConnected += OnRecvTransportDtlsConnected;
+        
+        // 订阅解码失败关键帧请求事件 - 当解码失败多次时请求关键帧
+        _webRtcService.OnKeyFrameRequestNeeded += OnKeyFrameRequestNeeded;
 
         // 订阅 Peers 集合变化事件 - 同步更新在线人数
         Peers.CollectionChanged += (s, e) => OnPropertyChanged(nameof(OnlinePeerCount));
@@ -4569,11 +4572,44 @@ public partial class MainViewModel : ObservableObject
             {
                 _logger.LogDebug("Resuming consumer after DTLS: {ConsumerId}", consumerId);
                 await _signalRService.InvokeAsync("ResumeConsumer", consumerId);
+                
+                // 请求关键帧以消除初始马赛克
+                // 对于所有 Consumer 都请求关键帧，服务端对音频会忽略此请求
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(100);  // 100ms 延迟确保 Resume 完成
+                    try
+                    {
+                        _logger.LogInformation("请求关键帧(DTLS后): ConsumerId={ConsumerId}", consumerId);
+                        await _signalRService.InvokeAsync("RequestConsumerKeyFrame", consumerId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "请求关键帧失败(DTLS后): {ConsumerId}", consumerId);
+                    }
+                });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to resume consumer {ConsumerId}", consumerId);
             }
+        }
+    }
+
+    /// <summary>
+    /// 解码失败时请求关键帧事件处理
+    /// 当解码器检测到多次解码失败时，请求服务器发送关键帧
+    /// </summary>
+    private async void OnKeyFrameRequestNeeded(string consumerId)
+    {
+        try
+        {
+            _logger.LogInformation("解码失败触发关键帧请求: ConsumerId={ConsumerId}", consumerId);
+            await _signalRService.InvokeAsync("RequestConsumerKeyFrame", consumerId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "解码失败后请求关键帧失败: {ConsumerId}", consumerId);
         }
     }
 
@@ -5029,6 +5065,25 @@ public partial class MainViewModel : ObservableObject
             // Transport 已连接，立即 Resume consumer
             _logger.LogInformation("立即 Resume consumer: {ConsumerId}", notification.ConsumerId);
             await _signalRService.InvokeAsync("ResumeConsumer", notification.ConsumerId);
+            
+            // 请求关键帧以消除初始马赛克 - 对于视频 Consumer
+            if (notification.Kind == "video")
+            {
+                // 稍微延迟后请求关键帧，确保 Resume 已完成
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(100);  // 100ms 延迟
+                    try
+                    {
+                        _logger.LogInformation("请求初始关键帧: ConsumerId={ConsumerId}", notification.ConsumerId);
+                        await _signalRService.InvokeAsync("RequestConsumerKeyFrame", notification.ConsumerId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "请求关键帧失败: {ConsumerId}", notification.ConsumerId);
+                    }
+                });
+            }
         }
         else
         {

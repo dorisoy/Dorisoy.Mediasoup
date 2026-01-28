@@ -56,7 +56,9 @@
                     "MimeType": "video/VP8",
                     "ClockRate": 90000,
                     "Parameters": {
-                        "x-google-start-bitrate": 5000
+                        "x-google-start-bitrate": 8000,
+                        "x-google-min-bitrate": 1000,
+                        "x-google-max-bitrate": 12000
                     }
                 },
                 {
@@ -65,7 +67,9 @@
                     "ClockRate": 90000,
                     "Parameters": {
                         "profile-id": 2,
-                        "x-google-start-bitrate": 5000
+                        "x-google-start-bitrate": 8000,
+                        "x-google-min-bitrate": 1500,
+                        "x-google-max-bitrate": 15000
                     }
                 },
                 {
@@ -132,11 +136,11 @@
                     }
                 }
             ],
-            "InitialAvailableOutgoingBitrate": 8000000,
-            "MinimumAvailableOutgoingBitrate": 1000000,
+            "InitialAvailableOutgoingBitrate": 12000000,
+            "MinimumAvailableOutgoingBitrate": 2000000,
             "MaxSctpMessageSize": 262144,
             // Additional options that are not part of WebRtcTransportOptions.
-            "MaximumIncomingBitrate": 10000000
+            "MaximumIncomingBitrate": 15000000
         },
         // mediasoup PlainTransport options for legacy RTP endpoints (FFmpeg,
         // GStreamer).
