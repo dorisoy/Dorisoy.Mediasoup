@@ -40,9 +40,9 @@ public class MediasoupTransport : IDisposable
     private bool _sdpNegotiated;
     #pragma warning restore CS0414
 
-    // 接收 track 状态
-    private bool _hasAddedVideoTrack;
-    private bool _hasAddedAudioTrack;
+    // 接收 track 状态 - 记录已添加的 track 数量（支持多用户）
+    private int _addedVideoTrackCount;
+    private int _addedAudioTrackCount;
     
     // PeerConnection 启动状态
     private bool _peerConnectionStarted;
@@ -1180,37 +1180,40 @@ public class MediasoupTransport : IDisposable
     }
 
     /// <summary>
-    /// 为接收远端媒体添加本地 track - 这是让 Answer 方向变成 recvonly 的关键
+    /// 为接收远端媒体添加本地 track - 关键修复：为每个 consumer 添加独立的 track
+    /// 这是让 SIPSorcery 为每个 m-line 创建 RTP Session 的关键
+    /// 如果只添加一个 track，后续同类型的 m-line 会被标记为 inactive 且不会创建 RTP Session
     /// </summary>
     private void AddReceiveTracks(List<ConsumerInfo> consumers)
     {
         if (_peerConnection == null) return;
 
-        bool hasVideo = consumers.Any(c => c.Kind == "video");
-        bool hasAudio = consumers.Any(c => c.Kind == "audio");
+        // 统计需要的 track 数量
+        int neededVideoTracks = consumers.Count(c => c.Kind == "video");
+        int neededAudioTracks = consumers.Count(c => c.Kind == "audio");
+        
+        _logger.LogInformation("AddReceiveTracks: need {VideoCount} video tracks, {AudioCount} audio tracks, current: {CurrentVideo} video, {CurrentAudio} audio",
+            neededVideoTracks, neededAudioTracks, _addedVideoTrackCount, _addedAudioTrackCount);
 
         try
         {
-            // 为视频添加接收能力
-            if (hasVideo && !_hasAddedVideoTrack)
+            // 为每个视频 consumer 添加一个 track
+            var videoConsumers = consumers.Where(c => c.Kind == "video").ToList();
+            for (int i = _addedVideoTrackCount; i < videoConsumers.Count; i++)
             {
-                // 获取视频 consumer 的实际 codec 信息
-                var videoConsumer = consumers.First(c => c.Kind == "video");
+                var videoConsumer = videoConsumers[i];
                 var videoCodec = videoConsumer.RtpParameters?.Codecs?.FirstOrDefault();
                 int payloadType = videoCodec?.PayloadType ?? 101;
                 int clockRate = videoCodec?.ClockRate ?? 90000;
-                
-                // 从 MimeType 提取编解码器名称，但 SIPSorcery 对 VP9/H264 支持有限，需要使用 VP8
-                // 注意：这仅影响 SDP 协商层的名称，实际 PayloadType 仍然正确
                 var codecName = GetCodecNameFromMimeType(videoCodec?.MimeType ?? "video/VP8");
-                _logger.LogDebug("Creating video track: PT={PT}, Codec={Codec}, ClockRate={Rate}", 
-                    payloadType, codecName, clockRate);
+                
+                _logger.LogDebug("Creating video track #{Index}: PT={PT}, Codec={Codec}, ConsumerId={ConsumerId}", 
+                    i + 1, payloadType, codecName, videoConsumer.ConsumerId);
 
-                // 创建 SDP 格式的视频 track
                 var videoFormat = new SDPAudioVideoMediaFormat(
                     SDPMediaTypesEnum.video,
                     payloadType,
-                    codecName,  // 使用从 MimeType 提取的编解码器名称
+                    codecName,
                     clockRate);
 
                 var videoTrack = new MediaStreamTrack(
@@ -1220,26 +1223,29 @@ public class MediasoupTransport : IDisposable
                     MediaStreamStatusEnum.RecvOnly);
 
                 _peerConnection.addTrack(videoTrack);
-                _hasAddedVideoTrack = true;
-                _logger.LogInformation("Added video track for receiving (RecvOnly), PT={PayloadType}", payloadType);
+                _addedVideoTrackCount++;
+                _logger.LogInformation("Added video track #{Index} for Consumer {ConsumerId} (RecvOnly), PT={PayloadType}", 
+                    _addedVideoTrackCount, videoConsumer.ConsumerId, payloadType);
             }
 
-            // 为音频添加接收能力
-            if (hasAudio && !_hasAddedAudioTrack)
+            // 为每个音频 consumer 添加一个 track
+            var audioConsumers = consumers.Where(c => c.Kind == "audio").ToList();
+            for (int i = _addedAudioTrackCount; i < audioConsumers.Count; i++)
             {
-                // 获取音频 consumer 的实际 codec 信息
-                var audioConsumer = consumers.First(c => c.Kind == "audio");
+                var audioConsumer = audioConsumers[i];
                 var audioCodec = audioConsumer.RtpParameters?.Codecs?.FirstOrDefault();
                 int payloadType = audioCodec?.PayloadType ?? 100;
                 int clockRate = audioCodec?.ClockRate ?? 48000;
 
-                // 创建 SDP 格式的音频 track
+                _logger.LogDebug("Creating audio track #{Index}: PT={PT}, ConsumerId={ConsumerId}", 
+                    i + 1, payloadType, audioConsumer.ConsumerId);
+
                 var audioFormat = new SDPAudioVideoMediaFormat(
                     SDPMediaTypesEnum.audio,
                     payloadType,
                     "opus",
                     clockRate,
-                    2); // channels
+                    2);
 
                 var audioTrack = new MediaStreamTrack(
                     SDPMediaTypesEnum.audio,
@@ -1248,9 +1254,13 @@ public class MediasoupTransport : IDisposable
                     MediaStreamStatusEnum.RecvOnly);
 
                 _peerConnection.addTrack(audioTrack);
-                _hasAddedAudioTrack = true;
-                _logger.LogInformation("Added audio track for receiving (RecvOnly), PT={PayloadType}", payloadType);
+                _addedAudioTrackCount++;
+                _logger.LogInformation("Added audio track #{Index} for Consumer {ConsumerId} (RecvOnly), PT={PayloadType}", 
+                    _addedAudioTrackCount, audioConsumer.ConsumerId, payloadType);
             }
+            
+            _logger.LogInformation("AddReceiveTracks completed: {VideoCount} video tracks, {AudioCount} audio tracks total",
+                _addedVideoTrackCount, _addedAudioTrackCount);
         }
         catch (Exception ex)
         {
@@ -1944,8 +1954,7 @@ public class MediasoupTransport : IDisposable
             // 详细日志（用于调试）
             if (_videoFrameCount <= 5 || marker == 1)
             {
-                _logger.LogDebug("RTP sent via SendRtpRaw: type={Type}, pt={PT}, ts={TS}, size={Size}, marker={Marker}",
-                    mediaType, payloadType, timestamp, payload.Length, marker);
+                //_logger.LogDebug("RTP sent via SendRtpRaw: type={Type}, pt={PT}, ts={TS}, size={Size}, marker={Marker}", mediaType, payloadType, timestamp, payload.Length, marker);
             }
         }
         catch (Exception ex)
