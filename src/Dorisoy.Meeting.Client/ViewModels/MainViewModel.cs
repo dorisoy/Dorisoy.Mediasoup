@@ -481,6 +481,12 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private readonly Dictionary<string, List<string>> _peerPendingResumeConsumers = new();
 
+    /// <summary>
+    /// 跟踪正在创建 recv transport 的 PeerId 集合
+    /// 用于解决竞态条件：当同一个 Peer 的多个 consumer 几乎同时到达时，防止重复创建 transport
+    /// </summary>
+    private readonly HashSet<string> _peerTransportCreatingSet = new();
+
     #endregion
 
     #region 构造函数
@@ -3929,6 +3935,7 @@ public partial class MainViewModel : ObservableObject
         lock (_peerRecvTransportIds)
         {
             _peerRecvTransportIds.Clear();
+            _peerTransportCreatingSet.Clear();
         }
         lock (_peerPendingResumeConsumers)
         {
@@ -3999,6 +4006,7 @@ public partial class MainViewModel : ObservableObject
         lock (_peerRecvTransportIds)
         {
             _peerRecvTransportIds.Clear();
+            _peerTransportCreatingSet.Clear();
         }
         lock (_peerPendingResumeConsumers)
         {
@@ -4790,13 +4798,44 @@ public partial class MainViewModel : ObservableObject
 
         // ==== 核心修改：为每个远端 Peer 创建独立的 recv transport ====
         // 解决 SIPSorcery SRTP 限制：每个 PeerConnection 只能解密一个同类型媒体流
-        bool transportExists;
+        bool shouldCreateTransport = false;
+        bool shouldWaitForTransport = false;
         lock (_peerRecvTransportIds)
         {
-            transportExists = _peerRecvTransportIds.ContainsKey(peerId);
+            // 检查是否已存在或正在创建
+            if (!_peerRecvTransportIds.ContainsKey(peerId) && !_peerTransportCreatingSet.Contains(peerId))
+            {
+                // 标记为正在创建，防止其他 consumer 重复创建
+                _peerTransportCreatingSet.Add(peerId);
+                shouldCreateTransport = true;
+                _logger.LogInformation("[多用户视频] Peer {PeerId} 开始创建 recv transport", peerId);
+            }
+            else if (_peerTransportCreatingSet.Contains(peerId))
+            {
+                shouldWaitForTransport = true;
+                _logger.LogInformation("[多用户视频] Peer {PeerId} 的 recv transport 正在创建中，等待...", peerId);
+            }
         }
 
-        if (!transportExists)
+        // 如果正在创建中，等待创建完成
+        if (shouldWaitForTransport)
+        {
+            // 等待最多 5 秒
+            for (int i = 0; i < 50; i++)
+            {
+                await Task.Delay(100);
+                lock (_peerRecvTransportIds)
+                {
+                    if (!_peerTransportCreatingSet.Contains(peerId))
+                    {
+                        _logger.LogInformation("[多用户视频] Peer {PeerId} 的 recv transport 创建完成，继续处理 consumer", peerId);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (shouldCreateTransport)
         {
             _logger.LogInformation("[多用户视频] 为 Peer {PeerId} 创建独立的 recv transport", peerId);
             
@@ -4875,16 +4914,32 @@ public partial class MainViewModel : ObservableObject
 
                         _logger.LogInformation("[多用户视频] Peer {PeerId} 的独立 recv transport 创建完成", peerId);
                     }
+                    
+                    // 创建完成，从正在创建集合中移除
+                    lock (_peerRecvTransportIds)
+                    {
+                        _peerTransportCreatingSet.Remove(peerId);
+                    }
                 }
                 else
                 {
                     _logger.LogWarning("[多用户视频] 为 Peer {PeerId} 创建 recv transport 失败: {Message}",
                         peerId, recvTransportResult.Message);
+                    // 失败时也要移除标记
+                    lock (_peerRecvTransportIds)
+                    {
+                        _peerTransportCreatingSet.Remove(peerId);
+                    }
                 }
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "[多用户视频] 为 Peer {PeerId} 创建 recv transport 异常", peerId);
+                // 异常时也要移除标记
+                lock (_peerRecvTransportIds)
+                {
+                    _peerTransportCreatingSet.Remove(peerId);
+                }
             }
         }
 
