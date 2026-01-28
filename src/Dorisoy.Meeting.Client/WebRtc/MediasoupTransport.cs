@@ -1043,6 +1043,7 @@ public class MediasoupTransport : IDisposable
 
     /// <summary>
     /// 执行 SDP 协商 - 为所有 Consumer 生成 SDP 并应用
+    /// 关键修复：确保 consumers 列表按 CreatedAt 排序，使 SDP m-line 顺序与 track 添加顺序一致
     /// </summary>
     private async Task NegotiateSdpForConsumersAsync()
     {
@@ -1054,19 +1055,29 @@ public class MediasoupTransport : IDisposable
 
         try
         {
-            // 收集所有 Consumer
-            var consumers = _consumers.Values.ToList();
+            // 收集所有 Consumer 并按 CreatedAt 排序
+            // 关键修复：ConcurrentDictionary 遍历顺序不确定，必须按创建时间排序以保证 SDP m-line 顺序与 track 添加顺序一致
+            var consumers = _consumers.Values
+                .OrderBy(c => GetConsumerCreatedAt(c.ConsumerId))
+                .ToList();
+                
             if (!consumers.Any())
             {
                 _logger.LogDebug("No consumers to negotiate");
                 return;
             }
+            
+            _logger.LogInformation("SDP negotiation starting for {Count} consumers (sorted by CreatedAt): {Consumers}",
+                consumers.Count,
+                string.Join(", ", consumers.Select(c => $"{c.Kind}:{c.ConsumerId.Substring(0, 8)}")));
 
             // 关键：在设置 remote SDP 前，为每个媒体类型添加接收 track
             // 这样 SIP Sorcery 生成的 Answer 才会是 recvonly 而不是 inactive
+            // 注意：传入已排序的 consumers 列表
             AddReceiveTracks(consumers);
 
             // 生成远端 SDP Answer (从 mediasoup 服务器角度)
+            // 注意：使用同一个已排序的 consumers 列表，确保 SDP m-line 顺序与 track 添加顺序一致
             var remoteSdp = MediasoupSdpBuilder.BuildRemoteAnswer(
                 IceParameters,
                 IceCandidates,
@@ -1183,6 +1194,9 @@ public class MediasoupTransport : IDisposable
     /// 为接收远端媒体添加本地 track - 关键修复：为每个 consumer 添加独立的 track
     /// 这是让 SIPSorcery 为每个 m-line 创建 RTP Session 的关键
     /// 如果只添加一个 track，后续同类型的 m-line 会被标记为 inactive 且不会创建 RTP Session
+    /// 
+    /// 关键修复2：按 consumers 列表顺序添加 track，确保与 SDP m-line 顺序一致
+    /// 调用者必须保证 consumers 列表已按 CreatedAt 排序
     /// </summary>
     private void AddReceiveTracks(List<ConsumerInfo> consumers)
     {
@@ -1191,72 +1205,81 @@ public class MediasoupTransport : IDisposable
         // 统计需要的 track 数量
         int neededVideoTracks = consumers.Count(c => c.Kind == "video");
         int neededAudioTracks = consumers.Count(c => c.Kind == "audio");
+        int totalTracksToAdd = consumers.Count - _addedVideoTrackCount - _addedAudioTrackCount;
         
-        _logger.LogInformation("AddReceiveTracks: need {VideoCount} video tracks, {AudioCount} audio tracks, current: {CurrentVideo} video, {CurrentAudio} audio",
-            neededVideoTracks, neededAudioTracks, _addedVideoTrackCount, _addedAudioTrackCount);
+        _logger.LogInformation("AddReceiveTracks: need {VideoCount} video tracks, {AudioCount} audio tracks, current: {CurrentVideo} video, {CurrentAudio} audio, to add: {ToAdd}",
+            neededVideoTracks, neededAudioTracks, _addedVideoTrackCount, _addedAudioTrackCount, totalTracksToAdd);
+
+        if (totalTracksToAdd <= 0)
+        {
+            _logger.LogDebug("No new tracks to add");
+            return;
+        }
 
         try
         {
-            // 为每个视频 consumer 添加一个 track
-            var videoConsumers = consumers.Where(c => c.Kind == "video").ToList();
-            for (int i = _addedVideoTrackCount; i < videoConsumers.Count; i++)
+            // 关键修复：按 consumers 列表顺序添加 track，确保与 SDP m-line 顺序一致
+            // 不再分开处理 video 和 audio，而是按传入列表的正确顺序处理
+            int currentIndex = _addedVideoTrackCount + _addedAudioTrackCount;
+            
+            for (int i = currentIndex; i < consumers.Count; i++)
             {
-                var videoConsumer = videoConsumers[i];
-                var videoCodec = videoConsumer.RtpParameters?.Codecs?.FirstOrDefault();
-                int payloadType = videoCodec?.PayloadType ?? 101;
-                int clockRate = videoCodec?.ClockRate ?? 90000;
-                var codecName = GetCodecNameFromMimeType(videoCodec?.MimeType ?? "video/VP8");
+                var consumer = consumers[i];
                 
-                _logger.LogDebug("Creating video track #{Index}: PT={PT}, Codec={Codec}, ConsumerId={ConsumerId}", 
-                    i + 1, payloadType, codecName, videoConsumer.ConsumerId);
+                if (consumer.Kind == "video")
+                {
+                    var videoCodec = consumer.RtpParameters?.Codecs?.FirstOrDefault();
+                    int payloadType = videoCodec?.PayloadType ?? 101;
+                    int clockRate = videoCodec?.ClockRate ?? 90000;
+                    var codecName = GetCodecNameFromMimeType(videoCodec?.MimeType ?? "video/VP8");
+                    
+                    _logger.LogDebug("Creating video track #{Index}: PT={PT}, Codec={Codec}, ConsumerId={ConsumerId}, CreatedAt={CreatedAt}", 
+                        i + 1, payloadType, codecName, consumer.ConsumerId, GetConsumerCreatedAt(consumer.ConsumerId));
 
-                var videoFormat = new SDPAudioVideoMediaFormat(
-                    SDPMediaTypesEnum.video,
-                    payloadType,
-                    codecName,
-                    clockRate);
+                    var videoFormat = new SDPAudioVideoMediaFormat(
+                        SDPMediaTypesEnum.video,
+                        payloadType,
+                        codecName,
+                        clockRate);
 
-                var videoTrack = new MediaStreamTrack(
-                    SDPMediaTypesEnum.video,
-                    false,
-                    new List<SDPAudioVideoMediaFormat> { videoFormat },
-                    MediaStreamStatusEnum.RecvOnly);
+                    var videoTrack = new MediaStreamTrack(
+                        SDPMediaTypesEnum.video,
+                        false,
+                        new List<SDPAudioVideoMediaFormat> { videoFormat },
+                        MediaStreamStatusEnum.RecvOnly);
 
-                _peerConnection.addTrack(videoTrack);
-                _addedVideoTrackCount++;
-                _logger.LogInformation("Added video track #{Index} for Consumer {ConsumerId} (RecvOnly), PT={PayloadType}", 
-                    _addedVideoTrackCount, videoConsumer.ConsumerId, payloadType);
-            }
+                    _peerConnection.addTrack(videoTrack);
+                    _addedVideoTrackCount++;
+                    _logger.LogInformation("Added video track #{TotalIndex} (video #{VideoIndex}) for Consumer {ConsumerId} (RecvOnly), PT={PayloadType}", 
+                        i + 1, _addedVideoTrackCount, consumer.ConsumerId, payloadType);
+                }
+                else if (consumer.Kind == "audio")
+                {
+                    var audioCodec = consumer.RtpParameters?.Codecs?.FirstOrDefault();
+                    int payloadType = audioCodec?.PayloadType ?? 100;
+                    int clockRate = audioCodec?.ClockRate ?? 48000;
 
-            // 为每个音频 consumer 添加一个 track
-            var audioConsumers = consumers.Where(c => c.Kind == "audio").ToList();
-            for (int i = _addedAudioTrackCount; i < audioConsumers.Count; i++)
-            {
-                var audioConsumer = audioConsumers[i];
-                var audioCodec = audioConsumer.RtpParameters?.Codecs?.FirstOrDefault();
-                int payloadType = audioCodec?.PayloadType ?? 100;
-                int clockRate = audioCodec?.ClockRate ?? 48000;
+                    _logger.LogDebug("Creating audio track #{Index}: PT={PT}, ConsumerId={ConsumerId}, CreatedAt={CreatedAt}", 
+                        i + 1, payloadType, consumer.ConsumerId, GetConsumerCreatedAt(consumer.ConsumerId));
 
-                _logger.LogDebug("Creating audio track #{Index}: PT={PT}, ConsumerId={ConsumerId}", 
-                    i + 1, payloadType, audioConsumer.ConsumerId);
+                    var audioFormat = new SDPAudioVideoMediaFormat(
+                        SDPMediaTypesEnum.audio,
+                        payloadType,
+                        "opus",
+                        clockRate,
+                        2);
 
-                var audioFormat = new SDPAudioVideoMediaFormat(
-                    SDPMediaTypesEnum.audio,
-                    payloadType,
-                    "opus",
-                    clockRate,
-                    2);
+                    var audioTrack = new MediaStreamTrack(
+                        SDPMediaTypesEnum.audio,
+                        false,
+                        new List<SDPAudioVideoMediaFormat> { audioFormat },
+                        MediaStreamStatusEnum.RecvOnly);
 
-                var audioTrack = new MediaStreamTrack(
-                    SDPMediaTypesEnum.audio,
-                    false,
-                    new List<SDPAudioVideoMediaFormat> { audioFormat },
-                    MediaStreamStatusEnum.RecvOnly);
-
-                _peerConnection.addTrack(audioTrack);
-                _addedAudioTrackCount++;
-                _logger.LogInformation("Added audio track #{Index} for Consumer {ConsumerId} (RecvOnly), PT={PayloadType}", 
-                    _addedAudioTrackCount, audioConsumer.ConsumerId, payloadType);
+                    _peerConnection.addTrack(audioTrack);
+                    _addedAudioTrackCount++;
+                    _logger.LogInformation("Added audio track #{TotalIndex} (audio #{AudioIndex}) for Consumer {ConsumerId} (RecvOnly), PT={PayloadType}", 
+                        i + 1, _addedAudioTrackCount, consumer.ConsumerId, payloadType);
+                }
             }
             
             _logger.LogInformation("AddReceiveTracks completed: {VideoCount} video tracks, {AudioCount} audio tracks total",
@@ -1266,6 +1289,19 @@ public class MediasoupTransport : IDisposable
         {
             _logger.LogError(ex, "Failed to add receive tracks");
         }
+    }
+    
+    /// <summary>
+    /// 获取 Consumer 的创建时间（用于排序）
+    /// </summary>
+    private DateTime GetConsumerCreatedAt(string consumerId)
+    {
+        if (_remoteConsumers.TryGetValue(consumerId, out var remoteConsumer))
+        {
+            return remoteConsumer.CreatedAt;
+        }
+        // 如果找不到，返回最小值（排在最前面）
+        return DateTime.MinValue;
     }
 
     /// <summary>
