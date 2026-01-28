@@ -74,6 +74,7 @@ public class RtpMediaDecoder : IDisposable
     {
         try
         {
+<<<<<<< HEAD
             _logger.LogDebug("Processing video RTP: ConsumerId={ConsumerId}, Seq={Seq}, Marker={Marker}",
                 consumerId, rtpPacket.Header.SequenceNumber, rtpPacket.Header.MarkerBit);
             // 获取或创建解包器
@@ -85,6 +86,13 @@ public class RtpMediaDecoder : IDisposable
             }
 
             // 解包 RTP 负载
+=======
+            // 获取该 Consumer 的编解码器类型
+            var codecType = GetConsumerCodecType(consumerId);
+            
+            //_logger.LogDebug("Processing video RTP: ConsumerId={ConsumerId}, Seq={Seq}, Marker={Marker}, Codec={Codec}",consumerId, rtpPacket.Header.SequenceNumber, rtpPacket.Header.MarkerBit, codecType);
+            
+>>>>>>> pro
             var payload = rtpPacket.Payload;
             var marker = rtpPacket.Header.MarkerBit == 1;
 

@@ -6,17 +6,26 @@
                  Width="800" Height="600"
                  MinWidth="400" MinHeight="300"
                  WindowStartupLocation="CenterOwner"
+                 ExtendsContentIntoTitleBar="True"
                  KeyDown="Window_KeyDown">
     
     <Grid Background="{DynamicResource ApplicationBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
         
+        <!-- 标题栏 -->
+        <ui:TitleBar Grid.Row="0"
+                     Title="图片预览"
+                     ShowMinimize="True"
+                     ShowMaximize="True"
+                     ShowClose="True"/>
+        
         <!-- 顶部工具栏 -->
-        <Border Grid.Row="0" 
+        <Border Grid.Row="1" 
                 Background="{DynamicResource ControlFillColorDefaultBrush}"
                 Padding="12,8">
             <Grid>
@@ -110,7 +119,7 @@
         </Border>
         
         <!-- 图片显示区域 -->
-        <ScrollViewer Grid.Row="1"
+        <ScrollViewer Grid.Row="2"
                       x:Name="ImageScrollViewer"
                       HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Auto"
@@ -133,7 +142,7 @@
         </ScrollViewer>
         
         <!-- 底部状态栏 -->
-        <Border Grid.Row="2"
+        <Border Grid.Row="3"
                 Background="{DynamicResource ControlFillColorDefaultBrush}"
                 Padding="12,6">
             <StackPanel Orientation="Horizontal">

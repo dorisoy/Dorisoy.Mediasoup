@@ -77,6 +77,7 @@ public partial class MainViewModel : ObservableObject
     /// 是否开启摄像头
     /// </summary>
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowLocalVideoInGrid))]
     private bool _isCameraEnabled;
 
     /// <summary>
@@ -128,10 +129,25 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<RemoteVideoItem> RemoteVideos { get; } = [];
 
     /// <summary>
+    /// 所有视频集合（本地+远端）- 用于视频网格显示
+    /// </summary>
+    public ObservableCollection<RemoteVideoItem> AllVideos { get; } = [];
+
+    /// <summary>
+    /// 本地视频项 - 显示在视频网格中
+    /// </summary>
+    private RemoteVideoItem? _localVideoItem;
+
+    /// <summary>
     /// 是否没有远端视频
     /// </summary>
     [ObservableProperty]
     private bool _hasNoRemoteVideos = true;
+
+    /// <summary>
+    /// 是否没有任何视频（本地和远端都没有）
+    /// </summary>
+    public bool HasNoVideos => AllVideos.Count == 0;
 
     /// <summary>
     /// 侧边栏是否可见
@@ -140,6 +156,45 @@ public partial class MainViewModel : ObservableObject
     private bool _isSidebarVisible = true;
 
     /// <summary>
+<<<<<<< HEAD
+=======
+    /// 自我视图是否可见（画中画模式时显示右下角预览）
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSelfViewVisible = false;
+
+    /// <summary>
+    /// 是否为画中画模式（本地视频显示在右下角而不是视频网格中）
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(ShowLocalVideoInGrid))]
+    private bool _isPipMode = false;
+
+    /// <summary>
+    /// 是否在视频网格中显示本地视频（非画中画模式时显示）
+    /// </summary>
+    public bool ShowLocalVideoInGrid => !IsPipMode && IsCameraEnabled;
+
+    /// <summary>
+    /// 左侧浮动工具栏是否可见
+    /// </summary>
+    [ObservableProperty]
+    private bool _isLeftToolbarVisible = true;
+
+    /// <summary>
+    /// 是否已举手
+    /// </summary>
+    [ObservableProperty]
+    private bool _isHandRaised;
+
+    /// <summary>
+    /// 当前用户名
+    /// </summary>
+    [ObservableProperty]
+    private string _currentUserName = "我";
+
+    /// <summary>
+>>>>>>> pro
     /// 可用摄像头列表
     /// </summary>
     public ObservableCollection<MediaDeviceInfo> Cameras { get; } = [];
@@ -250,6 +305,11 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private bool _isEmojiReactionVisible;
+
+    /// <summary>
+    /// 收到私聊消息时请求聊天按钮闪烁
+    /// </summary>
+    public event Action? PrivateMessageFlashRequested;
 
     #endregion
 
@@ -373,7 +433,18 @@ public partial class MainViewModel : ObservableObject
     #region 私有字段
 
     /// <summary>
+<<<<<<< HEAD
     /// 预设的测试 Token - 2024-12-22 生成，有效期 300 天
+=======
+    /// 媒体设置文件路径
+    /// </summary>
+    private static readonly string MediaSettingsPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "Dorisoy.Meeting", "media_settings.json");
+
+    /// <summary>
+    /// 当前用户的访问令牌 - 从 JoinRoomInfo 传入
+>>>>>>> pro
     /// </summary>
     private readonly string[] _accessTokens =
     [
@@ -410,6 +481,25 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private readonly List<string> _pendingResumeConsumers = new();
 
+    /// <summary>
+    /// 跟踪每个远端 Peer 是否已创建独立的 recv transport
+    /// Key: PeerId, Value: TransportId
+    /// 解决 SIPSorcery SRTP 限制：每个 PeerConnection 只能解密一个同类型媒体流
+    /// </summary>
+    private readonly Dictionary<string, string> _peerRecvTransportIds = new();
+
+    /// <summary>
+    /// 跟踪每个 Peer 待恢复的 Consumer 列表
+    /// Key: PeerId, Value: ConsumerIds 列表
+    /// </summary>
+    private readonly Dictionary<string, List<string>> _peerPendingResumeConsumers = new();
+
+    /// <summary>
+    /// 跟踪正在创建 recv transport 的 PeerId 集合
+    /// 用于解决竞态条件：当同一个 Peer 的多个 consumer 几乎同时到达时，防止重复创建 transport
+    /// </summary>
+    private readonly HashSet<string> _peerTransportCreatingSet = new();
+
     #endregion
 
     #region 构造函数
@@ -435,8 +525,28 @@ public partial class MainViewModel : ObservableObject
         // 订阅 recv transport DTLS 连接完成事件 - 在这之后才能 Resume Consumer
         _webRtcService.OnRecvTransportDtlsConnected += OnRecvTransportDtlsConnected;
 
+<<<<<<< HEAD
+=======
+        // 订阅 Peers 集合变化事件 - 同步更新在线人数
+        Peers.CollectionChanged += (s, e) => OnPropertyChanged(nameof(OnlinePeerCount));
+
+        // 订阅 RemoteVideos 集合变化事件 - 同步更新 AllVideos
+        RemoteVideos.CollectionChanged += OnRemoteVideosCollectionChanged;
+        AllVideos.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasNoVideos));
+
+        // 订阅重连事件
+        _signalRService.OnReconnecting += OnSignalRReconnecting;
+        _signalRService.OnReconnected += OnSignalRReconnected;
+        
+        // 订阅分块消息重组完成事件
+        _signalRService.OnChunkedMessageReceived += OnChunkedMessageReceived;
+
+>>>>>>> pro
         // 初始化视频质量配置
         _webRtcService.VideoQuality = SelectedVideoQuality;
+
+        // 加载保存的媒体设置
+        LoadMediaSettings();
 
         // 初始化时加载设备列表
         _ = LoadDevicesAsync();
@@ -546,9 +656,20 @@ public partial class MainViewModel : ObservableObject
             {
                 Cameras.Add(camera);
             }
-            if (Cameras.Count > 0 && SelectedCamera == null)
+            
+            // 应用保存的摄像头设备 ID，如果设备仍然可用
+            if (Cameras.Count > 0)
             {
-                SelectedCamera = Cameras[0];
+                if (!string.IsNullOrEmpty(_pendingCameraDeviceId))
+                {
+                    var savedCamera = Cameras.FirstOrDefault(c => c.DeviceId == _pendingCameraDeviceId);
+                    SelectedCamera = savedCamera ?? Cameras[0];
+                    _pendingCameraDeviceId = null;
+                }
+                else if (SelectedCamera == null)
+                {
+                    SelectedCamera = Cameras[0];
+                }
             }
 
             // 获取麦克风列表
@@ -558,9 +679,20 @@ public partial class MainViewModel : ObservableObject
             {
                 Microphones.Add(mic);
             }
-            if (Microphones.Count > 0 && SelectedMicrophone == null)
+            
+            // 应用保存的麦克风设备 ID，如果设备仍然可用
+            if (Microphones.Count > 0)
             {
-                SelectedMicrophone = Microphones[0];
+                if (!string.IsNullOrEmpty(_pendingMicrophoneDeviceId))
+                {
+                    var savedMic = Microphones.FirstOrDefault(m => m.DeviceId == _pendingMicrophoneDeviceId);
+                    SelectedMicrophone = savedMic ?? Microphones[0];
+                    _pendingMicrophoneDeviceId = null;
+                }
+                else if (SelectedMicrophone == null)
+                {
+                    SelectedMicrophone = Microphones[0];
+                }
             }
 
             _logger.LogInformation("Loaded {CameraCount} cameras, {MicCount} microphones",
@@ -617,13 +749,125 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 切换自我视图可见性
+    /// 切换自我视图可见性（已废弃，使用 TogglePipMode）
     /// </summary>
     [RelayCommand]
     private void ToggleSelfView()
     {
-        IsSelfViewVisible = !IsSelfViewVisible;
-        StatusMessage = IsSelfViewVisible ? "已显示自我视图" : "已隐藏自我视图";
+        // 切换画中画模式
+        TogglePipMode();
+    }
+
+    /// <summary>
+    /// 切换画中画模式
+    /// </summary>
+    [RelayCommand]
+    private void TogglePipMode()
+    {
+        IsPipMode = !IsPipMode;
+        IsSelfViewVisible = IsPipMode; // 画中画模式时显示右下角预览
+        
+        // 同步更新视频网格中的本地视频显示
+        UpdateLocalVideoInGrid();
+        
+        StatusMessage = IsPipMode ? "已开启画中画模式" : "已关闭画中画模式";
+    }
+
+    /// <summary>
+    /// 切换左侧浮动工具栏显示/隐藏
+    /// </summary>
+    [RelayCommand]
+    private void ToggleLeftToolbar()
+    {
+        IsLeftToolbarVisible = !IsLeftToolbarVisible;
+        StatusMessage = IsLeftToolbarVisible ? "已显示工具栏" : "已隐藏工具栏";
+    }
+
+    /// <summary>
+    /// 更新视频网格中的本地视频显示状态
+    /// </summary>
+    private void UpdateLocalVideoInGrid()
+    {
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            if (!IsPipMode && IsCameraEnabled)
+            {
+                // 非画中画模式且摄像头开启时，将本地视频添加到网格
+                if (_localVideoItem != null && !AllVideos.Contains(_localVideoItem))
+                {
+                    AllVideos.Insert(0, _localVideoItem); // 本地视频始终在第一个位置
+                }
+            }
+            else
+            {
+                // 画中画模式或摄像头关闭时，移除本地视频
+                if (_localVideoItem != null && AllVideos.Contains(_localVideoItem))
+                {
+                    AllVideos.Remove(_localVideoItem);
+                }
+            }
+        });
+    }
+
+    /// <summary>
+    /// RemoteVideos 集合变化时同步到 AllVideos
+    /// </summary>
+    private void OnRemoteVideosCollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            switch (e.Action)
+            {
+                case System.Collections.Specialized.NotifyCollectionChangedAction.Add:
+                    if (e.NewItems != null)
+                    {
+                        foreach (RemoteVideoItem item in e.NewItems)
+                        {
+                            // 远端视频添加在本地视频之后
+                            AllVideos.Add(item);
+                        }
+                    }
+                    break;
+                case System.Collections.Specialized.NotifyCollectionChangedAction.Remove:
+                    if (e.OldItems != null)
+                    {
+                        foreach (RemoteVideoItem item in e.OldItems)
+                        {
+                            AllVideos.Remove(item);
+                        }
+                    }
+                    break;
+                case System.Collections.Specialized.NotifyCollectionChangedAction.Reset:
+                    // 清空时保留本地视频
+                    var localItem = _localVideoItem;
+                    AllVideos.Clear();
+                    if (localItem != null && !IsPipMode && IsCameraEnabled)
+                    {
+                        AllVideos.Add(localItem);
+                    }
+                    break;
+            }
+            
+            // 更新无远端视频状态
+            HasNoRemoteVideos = RemoteVideos.Count == 0;
+        });
+    }
+
+    /// <summary>
+    /// 初始化本地视频项
+    /// </summary>
+    private void EnsureLocalVideoItem()
+    {
+        if (_localVideoItem == null)
+        {
+            _localVideoItem = new RemoteVideoItem
+            {
+                PeerId = "local",
+                ProducerId = "local",
+                DisplayName = CurrentUserName,
+                IsLocal = true
+            };
+        }
     }
 
     /// <summary>
@@ -1058,6 +1302,16 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 关闭投票窗口（主持人关闭时广播给其他用户）
+    /// </summary>
+    public async Task CloseVoteAsync(CloseVoteRequest request)
+    {
+        _logger.LogInformation("发送投票窗口关闭请求: VoteId={VoteId}, CloserId={CloserId}", 
+            request.VoteId, request.CloserId);
+        await _signalRService.InvokeAsync("CloseVote", request);
+    }
+
+    /// <summary>
     /// 请求打开编辑器窗口事件
     /// </summary>
     public event Action? OpenEditorRequested;
@@ -1091,6 +1345,11 @@ public partial class MainViewModel : ObservableObject
     /// 收到白板关闭事件
     /// </summary>
     public event Action<string>? WhiteboardClosedReceived;
+
+    /// <summary>
+    /// 收到投票关闭事件（主持人关闭投票窗口时广播给其他用户）
+    /// </summary>
+    public event Action<string>? VoteClosedReceived;
 
     /// <summary>
     /// 当前编辑器会话ID
@@ -1244,38 +1503,14 @@ public partial class MainViewModel : ObservableObject
     /// 请求打开画中画窗口事件
     /// </summary>
     public event Action? OpenPipRequested;
-    
-    /// <summary>
-    /// 是否处于画中画模式
-    /// </summary>
-    [ObservableProperty]
-    private bool _isPipMode;
 
     /// <summary>
-    /// 画中画 - 将当前视频放入画中画窗口
+    /// 画中画 - 将当前视频放入画中画窗口（已废弃，使用 TogglePipMode）
     /// </summary>
     [RelayCommand]
     private void Pip()
     {
-        if (!IsJoinedRoom)
-        {
-            StatusMessage = "请先加入房间";
-            return;
-        }
-        
-        IsPipMode = !IsPipMode;
-        
-        if (IsPipMode)
-        {
-            _logger.LogInformation("进入画中画模式");
-            OpenPipRequested?.Invoke();
-            StatusMessage = "已进入画中画模式";
-        }
-        else
-        {
-            _logger.LogInformation("退出画中画模式");
-            StatusMessage = "已退出画中画模式";
-        }
+        TogglePipMode();
     }
 
     /// <summary>
@@ -1520,7 +1755,7 @@ public partial class MainViewModel : ObservableObject
             var messageBox = new Wpf.Ui.Controls.MessageBox
             {
                 Title = "权限提示",
-                Content = $"“{featureName}”功能仅限主持人使用\n\n请联系主持人进行操作。",
+                Content = $"“{featureName}”功能仅限主持人使用！",
                 CloseButtonText = "我知道了"
             };
             _ = messageBox.ShowDialogAsync();
@@ -1756,6 +1991,40 @@ public partial class MainViewModel : ObservableObject
             SelectedRemoteVideo.IsSelected = false;
             SelectedRemoteVideo = null;
         }
+    }
+
+    /// <summary>
+    /// 开始与视频用户私聊
+    /// </summary>
+    [RelayCommand]
+    private void StartPrivateChat(RemoteVideoItem? video)
+    {
+        if (video == null || video.IsLocal) return;
+        
+        // 根据视频项的 PeerId 查找对应的聊天用户
+        var chatUser = ChatUsers.FirstOrDefault(u => u.PeerId == video.PeerId);
+        if (chatUser == null)
+        {
+            // 如果找不到，可能是用户刚加入还没同步到 ChatUsers，尝试创建一个
+            chatUser = new ChatUser
+            {
+                PeerId = video.PeerId,
+                DisplayName = video.DisplayName,
+                IsOnline = true
+            };
+            ChatUsers.Add(chatUser);
+            _logger.LogInformation("动态添加聊天用户: PeerId={PeerId}, DisplayName={DisplayName}", 
+                video.PeerId, video.DisplayName);
+        }
+        
+        // 打开聊天面板
+        IsChatPanelVisible = true;
+        
+        // 选中该用户（这会触发 OnSelectedChatUserChanged 切换到私聊模式）
+        SelectedChatUser = chatUser;
+        
+        _logger.LogInformation("开始与 {DisplayName} 私聊", video.DisplayName);
+        StatusMessage = $"开始与 {video.DisplayName} 私聊";
     }
 
     #endregion
@@ -2685,6 +2954,13 @@ public partial class MainViewModel : ObservableObject
                     {
                         user.UnreadCount++;
                     }
+                    
+                    // 如果聊天面板不可见，触发聊天按钮闪烁3次
+                    if (!IsChatPanelVisible)
+                    {
+                        _logger.LogInformation("收到私聊消息，聊天面板未打开，触发按钮闪烁: Sender={Sender}", message.SenderName);
+                        PrivateMessageFlashRequested?.Invoke();
+                    }
                 }
             }
         }
@@ -2733,10 +3009,16 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnSelectedCameraChanged(MediaDeviceInfo? value)
     {
-        if (value == null || !IsCameraEnabled) return;
+        if (value == null) return;
+
+        // 保存设置
+        SaveMediaSettings();
 
         // 如果摄像头正在运行，切换到新设备
-        _ = SwitchCameraAsync(value.DeviceId);
+        if (IsCameraEnabled)
+        {
+            _ = SwitchCameraAsync(value.DeviceId);
+        }
     }
 
     /// <summary>
@@ -2744,10 +3026,16 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnSelectedMicrophoneChanged(MediaDeviceInfo? value)
     {
-        if (value == null || !IsMicrophoneEnabled) return;
+        if (value == null) return;
+
+        // 保存设置
+        SaveMediaSettings();
 
         // 如果麦克风正在运行，切换到新设备
-        _ = SwitchMicrophoneAsync(value.DeviceId);
+        if (IsMicrophoneEnabled)
+        {
+            _ = SwitchMicrophoneAsync(value.DeviceId);
+        }
     }
 
     /// <summary>
@@ -2786,58 +3074,340 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("视频质量已更改: {Quality} - {Resolution} @ {Bitrate}", 
                 value.DisplayName, value.Resolution, value.BitrateDescription);
             StatusMessage = $"视频质量: {value.DisplayName} ({value.Resolution})";
+            
+            // 保存设置
+            SaveMediaSettings();
+        }
+    }
+<<<<<<< HEAD
+=======
+    
+    /// <summary>
+    /// 视频编解码器变化时应用到 WebRTC 服务
+    /// </summary>
+    partial void OnSelectedVideoCodecChanged(VideoCodecInfo value)
+    {
+        if (value != null)
+        {
+            _webRtcService.CurrentVideoCodec = value.CodecType;
+            _logger.LogInformation("视频编解码器已更改: {Codec} - {Description}", 
+                value.DisplayName, value.Description);
+            StatusMessage = $"编解码器: {value.DisplayName}";
+            
+            // 保存设置
+            SaveMediaSettings();
+        }
+    }
+>>>>>>> pro
+
+    /// <summary>
+    /// 屏幕共享设置变化时保存
+    /// </summary>
+    partial void OnSelectedScreenShareSettingsChanged(ScreenShareSettings value)
+    {
+        if (value != null)
+        {
+            SaveMediaSettings();
         }
     }
 
     /// <summary>
-    /// 切换摄像头到指定设备
+    /// 屏幕共享鼠标指针设置变化时保存
+    /// </summary>
+    partial void OnScreenShareShowCursorChanged(bool value)
+    {
+        SaveMediaSettings();
+    }
+
+    /// <summary>
+    /// 录制存储路径变化时保存
+    /// </summary>
+    partial void OnRecordingSavePathChanged(string value)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            SaveMediaSettings();
+        }
+    }
+
+    /// <summary>
+    /// 录制格式变化时保存
+    /// </summary>
+    partial void OnSelectedRecordingFormatChanged(string value)
+    {
+        if (!string.IsNullOrEmpty(value))
+        {
+            SaveMediaSettings();
+        }
+    }
+
+    /// <summary>
+    /// 录制倒计时设置变化时保存
+    /// </summary>
+    partial void OnRecordingShowCountdownChanged(bool value)
+    {
+        SaveMediaSettings();
+    }
+
+    /// <summary>
+    /// 录制边框高亮设置变化时保存
+    /// </summary>
+    partial void OnRecordingShowBorderChanged(bool value)
+    {
+        SaveMediaSettings();
+    }
+
+    /// <summary>
+    /// 切换摄像头到指定设备（增强版，带重试机制）
     /// </summary>
     private async Task SwitchCameraAsync(string deviceId)
     {
+        const int MaxRetries = 3;
+        const int RetryDelayMs = 500;
+        const int CloseProducerWaitMs = 300;
+
         try
         {
-            _logger.LogInformation("Switching camera to device: {DeviceId}", deviceId);
+            _logger.LogInformation("SwitchCameraAsync() | Switching camera to device: {DeviceId}", deviceId);
             StatusMessage = "正在切换摄像头...";
 
-            // 先停止当前摄像头
+            // 1. 先关闭服务器端的旧 Producer（如果存在）
+            var oldProducerId = _videoProducerId;
+            if (!string.IsNullOrEmpty(oldProducerId))
+            {
+                _logger.LogInformation("SwitchCameraAsync() | Closing old video producer: {ProducerId}", oldProducerId);
+                try
+                {
+                    var closeResult = await _signalRService.InvokeAsync("CloseProducer", oldProducerId);
+                    if (closeResult.IsSuccess)
+                    {
+                        _logger.LogInformation("SwitchCameraAsync() | CloseProducer succeeded for {ProducerId}", oldProducerId);
+                        // 等待服务端完成状态清理
+                        await Task.Delay(CloseProducerWaitMs);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("SwitchCameraAsync() | CloseProducer returned failure: {Message}", closeResult.Message);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "SwitchCameraAsync() | CloseProducer exception, will continue anyway");
+                }
+                _videoProducerId = null;
+            }
+
+            // 2. 停止当前摄像头
+            _logger.LogInformation("SwitchCameraAsync() | Stopping current camera...");
             await _webRtcService.StopCameraAsync();
 
-            // 启动新摄像头
+            // 3. 启动新摄像头
+            _logger.LogInformation("SwitchCameraAsync() | Starting new camera: {DeviceId}", deviceId);
             await _webRtcService.StartCameraAsync(deviceId);
 
+            // 4. 如果已加入房间，重新创建 Producer（带重试机制）
+            if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
+            {
+                _logger.LogInformation("SwitchCameraAsync() | Re-creating video producer after camera switch");
+                
+                var success = false;
+                string? lastError = null;
+                
+                for (int retry = 0; retry < MaxRetries && !success; retry++)
+                {
+                    if (retry > 0)
+                    {
+                        _logger.LogInformation("SwitchCameraAsync() | Retrying ProduceVideoAsync, attempt {Attempt}/{Max}", retry + 1, MaxRetries);
+                        await Task.Delay(RetryDelayMs * retry); // 递增延迟
+                    }
+
+                    try
+                    {
+                        await ProduceVideoWithResultAsync();
+                        if (!string.IsNullOrEmpty(_videoProducerId))
+                        {
+                            success = true;
+                            _logger.LogInformation("SwitchCameraAsync() | ProduceVideoAsync succeeded on attempt {Attempt}", retry + 1);
+                        }
+                        else
+                        {
+                            lastError = "ProducerId 为空";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lastError = ex.Message;
+                        _logger.LogWarning(ex, "SwitchCameraAsync() | ProduceVideoAsync failed on attempt {Attempt}", retry + 1);
+                    }
+                }
+
+                if (!success)
+                {
+                    _logger.LogError("SwitchCameraAsync() | Failed to recreate video producer after {Max} retries. Last error: {Error}", MaxRetries, lastError);
+                    StatusMessage = $"视频推送失败: {lastError}（已重试 {MaxRetries} 次）";
+                    return;
+                }
+            }
+
             StatusMessage = "摄像头已切换";
-            _logger.LogInformation("Camera switched to device: {DeviceId}", deviceId);
+            _logger.LogInformation("SwitchCameraAsync() | Camera switched to device: {DeviceId}", deviceId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to switch camera to device: {DeviceId}", deviceId);
+            _logger.LogError(ex, "SwitchCameraAsync() | Failed to switch camera to device: {DeviceId}", deviceId);
             StatusMessage = $"切换摄像头失败: {ex.Message}";
         }
     }
 
     /// <summary>
-    /// 切换麦克风到指定设备
+    /// 生产视频流（带结果返回，用于重试机制）
+    /// </summary>
+    private async Task ProduceVideoWithResultAsync()
+    {
+        // 从 SendTransport 获取实际使用的 SSRC，确保与 RTP 发送一致
+        var videoSsrc = _webRtcService.SendTransport?.VideoSsrc ?? 0;
+        var currentCodec = _webRtcService.CurrentVideoCodec;
+        var produceRequest = RtpParametersFactory.CreateVideoProduceRequest(videoSsrc, currentCodec);
+        _logger.LogInformation("ProduceVideoWithResultAsync() | 创建视频 Producer: SSRC={Ssrc}, Codec={Codec}, Source={Source}", 
+            videoSsrc, currentCodec, produceRequest.Source);
+
+        var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
+        if (result.IsSuccess && result.Data != null)
+        {
+            _videoProducerId = result.Data.Id;
+            _logger.LogInformation("ProduceVideoWithResultAsync() | Video producer created: {ProducerId}, SSRC: {Ssrc}", _videoProducerId, videoSsrc);
+            StatusMessage = "视频推送中";
+        }
+        else
+        {
+            _logger.LogWarning("ProduceVideoWithResultAsync() | Failed to produce video: {Message}", result.Message);
+            throw new Exception(result.Message ?? "Produce 失败");
+        }
+    }
+
+    /// <summary>
+    /// 切换麦克风到指定设备（增强版，带重试机制）
     /// </summary>
     private async Task SwitchMicrophoneAsync(string deviceId)
     {
+        const int MaxRetries = 3;
+        const int RetryDelayMs = 500;
+        const int CloseProducerWaitMs = 300;
+
         try
         {
-            _logger.LogInformation("Switching microphone to device: {DeviceId}", deviceId);
+            _logger.LogInformation("SwitchMicrophoneAsync() | Switching microphone to device: {DeviceId}", deviceId);
             StatusMessage = "正在切换麦克风...";
 
-            // 先停止当前麦克风
+            // 1. 先关闭服务器端的旧 Audio Producer（如果存在）
+            var oldProducerId = _audioProducerId;
+            if (!string.IsNullOrEmpty(oldProducerId))
+            {
+                _logger.LogInformation("SwitchMicrophoneAsync() | Closing old audio producer: {ProducerId}", oldProducerId);
+                try
+                {
+                    var closeResult = await _signalRService.InvokeAsync("CloseProducer", oldProducerId);
+                    if (closeResult.IsSuccess)
+                    {
+                        _logger.LogInformation("SwitchMicrophoneAsync() | CloseProducer succeeded for {ProducerId}", oldProducerId);
+                        // 等待服务端完成状态清理
+                        await Task.Delay(CloseProducerWaitMs);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("SwitchMicrophoneAsync() | CloseProducer returned failure: {Message}", closeResult.Message);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "SwitchMicrophoneAsync() | CloseProducer exception, will continue anyway");
+                }
+                _audioProducerId = null;
+            }
+
+            // 2. 停止当前麦克风
+            _logger.LogInformation("SwitchMicrophoneAsync() | Stopping current microphone...");
             await _webRtcService.StopMicrophoneAsync();
 
-            // 启动新麦克风
+            // 3. 启动新麦克风
+            _logger.LogInformation("SwitchMicrophoneAsync() | Starting new microphone: {DeviceId}", deviceId);
             await _webRtcService.StartMicrophoneAsync(deviceId);
 
+            // 4. 如果已加入房间，重新创建 Audio Producer（带重试机制）
+            if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
+            {
+                _logger.LogInformation("SwitchMicrophoneAsync() | Re-creating audio producer after microphone switch");
+                
+                var success = false;
+                string? lastError = null;
+                
+                for (int retry = 0; retry < MaxRetries && !success; retry++)
+                {
+                    if (retry > 0)
+                    {
+                        _logger.LogInformation("SwitchMicrophoneAsync() | Retrying ProduceAudioAsync, attempt {Attempt}/{Max}", retry + 1, MaxRetries);
+                        await Task.Delay(RetryDelayMs * retry); // 递增延迟
+                    }
+
+                    try
+                    {
+                        await ProduceAudioWithResultAsync();
+                        if (!string.IsNullOrEmpty(_audioProducerId))
+                        {
+                            success = true;
+                            _logger.LogInformation("SwitchMicrophoneAsync() | ProduceAudioAsync succeeded on attempt {Attempt}", retry + 1);
+                        }
+                        else
+                        {
+                            lastError = "ProducerId 为空";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lastError = ex.Message;
+                        _logger.LogWarning(ex, "SwitchMicrophoneAsync() | ProduceAudioAsync failed on attempt {Attempt}", retry + 1);
+                    }
+                }
+
+                if (!success)
+                {
+                    _logger.LogError("SwitchMicrophoneAsync() | Failed to recreate audio producer after {Max} retries. Last error: {Error}", MaxRetries, lastError);
+                    StatusMessage = $"音频推送失败: {lastError}（已重试 {MaxRetries} 次）";
+                    return;
+                }
+            }
+
             StatusMessage = "麦克风已切换";
-            _logger.LogInformation("Microphone switched to device: {DeviceId}", deviceId);
+            _logger.LogInformation("SwitchMicrophoneAsync() | Microphone switched to device: {DeviceId}", deviceId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to switch microphone to device: {DeviceId}", deviceId);
+            _logger.LogError(ex, "SwitchMicrophoneAsync() | Failed to switch microphone to device: {DeviceId}", deviceId);
             StatusMessage = $"切换麦克风失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 生产音频流（带结果返回，用于重试机制）
+    /// </summary>
+    private async Task ProduceAudioWithResultAsync()
+    {
+        // 从 SendTransport 获取实际使用的 SSRC，确保与 RTP 发送一致
+        var audioSsrc = _webRtcService.SendTransport?.AudioSsrc ?? 0;
+        var produceRequest = RtpParametersFactory.CreateAudioProduceRequest(audioSsrc);
+        _logger.LogInformation("ProduceAudioWithResultAsync() | 创建音频 Producer: SSRC={Ssrc}, Source={Source}", 
+            audioSsrc, produceRequest.Source);
+
+        var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
+        if (result.IsSuccess && result.Data != null)
+        {
+            _audioProducerId = result.Data.Id;
+            _logger.LogInformation("ProduceAudioWithResultAsync() | Audio producer created: {ProducerId}, SSRC: {Ssrc}", _audioProducerId, audioSsrc);
+        }
+        else
+        {
+            _logger.LogWarning("ProduceAudioWithResultAsync() | Failed to produce audio: {Message}", result.Message);
+            throw new Exception(result.Message ?? "Produce 失败");
         }
     }
 
@@ -3127,12 +3697,101 @@ public partial class MainViewModel : ObservableObject
         if (ServeMode != "Pull")
         {
             await _signalRService.InvokeAsync("Ready");
+            
+            // 延迟检查并刷新订阅关系，确保多用户场景下所有视频流都能正确订阅
+            _ = DelayedRefreshSubscriptionsAsync();
         }
 
 <<<<<<< HEAD
         StatusMessage = $"已加入房间 {Rooms[SelectedRoomIndex]}";
 =======
         StatusMessage = $"已加入房间 {roomIdToJoin}";
+    }
+    
+    /// <summary>
+    /// 延迟刷新订阅关系 - 确保多用户场景下所有视频流都能正确订阅
+    /// 在 Ready 之后延迟一段时间检查，如果远端视频数量不足则调用 RefreshSubscriptions
+    /// 采用多次检查机制，确保系统健壮性
+    /// </summary>
+    private async Task DelayedRefreshSubscriptionsAsync()
+    {
+        const int maxRetries = 3;
+        const int initialDelayMs = 2000;
+        const int retryDelayMs = 3000;
+        
+        try
+        {
+            _logger.LogInformation("DelayedRefreshSubscriptions: 开始订阅检查流程");
+            
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                // 第一次延迟 2 秒，后续重试延迟 3 秒
+                var delayMs = attempt == 1 ? initialDelayMs : retryDelayMs;
+                await Task.Delay(delayMs);
+                
+                if (!IsJoinedRoom)
+                {
+                    _logger.LogDebug("DelayedRefreshSubscriptions: 已离开房间，跳过刷新");
+                    return;
+                }
+                
+                // 计算期望的远端视频数量
+                // 注意：并非所有用户都开启了摄像头，因此这只是上限
+                var expectedRemoteVideos = Math.Max(0, Peers.Count - 1); // 排除自己
+                var actualRemoteVideos = RemoteVideos.Count;
+                
+                _logger.LogInformation(
+                    "DelayedRefreshSubscriptions: 第 {Attempt}/{MaxRetries} 次检查 - PeerCount={PeerCount}, ExpectedMax={Expected}, Actual={Actual}",
+                    attempt, maxRetries, Peers.Count, expectedRemoteVideos, actualRemoteVideos
+                );
+                
+                // 如果远端视频数量为 0 且有其他用户，很可能是订阅问题
+                // 如果远端视频数量 > 0 且小于期望值，也可能需要刷新
+                var needsRefresh = (actualRemoteVideos == 0 && expectedRemoteVideos > 0) ||
+                                   (actualRemoteVideos > 0 && actualRemoteVideos < expectedRemoteVideos && expectedRemoteVideos > 1);
+                
+                if (needsRefresh)
+                {
+                    _logger.LogWarning(
+                        "DelayedRefreshSubscriptions: 远端视频数量不足，调用 RefreshSubscriptions (Attempt={Attempt})",
+                        attempt
+                    );
+                    
+                    try
+                    {
+                        var result = await _signalRService.InvokeAsync("RefreshSubscriptions");
+                        _logger.LogInformation(
+                            "RefreshSubscriptions 结果: {Result}",
+                            result.Message
+                        );
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "RefreshSubscriptions 调用失败");
+                    }
+                }
+                else
+                {
+                    // 订阅关系正常或没有其他用户，无需继续检查
+                    _logger.LogInformation(
+                        "DelayedRefreshSubscriptions: 订阅关系正常 (RemoteVideos={Count})，结束检查",
+                        actualRemoteVideos
+                    );
+                    return;
+                }
+            }
+            
+            // 所有重试完成后，记录最终状态
+            var finalRemoteVideos = RemoteVideos.Count;
+            _logger.LogInformation(
+                "DelayedRefreshSubscriptions: 检查流程完成，最终远端视频数量: {Count}",
+                finalRemoteVideos
+            );
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DelayedRefreshSubscriptions 失败");
+        }
     }
     
     /// <summary>
@@ -3297,6 +3956,17 @@ public partial class MainViewModel : ObservableObject
             _pendingResumeConsumers.Clear();
         }
         
+        // 关键修复：清理 per-peer transport 资源，避免重新加入时残留
+        lock (_peerRecvTransportIds)
+        {
+            _peerRecvTransportIds.Clear();
+            _peerTransportCreatingSet.Clear();
+        }
+        lock (_peerPendingResumeConsumers)
+        {
+            _peerPendingResumeConsumers.Clear();
+        }
+        
         StatusMessage = "已回到大厅";
         _logger.LogInformation("离开房间完成，回到大厅");
         
@@ -3347,6 +4017,17 @@ public partial class MainViewModel : ObservableObject
         lock (_pendingResumeConsumers)
         {
             _pendingResumeConsumers.Clear();
+        }
+        
+        // 清理 per-peer transport 资源
+        lock (_peerRecvTransportIds)
+        {
+            _peerRecvTransportIds.Clear();
+            _peerTransportCreatingSet.Clear();
+        }
+        lock (_peerPendingResumeConsumers)
+        {
+            _peerPendingResumeConsumers.Clear();
         }
         
         StatusMessage = "已被踢出房间";
@@ -3413,6 +4094,17 @@ public partial class MainViewModel : ObservableObject
         lock (_pendingResumeConsumers)
         {
             _pendingResumeConsumers.Clear();
+        }
+        
+        // 清理 per-peer transport 资源
+        lock (_peerRecvTransportIds)
+        {
+            _peerRecvTransportIds.Clear();
+            _peerTransportCreatingSet.Clear();
+        }
+        lock (_peerPendingResumeConsumers)
+        {
+            _peerPendingResumeConsumers.Clear();
         }
         
         StatusMessage = "已断开连接";
@@ -3554,6 +4246,58 @@ public partial class MainViewModel : ObservableObject
             _logger.LogError(ex, "Failed to enable media");
         }
     }
+<<<<<<< HEAD
+=======
+    
+    /// <summary>
+    /// 在 UI 线程上更新媒体状态
+    /// </summary>
+    /// <param name="camera">摄像头状态，null 表示不更新</param>
+    /// <param name="mic">麦克风状态，null 表示不更新</param>
+    private void UpdateMediaStateOnUiThread(bool? camera, bool? mic)
+    {
+        _logger.LogDebug("UpdateMediaStateOnUiThread: camera={Camera}, mic={Mic}", camera, mic);
+        
+        void DoUpdate()
+        {
+            if (camera.HasValue)
+            {
+                IsCameraEnabled = camera.Value;
+                OnPropertyChanged(nameof(IsCameraEnabled));
+                OnPropertyChanged(nameof(CanToggleMedia));
+                OnPropertyChanged(nameof(ShowLocalVideoInGrid));
+                _logger.LogDebug("IsCameraEnabled 已更新为 {Value}", camera.Value);
+                
+                // 摄像头状态改变时，更新视频网格中的本地视频
+                if (camera.Value)
+                {
+                    // 开启摄像头时，初始化本地视频项
+                    EnsureLocalVideoItem();
+                }
+                // 更新视频网格中的本地视频显示
+                UpdateLocalVideoInGrid();
+            }
+            if (mic.HasValue)
+            {
+                IsMicrophoneEnabled = mic.Value;
+                OnPropertyChanged(nameof(IsMicrophoneEnabled));
+                OnPropertyChanged(nameof(CanToggleMedia));
+                _logger.LogDebug("IsMicrophoneEnabled 已更新为 {Value}", mic.Value);
+            }
+        }
+        
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            _logger.LogWarning("UpdateMediaStateOnUiThread: Dispatcher 为 null");
+            DoUpdate();
+            return;
+        }
+        
+        // 使用 BeginInvoke 异步执行，确保 UI 更新
+        dispatcher.BeginInvoke(new Action(DoUpdate), System.Windows.Threading.DispatcherPriority.Send);
+    }
+>>>>>>> pro
 
     /// <summary>
     /// 生产视频流
@@ -3635,6 +4379,12 @@ public partial class MainViewModel : ObservableObject
     private void OnLocalVideoFrameReceived(WriteableBitmap frame)
     {
         LocalVideoFrame = frame;
+        
+        // 同时更新本地视频项的帧数据（用于视频网格显示）
+        if (_localVideoItem != null)
+        {
+            _localVideoItem.VideoFrame = frame;
+        }
     }
 
     /// <summary>
@@ -3797,6 +4547,12 @@ public partial class MainViewModel : ObservableObject
                         break;
                     case "whiteboardClosed":
                         HandleWhiteboardClosed(notification.Data);
+                        break;
+<<<<<<< HEAD
+>>>>>>> pro
+=======
+                    case "voteClosed":
+                        HandleVoteClosed(notification.Data);
                         break;
 >>>>>>> pro
                     default:
@@ -4048,7 +4804,7 @@ public partial class MainViewModel : ObservableObject
             var messageBox = new Wpf.Ui.Controls.MessageBox
             {
                 Title = "会议已结束",
-                Content = $"主持人已离开房间，会议已结束。\n{notification?.Reason ?? ""}",
+                Content = $"主持人已离开房间，{notification?.Reason ?? ""}",
                 CloseButtonText = "确定",
                 CloseButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Primary,
             };
@@ -4075,20 +4831,32 @@ public partial class MainViewModel : ObservableObject
 
         var json = JsonSerializer.Serialize(data);
         var notification = JsonSerializer.Deserialize<NewConsumerData>(json, JsonOptions);
-        if (notification != null)
+        if (notification == null) return;
+
+        var peerId = notification.ProducerPeerId ?? "unknown";
+        _logger.LogInformation("New consumer: ConsumerId={ConsumerId}, Kind={Kind}, ProducerPeerId={ProducerPeerId}",
+            notification.ConsumerId, notification.Kind, peerId);
+
+        // 如果是视频 Consumer，立即在 UI 中添加占位符
+        if (notification.Kind == "video")
         {
+<<<<<<< HEAD
             _logger.LogInformation("New consumer: {ConsumerId}, Kind: {Kind}",
                 notification.ConsumerId, notification.Kind);
 
             // 如果是视频 Consumer，立即在 UI 中添加占位符
             if (notification.Kind == "video")
+=======
+            Application.Current?.Dispatcher.Invoke(() =>
+>>>>>>> pro
             {
-                Application.Current?.Dispatcher.Invoke(() =>
+                // 检查是否已存在
+                var existing = RemoteVideos.FirstOrDefault(v => v.ConsumerId == notification.ConsumerId);
+                if (existing == null)
                 {
-                    // 检查是否已存在
-                    var existing = RemoteVideos.FirstOrDefault(v => v.ConsumerId == notification.ConsumerId);
-                    if (existing == null)
+                    var remoteVideo = new RemoteVideoItem
                     {
+<<<<<<< HEAD
                         var peerName = notification.ProducerPeerId ?? "remote";
                         var remoteVideo = new RemoteVideoItem
                         {
@@ -4123,7 +4891,48 @@ public partial class MainViewModel : ObservableObject
                 lock (_pendingResumeConsumers)
                 {
                     _pendingResumeConsumers.Add(notification.ConsumerId);
+=======
+                        ConsumerId = notification.ConsumerId,
+                        PeerId = peerId,
+                        DisplayName = $"远端用户_{peerId.Substring(0, Math.Min(8, peerId.Length))}",
+                        VideoFrame = null // 占位符，等待视频帧
+                    };
+                    RemoteVideos.Add(remoteVideo);
+                    HasNoRemoteVideos = false;
+                    _logger.LogInformation("添加远端视频占位符: {ConsumerId}, PeerId={PeerId}", notification.ConsumerId, peerId);
+>>>>>>> pro
                 }
+            });
+        }
+
+        // ==== 单一 Recv Transport 方案（符合 Mediasoup 最佳实践） ====
+        // 所有远端用户的 Consumer 都添加到同一个 recv transport
+        _logger.LogInformation("Adding consumer: {ConsumerId}, Kind: {Kind}", notification.ConsumerId, notification.Kind);
+        await _webRtcService.AddConsumerAsync(
+            notification.ConsumerId,
+            notification.Kind,
+            notification.RtpParameters);
+
+        _logger.LogInformation("Consumer {ConsumerId} (Kind={Kind}) 已添加到 recv transport", 
+            notification.ConsumerId, notification.Kind);
+
+        // 检查 recv transport 是否已连接
+        var isRecvTransportConnected = _webRtcService.IsRecvTransportDtlsConnected;
+        _logger.LogInformation("Recv transport DTLS 状态: IsConnected={IsConnected}", isRecvTransportConnected);
+
+        if (isRecvTransportConnected)
+        {
+            // Transport 已连接，立即 Resume consumer
+            _logger.LogInformation("立即 Resume consumer: {ConsumerId}", notification.ConsumerId);
+            await _signalRService.InvokeAsync("ResumeConsumer", notification.ConsumerId);
+        }
+        else
+        {
+            // Transport 未连接，加入待恢复列表，等 DTLS 连接后统一 Resume
+            _logger.LogInformation("Transport 未连接，将 consumer {ConsumerId} 加入待恢复列表", notification.ConsumerId);
+            lock (_pendingResumeConsumers)
+            {
+                _pendingResumeConsumers.Add(notification.ConsumerId);
             }
         }
     }
@@ -4477,6 +5286,13 @@ public partial class MainViewModel : ObservableObject
                     {
                         user.UnreadCount++;
                         _logger.LogInformation("私聊未读数增加: User={User}, Count={Count}", user.DisplayName, user.UnreadCount);
+                    }
+                    
+                    // 如果聊天面板不可见，触发聊天按钮闪烁3次
+                    if (!IsChatPanelVisible)
+                    {
+                        _logger.LogInformation("收到私聊消息，聊天面板未打开，触发按钮闪烁: Sender={Sender}", message.SenderName);
+                        PrivateMessageFlashRequested?.Invoke();
                     }
                 }
             }
@@ -4873,24 +5689,65 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleWhiteboardClosed(object? data)
     {
-        if (data == null) return;
+        if (data == null)
+        {
+            _logger.LogWarning("收到白板关闭通知但 data 为 null");
+            return;
+        }
 
         try
         {
             var json = JsonSerializer.Serialize(data);
+            _logger.LogDebug("白板关闭通知原始数据: {Json}", json);
+            
             var notification = JsonSerializer.Deserialize<CloseWhiteboardRequest>(json, JsonOptions);
-            if (notification == null) return;
+            if (notification == null)
+            {
+                _logger.LogWarning("白板关闭通知反序列化失败");
+                return;
+            }
 
-            _logger.LogInformation("收到白板关闭通知: SessionId={SessionId}, Closer={Closer}",
-                notification.SessionId, notification.CloserName);
+            _logger.LogInformation("收到白板关闭通知: SessionId={SessionId}, CloserId={CloserId}, CloserName={CloserName}",
+                notification.SessionId, notification.CloserId, notification.CloserName);
 
             _currentWhiteboardSessionId = null;
+            
+            // 检查事件订阅者数量
+            var hasSubscribers = WhiteboardClosedReceived != null;
+            _logger.LogInformation("触发 WhiteboardClosedReceived 事件, 有订阅者={HasSubscribers}", hasSubscribers);
+            
             WhiteboardClosedReceived?.Invoke(notification.SessionId);
             StatusMessage = $"{notification.CloserName} 关闭了白板";
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "处理白板关闭通知失败");
+        }
+    }
+
+    /// <summary>
+    /// 处理投票窗口关闭通知
+    /// </summary>
+    private void HandleVoteClosed(object? data)
+    {
+        if (data == null) return;
+
+        try
+        {
+            var json = JsonSerializer.Serialize(data);
+            var notification = JsonSerializer.Deserialize<CloseVoteRequest>(json, JsonOptions);
+            if (notification == null) return;
+
+            _logger.LogInformation("收到投票窗口关闭通知: VoteId={VoteId}, Closer={Closer}",
+                notification.VoteId, notification.CloserName);
+
+            _currentVote = null;
+            VoteClosedReceived?.Invoke(notification.VoteId);
+            StatusMessage = $"{notification.CloserName} 关闭了投票";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "处理投票窗口关闭通知失败");
         }
     }
 
@@ -4952,6 +5809,142 @@ public partial class MainViewModel : ObservableObject
 
 >>>>>>> pro
     #endregion
+
+    #region 媒体设置持久化
+
+    // 待应用的设备 ID - 等设备列表加载后再选中
+    private string? _pendingCameraDeviceId;
+    private string? _pendingMicrophoneDeviceId;
+
+    /// <summary>
+    /// 加载媒体设置
+    /// </summary>
+    private void LoadMediaSettings()
+    {
+        try
+        {
+            if (!File.Exists(MediaSettingsPath))
+            {
+                _logger.LogDebug("媒体设置文件不存在，使用默认设置");
+                return;
+            }
+
+            var json = File.ReadAllText(MediaSettingsPath);
+            var settings = JsonSerializer.Deserialize<MediaSettings>(json);
+            if (settings == null)
+            {
+                _logger.LogWarning("媒体设置反序列化失败");
+                return;
+            }
+
+            // 加载视频质量设置
+            if (!string.IsNullOrEmpty(settings.VideoQualityPreset))
+            {
+                var quality = VideoQualityPresets.FirstOrDefault(q => 
+                    q.DisplayName == settings.VideoQualityPreset);
+                if (quality != null)
+                {
+                    _selectedVideoQuality = quality;
+                    _webRtcService.VideoQuality = quality;
+                }
+            }
+
+            // 加载视频编解码器
+            if (!string.IsNullOrEmpty(settings.VideoCodec) && 
+                Enum.TryParse<VideoCodecType>(settings.VideoCodec, out var codecType))
+            {
+                var codec = VideoCodecInfo.GetByType(codecType);
+                if (codec != null)
+                {
+                    _selectedVideoCodec = codec;
+                    _webRtcService.CurrentVideoCodec = codecType;
+                }
+            }
+
+            // 加载屏幕共享设置
+            if (!string.IsNullOrEmpty(settings.ScreenSharePreset))
+            {
+                var preset = ScreenSharePresets.FirstOrDefault(p => 
+                    p.DisplayName == settings.ScreenSharePreset);
+                if (preset != null)
+                {
+                    _selectedScreenShareSettings = preset;
+                }
+            }
+            _screenShareShowCursor = settings.ScreenShareShowCursor;
+
+            // 加载录制设置
+            if (!string.IsNullOrEmpty(settings.RecordingSavePath))
+            {
+                _recordingSavePath = settings.RecordingSavePath;
+            }
+            if (!string.IsNullOrEmpty(settings.RecordingFormat))
+            {
+                _selectedRecordingFormat = settings.RecordingFormat;
+            }
+            _recordingShowCountdown = settings.RecordingShowCountdown;
+            _recordingShowBorder = settings.RecordingShowBorder;
+
+            // 设备 ID 会在设备列表加载后应用
+            _pendingCameraDeviceId = settings.CameraDeviceId;
+            _pendingMicrophoneDeviceId = settings.MicrophoneDeviceId;
+
+            _logger.LogInformation("媒体设置加载成功: Quality={Quality}, Codec={Codec}", 
+                settings.VideoQualityPreset, settings.VideoCodec);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "加载媒体设置失败");
+        }
+    }
+
+    /// <summary>
+    /// 保存媒体设置
+    /// </summary>
+    private void SaveMediaSettings()
+    {
+        try
+        {
+            // 确保目录存在
+            var dir = Path.GetDirectoryName(MediaSettingsPath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            {
+                Directory.CreateDirectory(dir);
+            }
+
+            var settings = new MediaSettings
+            {
+                // 设备设置
+                CameraDeviceId = SelectedCamera?.DeviceId,
+                MicrophoneDeviceId = SelectedMicrophone?.DeviceId,
+
+                // 视频质量设置
+                VideoQualityPreset = SelectedVideoQuality?.DisplayName ?? "High",
+                VideoCodec = SelectedVideoCodec?.CodecType.ToString() ?? "VP9",
+
+                // 屏幕共享设置
+                ScreenSharePreset = SelectedScreenShareSettings?.DisplayName ?? "Standard",
+                ScreenShareShowCursor = ScreenShareShowCursor,
+
+                // 录制设置
+                RecordingSavePath = RecordingSavePath,
+                RecordingFormat = SelectedRecordingFormat,
+                RecordingShowCountdown = RecordingShowCountdown,
+                RecordingShowBorder = RecordingShowBorder
+            };
+
+            var json = JsonSerializer.Serialize(settings, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(MediaSettingsPath, json);
+
+            _logger.LogDebug("媒体设置已保存");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "保存媒体设置失败");
+        }
+    }
+
+    #endregion
 }
 
 /// <summary>
@@ -4960,6 +5953,7 @@ public partial class MainViewModel : ObservableObject
 public class RemoteVideoItem : ObservableObject
 {
     private string _consumerId = string.Empty;
+    private string _producerId = string.Empty;
     private string _peerId = string.Empty;
     private string _displayName = string.Empty;
     private WriteableBitmap? _videoFrame;
@@ -4969,11 +5963,21 @@ public class RemoteVideoItem : ObservableObject
     private bool _isMuted;
     private double _volume = 100;
     private bool _isMaximized;
+    private bool _isLocal;
 
     public string ConsumerId
     {
         get => _consumerId;
         set => SetProperty(ref _consumerId, value);
+    }
+
+    /// <summary>
+    /// Producer ID
+    /// </summary>
+    public string ProducerId
+    {
+        get => _producerId;
+        set => SetProperty(ref _producerId, value);
     }
 
     public string PeerId
@@ -5078,4 +6082,13 @@ public class RemoteVideoItem : ObservableObject
     /// 获取垂直镜像的 ScaleTransform 值
     /// </summary>
     public double VerticalScale => _isVerticallyMirrored ? -1 : 1;
+
+    /// <summary>
+    /// 是否为本地视频
+    /// </summary>
+    public bool IsLocal
+    {
+        get => _isLocal;
+        set => SetProperty(ref _isLocal, value);
+    }
 }

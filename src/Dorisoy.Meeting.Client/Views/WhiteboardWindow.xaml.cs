@@ -1383,11 +1383,31 @@ namespace Dorisoy.Meeting.Client.Views
         /// </summary>
         public void ForceClose()
         {
-            Dispatcher.Invoke(() =>
+            System.Diagnostics.Debug.WriteLine($"[WhiteboardWindow] ForceClose 被调用, CurrentThread={System.Threading.Thread.CurrentThread.ManagedThreadId}");
+            
+            try
             {
-                _isForceClosing = true;
-                Close();
-            });
+                if (Dispatcher.CheckAccess())
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WhiteboardWindow] 已在 UI 线程，直接关闭");
+                    _isForceClosing = true;
+                    Close();
+                }
+                else
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WhiteboardWindow] 不在 UI 线程，调用 Dispatcher.Invoke");
+                    Dispatcher.Invoke(() =>
+                    {
+                        _isForceClosing = true;
+                        Close();
+                    });
+                }
+                System.Diagnostics.Debug.WriteLine($"[WhiteboardWindow] ForceClose 完成");
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[WhiteboardWindow] ForceClose 异常: {ex.Message}");
+            }
         }
 
         #endregion

@@ -412,3 +412,5 @@ nuget-build/
 publish/
 dist/
 UI/
+SIPSorcery-10.0.3/
+SIPSorceryMedia.Abstractions-8.0.12/

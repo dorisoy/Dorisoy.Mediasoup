@@ -67,11 +67,17 @@ public partial class MainWindow : FluentWindow
         _viewModel.WhiteboardStrokeUpdated += OnWhiteboardStrokeUpdated;
         _viewModel.WhiteboardClosedReceived += OnWhiteboardClosedReceived;
         
+        // 订阅投票窗口关闭事件
+        _viewModel.VoteClosedReceived += OnVoteClosedReceived;
+        
         // 订阅关闭所有子窗口事件（主持人断开/房间解散时）
         _viewModel.CloseAllChildWindowsRequested += OnCloseAllChildWindows;
         
         // 订阅屏幕截图事件
         _viewModel.CaptureScreenRequested += OnCaptureScreenRequested;
+        
+        // 订阅私聊消息闪烁事件
+        _viewModel.PrivateMessageFlashRequested += OnPrivateMessageFlashRequested;
         
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
@@ -208,6 +214,38 @@ public partial class MainWindow : FluentWindow
         // 显示截图遮罩
         overlay.Show();
     }
+    
+    /// <summary>
+    /// 私聊消息收到时聊天按钮闪烁3次
+    /// </summary>
+    private void OnPrivateMessageFlashRequested()
+    {
+        Dispatcher.Invoke(async () =>
+        {
+            try
+            {
+                // 创建闪烁动画 - 背景颜色从透明变成高亮再变回透明，重复3次
+                var originalBrush = ChatButton.Background;
+                var highlightBrush = new System.Windows.Media.SolidColorBrush(
+                    System.Windows.Media.Color.FromArgb(255, 0, 120, 212)); // 蓝色高亮
+                
+                for (int i = 0; i < 3; i++)
+                {
+                    // 高亮
+                    ChatButton.Background = highlightBrush;
+                    await Task.Delay(200);
+                    
+                    // 恢复
+                    ChatButton.Background = originalBrush;
+                    await Task.Delay(200);
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[聊天闪烁] 异常: {ex.Message}");
+            }
+        });
+    }
 
     /// <summary>
     /// 主持人打开投票窗口
@@ -292,6 +330,12 @@ public partial class MainWindow : FluentWindow
         voteWindow.VoteDeleted += async (voteId) =>
         {
             await _viewModel.DeleteVoteAsync(voteId);
+        };
+        
+        // 绑定投票窗口关闭事件 - 主持人关闭时发送通知给其他用户
+        voteWindow.VoteClosed += async (request) =>
+        {
+            await _viewModel.CloseVoteAsync(request);
         };
         
         // 绑定投票结果更新事件
@@ -478,12 +522,71 @@ public partial class MainWindow : FluentWindow
     /// </summary>
     private void OnWhiteboardClosedReceived(string sessionId)
     {
+        System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] 收到白板关闭通知: SessionId={sessionId}");
+        
         Dispatcher.Invoke(() =>
         {
-            if (_currentWhiteboardWindow != null && _currentWhiteboardWindow.IsLoaded)
+            System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] _currentWhiteboardWindow={_currentWhiteboardWindow != null}, IsLoaded={_currentWhiteboardWindow?.IsLoaded}");
+            
+            if (_currentWhiteboardWindow != null)
             {
-                _currentWhiteboardWindow.ForceClose();
-                _currentWhiteboardWindow = null;
+                try
+                {
+                    // 不再检查 IsLoaded，直接尝试关闭
+                    System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] 强制关闭白板窗口...");
+                    _currentWhiteboardWindow.ForceClose();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] 关闭异常: {ex.Message}");
+                }
+                finally
+                {
+                    _currentWhiteboardWindow = null;
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] 窗口已为 null，无需关闭");
+            }
+        });
+    }
+
+    #endregion
+
+    #region 投票窗口关闭
+
+    /// <summary>
+    /// 收到投票窗口关闭通知（主持人关闭时广播给其他用户）
+    /// </summary>
+    private void OnVoteClosedReceived(string voteId)
+    {
+        System.Diagnostics.Debug.WriteLine($"[VoteClose] 收到投票关闭通知: VoteId={voteId}");
+        
+        Dispatcher.Invoke(() =>
+        {
+            System.Diagnostics.Debug.WriteLine($"[VoteClose] _currentVoteWindow={_currentVoteWindow != null}, IsLoaded={_currentVoteWindow?.IsLoaded}");
+            
+            if (_currentVoteWindow != null)
+            {
+                try
+                {
+                    // 不再检查 IsLoaded，直接尝试关闭
+                    System.Diagnostics.Debug.WriteLine($"[VoteClose] 强制关闭投票窗口...");
+                    _currentVoteWindow.ForceClose();
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[VoteClose] 关闭异常: {ex.Message}");
+                }
+                finally
+                {
+                    _currentVoteWindow = null;
+                }
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[VoteClose] 窗口已为 null，无需关闭");
             }
         });
     }
@@ -617,7 +720,9 @@ public partial class MainWindow : FluentWindow
             _viewModel.WhiteboardOpenedReceived -= OnWhiteboardOpenedReceived;
             _viewModel.WhiteboardStrokeUpdated -= OnWhiteboardStrokeUpdated;
             _viewModel.WhiteboardClosedReceived -= OnWhiteboardClosedReceived;
+            _viewModel.VoteClosedReceived -= OnVoteClosedReceived;
             _viewModel.CloseAllChildWindowsRequested -= OnCloseAllChildWindows;
+            _viewModel.PrivateMessageFlashRequested -= OnPrivateMessageFlashRequested;
             KeyDown -= OnWindowKeyDown;
             
 >>>>>>> pro

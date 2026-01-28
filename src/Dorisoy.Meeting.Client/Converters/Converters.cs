@@ -167,6 +167,22 @@ public class NullToVisibleConverter : IValueConverter
 }
 
 /// <summary>
+/// Null 时隐藏转换器（非 null 时显示，null 时隐藏）
+/// </summary>
+public class NullToCollapsedConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        return value != null ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+
+/// <summary>
 /// 服务模式文本转换器
 /// </summary>
 public class ServeModeTextConverter : IValueConverter
@@ -617,6 +633,29 @@ public class BoolToYesNoConverter : IValueConverter
             return boolValue ? "显示" : "隐藏";
         }
         return "隐藏";
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        throw new NotImplementedException();
+    }
+}
+<<<<<<< HEAD
+>>>>>>> pro
+=======
+
+/// <summary>
+/// 字符串首字母转换器 - 用于显示用户名的第一个字符作为头像
+/// </summary>
+public class FirstCharacterConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is string str && !string.IsNullOrEmpty(str))
+        {
+            return str[0].ToString();
+        }
+        return "?";
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

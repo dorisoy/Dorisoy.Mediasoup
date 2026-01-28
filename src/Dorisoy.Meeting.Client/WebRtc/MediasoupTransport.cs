@@ -33,14 +33,19 @@ public class MediasoupTransport : IDisposable
     private readonly HashSet<string> _consumersWithRtp = new();
     private readonly object _ssrcMapLock = new();
     
+    // streamIndex (m-line 索引) 到 ConsumerId 的映射
+    // 关键修复：使用 SIPSorcery 的 OnRtpPacketReceivedByIndex 提供的 streamIndex 直接映射到 consumer
+    // 这比 SSRC 映射更可靠，因为 streamIndex 由 SDP m-line 顺序决定
+    private readonly ConcurrentDictionary<int, string> _streamIndexToConsumerMap = new();
+    
     // SDP 状态 (预留用于后续 SDP 重新协商)
     #pragma warning disable CS0414
     private bool _sdpNegotiated;
     #pragma warning restore CS0414
 
-    // 接收 track 状态
-    private bool _hasAddedVideoTrack;
-    private bool _hasAddedAudioTrack;
+    // 接收 track 状态 - 记录已添加的 track 数量（支持多用户）
+    private int _addedVideoTrackCount;
+    private int _addedAudioTrackCount;
     
     // PeerConnection 启动状态
     private bool _peerConnectionStarted;
@@ -153,7 +158,14 @@ public class MediasoupTransport : IDisposable
     /// </summary>
     private void InitializePeerConnection()
     {
-        var config = new RTCConfiguration();
+        var config = new RTCConfiguration
+        {
+            // 关键修复：使用 RSA 证书进行 DTLS 握手
+            // 服务端 Mediasoup 使用 RSA 证书 (dtls-cert.pem)，因此客户端也必须使用 RSA
+            // 否则 DTLS cipher suite 不兼容，会导致 "no shared cipher" 错误
+            // RSA 证书会使用 TLS_ECDHE_RSA_WITH_* cipher suite，与服务端兼容
+            X_UseRsaForDtlsCertificate = true
+        };
 
         // 添加服务器提供的 ICE Candidates 作为 ICE servers (如果适用)
         // 对于 mediasoup，服务器直接提供 candidates，不需要 STUN/TURN
@@ -215,8 +227,10 @@ public class MediasoupTransport : IDisposable
         // 注意：SIPSorcery 不直接暴露 PLI/FIR 回调
         // 但 OnReceiveReport 可以用于此目的
 
-        // 监听 RTP 包接收事件 - 这是接收远端媒体的关键
-        _peerConnection.OnRtpPacketReceived += OnRtpPacketReceived;
+        // 监听 RTP 包接收事件 - 关键修复：使用 OnRtpPacketReceivedByIndex 接收所有流
+        // OnRtpPacketReceived 只触发主流（primary），无法接收第二个视频流
+        // OnRtpPacketReceivedByIndex 按 m-line 索引触发，可以接收所有 video/audio 流
+        _peerConnection.OnRtpPacketReceivedByIndex += OnRtpPacketReceivedByIndex;
         
         // 监听所有传入的 RTP 数据（包括 SRTP 解密前）
         var rtpChannel = _peerConnection.GetRtpChannel();
@@ -266,7 +280,7 @@ public class MediasoupTransport : IDisposable
         }
         
         // 记录回调注册成功
-        _logger.LogInformation("OnRtpPacketReceived callback registered for transport {TransportId}", TransportId);
+        _logger.LogInformation("OnRtpPacketReceivedByIndex callback registered for transport {TransportId} (supports multiple streams)", TransportId);
 
         // 添加服务器提供的 ICE Candidates
         if (IceCandidates != null)
@@ -293,10 +307,12 @@ public class MediasoupTransport : IDisposable
     }
 
     /// <summary>
-    /// 处理接收到的 RTP 包
-    /// 关键修复：支持多个视频 Consumer，通过 SSRC 动态映射正确路由 RTP 包
+    /// 处理接收到的 RTP 包（按 m-line 索引）
+    /// 重要修复：由于 SIPSorcery 在 BUNDLE 多流场景下 streamIndex 不可靠，
+    /// 我们优先使用 SSRC 进行精确匹配，只有当 SSRC 完全无法匹配时才使用其他策略
     /// </summary>
-    private void OnRtpPacketReceived(IPEndPoint remoteEndPoint, SDPMediaTypesEnum mediaType, RTPPacket rtpPacket)
+    /// <param name="streamIndex">m-line 索引（注意：SIPSorcery 在多流时此值可能不准确）</param>
+    private void OnRtpPacketReceivedByIndex(int streamIndex, IPEndPoint remoteEndPoint, SDPMediaTypesEnum mediaType, RTPPacket rtpPacket)
     {
         try
         {
@@ -316,11 +332,14 @@ public class MediasoupTransport : IDisposable
             // 每100个包输出一次统计
             if (_recvRtpPacketCount % 100 == 1)
             {
-                _logger.LogInformation("RTP recv stats: count={Count}, SSRC={Ssrc}, PT={PayloadType}, Size={Size}, MediaType={MediaType}", 
-                    _recvRtpPacketCount, ssrc, payloadType, payload.Length, mediaType);
+                _logger.LogInformation("RTP recv stats: count={Count}, streamIndex={StreamIndex}, SSRC={Ssrc}, PT={PayloadType}, Size={Size}, MediaType={MediaType}", 
+                    _recvRtpPacketCount, streamIndex, ssrc, payloadType, payload.Length, mediaType);
             }
     
-            // 1. 首先检查 SSRC 映射表
+            // ==== 关键修复：优先使用 SSRC 精确匹配 ====
+            // SIPSorcery 的 streamIndex 在 BUNDLE 多流场景下不可靠，所以我们优先使用 SSRC 匹配
+            
+            // 1. 首先检查已建立的 SSRC 映射表（最快路径）
             if (_ssrcToConsumerMap.TryGetValue(ssrc, out var mappedConsumerId))
             {
                 if (_remoteConsumers.TryGetValue(mappedConsumerId, out var mappedConsumer))
@@ -334,56 +353,128 @@ public class MediasoupTransport : IDisposable
             var consumer = _remoteConsumers.Values.FirstOrDefault(c => c.Ssrc == ssrc);
             if (consumer != null)
             {
+                _logger.LogInformation(
+                    "SSRC exact match: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind})",
+                    ssrc, consumer.ConsumerId, consumer.Kind);
                 // 建立映射并分发
                 EstablishSsrcMapping(ssrc, consumer);
                 DispatchRtpToConsumer(consumer, rtpPacket);
                 return;
             }
+            
+            // 3. 检查是否是 RTX 重传包（使用 RTX SSRC）
+            var rtxConsumer = _remoteConsumers.Values.FirstOrDefault(c => c.RtxSsrc == ssrc);
+            if (rtxConsumer != null)
+            {
+                _logger.LogDebug("Received RTX packet: SSRC={Ssrc}, ConsumerId={ConsumerId}", ssrc, rtxConsumer.ConsumerId);
+                // RTX 包通常用于重传，我们可以忽略或处理
+                // 这里我们选择忽略，因为解码器会处理丢包
+                return;
+            }
     
-            // 3. SSRC 不匹配，需要动态分配给尚未收到 RTP 的 Consumer
+            // ==== SSRC 无法匹配，尝试基于 MediaType 的智能分配 ====
+            // 注意：我们不再依赖 streamIndex，因为它在多流场景下不可靠
+            
+            // 4. SSRC 不匹配，需要智能分配
+            // 关键改进：只分配给最近创建且尚未收到 RTP 的 Consumer
             var kind = mediaType == SDPMediaTypesEnum.video ? "video" : "audio";
             lock (_ssrcMapLock)
             {
-                // 找到同类型但尚未收到 RTP 包的 Consumer
+                // 找到同类型且尚未收到 RTP 包的 Consumer
+                // 优先选择最近创建的（按创建时间倒序）
                 var unassignedConsumer = _remoteConsumers.Values
-                    .Where(c => c.Kind == kind && !_consumersWithRtp.Contains(c.ConsumerId))
+                    .Where(c => c.Kind == kind && !c.HasReceivedRtp)
+                    .OrderByDescending(c => c.CreatedAt)  // 最近创建的优先
                     .FirstOrDefault();
                     
                 if (unassignedConsumer != null)
                 {
-                    _logger.LogInformation(
-                        "Dynamic SSRC mapping: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind}, expected SSRC={ExpectedSsrc})",
-                        ssrc, unassignedConsumer.ConsumerId, kind, unassignedConsumer.Ssrc);
-                    
-                    // 更新 Consumer 的实际 SSRC
-                    unassignedConsumer.Ssrc = ssrc;
-                    EstablishSsrcMapping(ssrc, unassignedConsumer);
-                    DispatchRtpToConsumer(unassignedConsumer, rtpPacket);
-                    return;
+                    // 检查该 Consumer 是否是在最近 30 秒内创建的
+                    // 如果是很久之前创建的，可能表示该 Consumer 的 Producer 没有发送流
+                    var ageSeconds = (DateTime.UtcNow - unassignedConsumer.CreatedAt).TotalSeconds;
+                    if (ageSeconds < 30)  // 30 秒内创建的 Consumer
+                    {
+                        _logger.LogInformation(
+                            "Dynamic SSRC mapping: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind}, Age={Age:F1}s, expected SSRC={ExpectedSsrc})",
+                            ssrc, unassignedConsumer.ConsumerId, kind, ageSeconds, unassignedConsumer.Ssrc);
+                        
+                        // 更新 Consumer 的实际 SSRC
+                        unassignedConsumer.Ssrc = ssrc;
+                        unassignedConsumer.HasReceivedRtp = true;
+                        EstablishSsrcMapping(ssrc, unassignedConsumer);
+                        DispatchRtpToConsumer(unassignedConsumer, rtpPacket);
+                        return;
+                    }
+                    else
+                    {
+                        _logger.LogWarning(
+                            "Consumer {ConsumerId} too old for dynamic mapping (Age={Age:F1}s), SSRC={Ssrc}",
+                            unassignedConsumer.ConsumerId, ageSeconds, ssrc);
+                    }
                 }
             }
     
-            // 4. 所有同类型 Consumer 都已分配，可能是新的 SSRC（重传或新流）
-            // 尝试用 PayloadType 匹配
-            consumer = _remoteConsumers.Values.FirstOrDefault(c => c.PayloadType == payloadType && c.Kind == kind);
+            // 5. 所有同类型 Consumer 都已分配，尝试用 PayloadType 匹配已有的 Consumer
+            // 这可能是因为服务端重新分配了 SSRC
+            consumer = _remoteConsumers.Values.FirstOrDefault(c => c.PayloadType == payloadType && c.Kind == kind && c.HasReceivedRtp);
             if (consumer != null)
             {
-                if (_recvRtpPacketCount <= 20)
+                if (_recvRtpPacketCount % 50 == 1)
                 {
                     _logger.LogWarning(
-                        "RTP SSRC mismatch, routing by PT: SSRC={Ssrc}, PT={PayloadType} -> Consumer {ConsumerId}",
-                        ssrc, payloadType, consumer.ConsumerId);
+                        "RTP SSRC changed, updating mapping: old SSRC={OldSsrc}, new SSRC={NewSsrc} -> Consumer {ConsumerId}",
+                        consumer.Ssrc, ssrc, consumer.ConsumerId);
                 }
+                
+                // 更新 SSRC 映射
+                lock (_ssrcMapLock)
+                {
+                    // 移除旧的 SSRC 映射
+                    var oldSsrcKeys = _ssrcToConsumerMap
+                        .Where(kv => kv.Value == consumer.ConsumerId)
+                        .Select(kv => kv.Key)
+                        .ToList();
+                    foreach (var oldSsrc in oldSsrcKeys)
+                    {
+                        _ssrcToConsumerMap.TryRemove(oldSsrc, out _);
+                    }
+                    
+                    // 建立新的 SSRC 映射
+                    consumer.Ssrc = ssrc;
+                    _ssrcToConsumerMap[ssrc] = consumer.ConsumerId;
+                }
+                
                 DispatchRtpToConsumer(consumer, rtpPacket);
                 return;
+            }
+    
+            // 6. 最后的回退：尝试使用 streamIndex 映射（虽然不可靠，但作为最后的尝试）
+            // 注意：streamIndex 在 SIPSorcery BUNDLE 模式下可能不正确
+            if (_streamIndexToConsumerMap.TryGetValue(streamIndex, out var consumerIdByIndex))
+            {
+                if (_remoteConsumers.TryGetValue(consumerIdByIndex, out var consumerByIndex))
+                {
+                    // 只在 mediaType 匹配时才使用（避免音视频混淆）
+                    if ((mediaType == SDPMediaTypesEnum.video && consumerByIndex.Kind == "video") ||
+                        (mediaType == SDPMediaTypesEnum.audio && consumerByIndex.Kind == "audio"))
+                    {
+                        _logger.LogWarning(
+                            "Fallback to streamIndex mapping (unreliable): index={StreamIndex} -> Consumer {ConsumerId} (Kind={Kind}), SSRC={Ssrc}",
+                            streamIndex, consumerIdByIndex, consumerByIndex.Kind, ssrc);
+                        EstablishSsrcMapping(ssrc, consumerByIndex);
+                        consumerByIndex.Ssrc = ssrc;
+                        DispatchRtpToConsumer(consumerByIndex, rtpPacket);
+                        return;
+                    }
+                }
             }
     
             if (_recvRtpPacketCount % 100 == 1)
             {
                 _logger.LogWarning(
-                    "Received RTP for unknown SSRC: {Ssrc}, PT: {PayloadType}, MediaType: {MediaType}. Known consumers: {Consumers}",
-                    ssrc, payloadType, mediaType,
-                    string.Join(", ", _remoteConsumers.Values.Select(c => $"{c.Kind}:SSRC={c.Ssrc},PT={c.PayloadType},Id={c.ConsumerId}")));
+                    "Received RTP for unknown mapping: streamIndex={StreamIndex}, SSRC={Ssrc}, PT={PayloadType}, MediaType={MediaType}. Known consumers: {Consumers}",
+                    streamIndex, ssrc, payloadType, mediaType,
+                    string.Join(", ", _remoteConsumers.Values.Select(c => $"{c.Kind}:SSRC={c.Ssrc},PT={c.PayloadType},HasRtp={c.HasReceivedRtp}")));
             }
         }
         catch (Exception ex)
@@ -400,6 +491,7 @@ public class MediasoupTransport : IDisposable
         lock (_ssrcMapLock)
         {
             _ssrcToConsumerMap[ssrc] = consumer.ConsumerId;
+            consumer.HasReceivedRtp = true;
             _consumersWithRtp.Add(consumer.ConsumerId);
         }
     }
@@ -807,13 +899,16 @@ public class MediasoupTransport : IDisposable
                 ConsumerId = consumerId,
                 Kind = kind,
                 Ssrc = encoding?.Ssrc ?? 0,
+                RtxSsrc = encoding?.Rtx?.Ssrc ?? 0,  // RTX SSRC
                 PayloadType = codec?.PayloadType ?? (kind == "video" ? 96 : 100),
                 ClockRate = codec?.ClockRate ?? (kind == "video" ? 90000 : 48000),
-                MimeType = codec?.MimeType ?? (kind == "video" ? "video/VP8" : "audio/opus")
+                MimeType = codec?.MimeType ?? (kind == "video" ? "video/VP8" : "audio/opus"),
+                CreatedAt = DateTime.UtcNow,
+                HasReceivedRtp = false
             };
 
-            _logger.LogInformation("Consumer {ConsumerId} registered, SSRC: {Ssrc}, Codec: {Codec}",
-                consumerId, encoding?.Ssrc, codec?.MimeType);
+            _logger.LogInformation("Consumer {ConsumerId} registered, SSRC: {Ssrc}, RTX SSRC: {RtxSsrc}, Codec: {Codec}",
+                consumerId, encoding?.Ssrc, encoding?.Rtx?.Ssrc, codec?.MimeType);
 
             // 触发延迟 SDP 协商 - 等待更多 consumer 到达后再统一协商
             TriggerDelayedNegotiation();
@@ -869,6 +964,7 @@ public class MediasoupTransport : IDisposable
 
     /// <summary>
     /// 执行 SDP 协商 - 为所有 Consumer 生成 SDP 并应用
+    /// 关键修复：确保 consumers 列表按 CreatedAt 排序，使 SDP m-line 顺序与 track 添加顺序一致
     /// </summary>
     private async Task NegotiateSdpForConsumersAsync()
     {
@@ -880,19 +976,29 @@ public class MediasoupTransport : IDisposable
 
         try
         {
-            // 收集所有 Consumer
-            var consumers = _consumers.Values.ToList();
+            // 收集所有 Consumer 并按 CreatedAt 排序
+            // 关键修复：ConcurrentDictionary 遍历顺序不确定，必须按创建时间排序以保证 SDP m-line 顺序与 track 添加顺序一致
+            var consumers = _consumers.Values
+                .OrderBy(c => GetConsumerCreatedAt(c.ConsumerId))
+                .ToList();
+                
             if (!consumers.Any())
             {
                 _logger.LogDebug("No consumers to negotiate");
                 return;
             }
+            
+            _logger.LogInformation("SDP negotiation starting for {Count} consumers (sorted by CreatedAt): {Consumers}",
+                consumers.Count,
+                string.Join(", ", consumers.Select(c => $"{c.Kind}:{c.ConsumerId.Substring(0, 8)}")));
 
             // 关键：在设置 remote SDP 前，为每个媒体类型添加接收 track
             // 这样 SIP Sorcery 生成的 Answer 才会是 recvonly 而不是 inactive
+            // 注意：传入已排序的 consumers 列表
             AddReceiveTracks(consumers);
 
             // 生成远端 SDP Answer (从 mediasoup 服务器角度)
+            // 注意：使用同一个已排序的 consumers 列表，确保 SDP m-line 顺序与 track 添加顺序一致
             var remoteSdp = MediasoupSdpBuilder.BuildRemoteAnswer(
                 IceParameters,
                 IceCandidates,
@@ -935,6 +1041,19 @@ public class MediasoupTransport : IDisposable
             {
                 _logger.LogWarning("Failed to create SDP answer");
                 return;
+            }
+
+            // 修复 SIPSorcery 在多个同类型 m-line 时将后续 m-line 标记为 inactive 的问题
+            // 将所有 a=inactive 替换为 a=recvonly（针对接收方向的 Transport）
+            var fixedSdp = FixSdpInactiveMediaLines(answer.sdp);
+            if (fixedSdp != answer.sdp)
+            {
+                _logger.LogWarning("Fixed SDP answer: replaced 'a=inactive' with 'a=recvonly' for multi-consumer support");
+                answer = new RTCSessionDescriptionInit
+                {
+                    type = RTCSdpType.answer,
+                    sdp = fixedSdp
+                };
             }
 
             _logger.LogDebug("Created local answer:\n{Sdp}", answer.sdp);
@@ -991,20 +1110,40 @@ public class MediasoupTransport : IDisposable
     }
 
     /// <summary>
-    /// 为接收远端媒体添加本地 track - 这是让 Answer 方向变成 recvonly 的关键
+    /// 为接收远端媒体添加本地 track - 关键修复：为每个 consumer 添加独立的 track
+    /// 这是让 SIPSorcery 为每个 m-line 创建 RTP Session 的关键
+    /// 如果只添加一个 track，后续同类型的 m-line 会被标记为 inactive 且不会创建 RTP Session
+    /// 
+    /// 关键修复2：按 consumers 列表顺序添加 track，确保与 SDP m-line 顺序一致
+    /// 调用者必须保证 consumers 列表已按 CreatedAt 排序
     /// </summary>
     private void AddReceiveTracks(List<ConsumerInfo> consumers)
     {
         if (_peerConnection == null) return;
 
-        bool hasVideo = consumers.Any(c => c.Kind == "video");
-        bool hasAudio = consumers.Any(c => c.Kind == "audio");
+        // 统计需要的 track 数量
+        int neededVideoTracks = consumers.Count(c => c.Kind == "video");
+        int neededAudioTracks = consumers.Count(c => c.Kind == "audio");
+        int totalTracksToAdd = consumers.Count - _addedVideoTrackCount - _addedAudioTrackCount;
+        
+        _logger.LogInformation("AddReceiveTracks: need {VideoCount} video tracks, {AudioCount} audio tracks, current: {CurrentVideo} video, {CurrentAudio} audio, to add: {ToAdd}",
+            neededVideoTracks, neededAudioTracks, _addedVideoTrackCount, _addedAudioTrackCount, totalTracksToAdd);
+
+        if (totalTracksToAdd <= 0)
+        {
+            _logger.LogDebug("No new tracks to add");
+            return;
+        }
 
         try
         {
-            // 为视频添加接收能力
-            if (hasVideo && !_hasAddedVideoTrack)
+            // 关键修复：按 consumers 列表顺序添加 track，确保与 SDP m-line 顺序一致
+            // 不再分开处理 video 和 audio，而是按传入列表的正确顺序处理
+            int currentIndex = _addedVideoTrackCount + _addedAudioTrackCount;
+            
+            for (int i = currentIndex; i < consumers.Count; i++)
             {
+<<<<<<< HEAD
                 // 获取视频 consumer 的实际 codec 信息
                 var videoConsumer = consumers.First(c => c.Kind == "video");
                 var videoCodec = videoConsumer.RtpParameters?.Codecs?.FirstOrDefault();
@@ -1017,50 +1156,92 @@ public class MediasoupTransport : IDisposable
                     payloadType,
                     "VP8",
                     clockRate);
+=======
+                var consumer = consumers[i];
+                
+                // 关键修复：建立 streamIndex (m-line 索引) 到 consumerId 的映射
+                // 这样在 OnRtpPacketReceivedByIndex 中可以直接通过 streamIndex 找到对应的 consumer
+                _streamIndexToConsumerMap[i] = consumer.ConsumerId;
+                _logger.LogInformation("StreamIndex mapping: index {Index} -> ConsumerId {ConsumerId} (Kind={Kind})",
+                    i, consumer.ConsumerId, consumer.Kind);
+                
+                if (consumer.Kind == "video")
+                {
+                    var videoCodec = consumer.RtpParameters?.Codecs?.FirstOrDefault();
+                    int payloadType = videoCodec?.PayloadType ?? 101;
+                    int clockRate = videoCodec?.ClockRate ?? 90000;
+                    var codecName = GetCodecNameFromMimeType(videoCodec?.MimeType ?? "video/VP8");
+                    
+                    _logger.LogDebug("Creating video track #{Index}: PT={PT}, Codec={Codec}, ConsumerId={ConsumerId}, CreatedAt={CreatedAt}", 
+                        i + 1, payloadType, codecName, consumer.ConsumerId, GetConsumerCreatedAt(consumer.ConsumerId));
 
-                var videoTrack = new MediaStreamTrack(
-                    SDPMediaTypesEnum.video,
-                    false,
-                    new List<SDPAudioVideoMediaFormat> { videoFormat },
-                    MediaStreamStatusEnum.RecvOnly);
+                    var videoFormat = new SDPAudioVideoMediaFormat(
+                        SDPMediaTypesEnum.video,
+                        payloadType,
+                        codecName,
+                        clockRate);
+>>>>>>> pro
 
-                _peerConnection.addTrack(videoTrack);
-                _hasAddedVideoTrack = true;
-                _logger.LogInformation("Added video track for receiving (RecvOnly), PT={PayloadType}", payloadType);
+                    var videoTrack = new MediaStreamTrack(
+                        SDPMediaTypesEnum.video,
+                        false,
+                        new List<SDPAudioVideoMediaFormat> { videoFormat },
+                        MediaStreamStatusEnum.RecvOnly);
+
+                    _peerConnection.addTrack(videoTrack);
+                    _addedVideoTrackCount++;
+                    _logger.LogInformation("Added video track #{TotalIndex} (video #{VideoIndex}) for Consumer {ConsumerId} (RecvOnly), PT={PayloadType}", 
+                        i + 1, _addedVideoTrackCount, consumer.ConsumerId, payloadType);
+                }
+                else if (consumer.Kind == "audio")
+                {
+                    var audioCodec = consumer.RtpParameters?.Codecs?.FirstOrDefault();
+                    int payloadType = audioCodec?.PayloadType ?? 100;
+                    int clockRate = audioCodec?.ClockRate ?? 48000;
+
+                    _logger.LogDebug("Creating audio track #{Index}: PT={PT}, ConsumerId={ConsumerId}, CreatedAt={CreatedAt}", 
+                        i + 1, payloadType, consumer.ConsumerId, GetConsumerCreatedAt(consumer.ConsumerId));
+
+                    var audioFormat = new SDPAudioVideoMediaFormat(
+                        SDPMediaTypesEnum.audio,
+                        payloadType,
+                        "opus",
+                        clockRate,
+                        2);
+
+                    var audioTrack = new MediaStreamTrack(
+                        SDPMediaTypesEnum.audio,
+                        false,
+                        new List<SDPAudioVideoMediaFormat> { audioFormat },
+                        MediaStreamStatusEnum.RecvOnly);
+
+                    _peerConnection.addTrack(audioTrack);
+                    _addedAudioTrackCount++;
+                    _logger.LogInformation("Added audio track #{TotalIndex} (audio #{AudioIndex}) for Consumer {ConsumerId} (RecvOnly), PT={PayloadType}", 
+                        i + 1, _addedAudioTrackCount, consumer.ConsumerId, payloadType);
+                }
             }
-
-            // 为音频添加接收能力
-            if (hasAudio && !_hasAddedAudioTrack)
-            {
-                // 获取音频 consumer 的实际 codec 信息
-                var audioConsumer = consumers.First(c => c.Kind == "audio");
-                var audioCodec = audioConsumer.RtpParameters?.Codecs?.FirstOrDefault();
-                int payloadType = audioCodec?.PayloadType ?? 100;
-                int clockRate = audioCodec?.ClockRate ?? 48000;
-
-                // 创建 SDP 格式的音频 track
-                var audioFormat = new SDPAudioVideoMediaFormat(
-                    SDPMediaTypesEnum.audio,
-                    payloadType,
-                    "opus",
-                    clockRate,
-                    2); // channels
-
-                var audioTrack = new MediaStreamTrack(
-                    SDPMediaTypesEnum.audio,
-                    false,
-                    new List<SDPAudioVideoMediaFormat> { audioFormat },
-                    MediaStreamStatusEnum.RecvOnly);
-
-                _peerConnection.addTrack(audioTrack);
-                _hasAddedAudioTrack = true;
-                _logger.LogInformation("Added audio track for receiving (RecvOnly), PT={PayloadType}", payloadType);
-            }
+            
+            _logger.LogInformation("AddReceiveTracks completed: {VideoCount} video tracks, {AudioCount} audio tracks total",
+                _addedVideoTrackCount, _addedAudioTrackCount);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to add receive tracks");
         }
+    }
+    
+    /// <summary>
+    /// 获取 Consumer 的创建时间（用于排序）
+    /// </summary>
+    private DateTime GetConsumerCreatedAt(string consumerId)
+    {
+        if (_remoteConsumers.TryGetValue(consumerId, out var remoteConsumer))
+        {
+            return remoteConsumer.CreatedAt;
+        }
+        // 如果找不到，返回最小值（排在最前面）
+        return DateTime.MinValue;
     }
 
     /// <summary>
@@ -1132,6 +1313,17 @@ public class MediasoupTransport : IDisposable
                     // 从已收到 RTP 的 Consumer 集合中移除
                     _consumersWithRtp.Remove(consumerId);
                 }
+                
+                // 清理 streamIndex 映射
+                var streamIndexToRemove = _streamIndexToConsumerMap
+                    .Where(kv => kv.Value == consumerId)
+                    .Select(kv => kv.Key)
+                    .ToList();
+                foreach (var index in streamIndexToRemove)
+                {
+                    _streamIndexToConsumerMap.TryRemove(index, out _);
+                    _logger.LogDebug("已移除 streamIndex 映射: index={Index} -> {ConsumerId}", index, consumerId);
+                }
             }
         }
         
@@ -1140,7 +1332,38 @@ public class MediasoupTransport : IDisposable
 >>>>>>> pro
 
     /// <summary>
+<<<<<<< HEAD
     /// 为轨道创建 RTP 参数
+=======
+    /// 修复 SIPSorcery 生成的 SDP answer 中的 inactive 问题
+    /// 当远端 SDP offer 包含多个同类型 m-line 时，SIPSorcery 会将后续的 m-line 标记为 a=inactive
+    /// 这导致多用户场景下部分用户的视频/音频无法接收
+    /// 此方法将所有 a=inactive 替换为 a=recvonly
+    /// </summary>
+    /// <param name="sdp">原始 SDP 字符串</param>
+    /// <returns>修复后的 SDP 字符串</returns>
+    private string FixSdpInactiveMediaLines(string sdp)
+    {
+        if (string.IsNullOrEmpty(sdp)) return sdp;
+        
+        // 将所有 a=inactive 替换为 a=recvonly
+        // 这对于接收方向的 Transport 是安全的，因为我们的 recv transport 只接收不发送
+        var fixedSdp = sdp.Replace("a=inactive", "a=recvonly");
+        
+        if (fixedSdp != sdp)
+        {
+            // 计算替换了多少个
+            int originalCount = sdp.Split(new[] { "a=inactive" }, StringSplitOptions.None).Length - 1;
+            _logger.LogWarning("SDP 修复: 将 {Count} 个 'a=inactive' 替换为 'a=recvonly'", originalCount);
+        }
+        
+        return fixedSdp;
+    }
+
+    /// <summary>
+    /// 从 MimeType 提取编解码器名称（用于 SDP 协商）
+    /// SIPSorcery 对 VP9/H264 的 SDP 支持有限，统一使用 VP8 名称以确保兼容性
+>>>>>>> pro
     /// </summary>
     private static object CreateRtpParametersForTrack(MediaStreamTrack track, string kind)
     {
@@ -1424,8 +1647,7 @@ public class MediasoupTransport : IDisposable
             // 详细日志（用于调试）
             if (_videoFrameCount <= 5 || marker == 1)
             {
-                _logger.LogDebug("RTP sent via SendRtpRaw: type={Type}, pt={PT}, ts={TS}, size={Size}, marker={Marker}",
-                    mediaType, payloadType, timestamp, payload.Length, marker);
+                //_logger.LogDebug("RTP sent via SendRtpRaw: type={Type}, pt={PT}, ts={TS}, size={Size}, marker={Marker}", mediaType, payloadType, timestamp, payload.Length, marker);
             }
         }
         catch (Exception ex)
@@ -1749,10 +1971,14 @@ public class RemoteConsumerInfo
 {
     public string ConsumerId { get; set; } = string.Empty;
     public string Kind { get; set; } = string.Empty;
+    public string PeerId { get; set; } = string.Empty;  // 远端用户 ID
     public uint Ssrc { get; set; }
+    public uint RtxSsrc { get; set; }  // RTX 重传 SSRC
     public int PayloadType { get; set; }
     public int ClockRate { get; set; }
     public string MimeType { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;  // 创建时间戳
+    public bool HasReceivedRtp { get; set; }  // 是否已收到 RTP 包
 }
 
 #endregion

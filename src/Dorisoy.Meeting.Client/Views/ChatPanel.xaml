@@ -7,20 +7,21 @@
 
     <UserControl.Resources>
         <!-- 消息气泡模板 -->
-        <DataTemplate x:Key="ChatMessageTemplate" DataType="{x:Type models:ChatMessage}">
+        <DataTemplate x:Key="ChatMessageTemplate"
+                      DataType="{x:Type models:ChatMessage}">
             <Grid Margin="8,4">
                 <!-- 自己发送的消息 -->
-                <Border HorizontalAlignment="Right"
-                        MaxWidth="280"
-                        Visibility="{Binding IsFromSelf, Converter={StaticResource BoolToVisConverter}}">
-                    <StackPanel>
+                <StackPanel HorizontalAlignment="Right"
+                            Orientation="Horizontal"
+                            Visibility="{Binding IsFromSelf, Converter={StaticResource BoolToVisConverter}}">
+                    <StackPanel MaxWidth="280">
                         <TextBlock Text="{Binding FormattedTime}"
                                    HorizontalAlignment="Right"
                                    FontSize="10"
                                    Opacity="0.5"
-                                   Margin="0,0,0,2"/>
+                                   Margin="0,0,0,2" />
                         <Border Background="#0078D4"
-                                CornerRadius="12,12,4,12"
+                                CornerRadius="12,0,12,12"
                                 Padding="12,8">
                             <Grid>
                                 <!-- 文本消息 -->
@@ -28,8 +29,8 @@
                                            Foreground="White"
                                            TextWrapping="Wrap"
                                            FontSize="13"
-                                           Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}"/>
-                                
+                                           Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}" />
+
                                 <!-- 图片消息 -->
                                 <StackPanel Visibility="{Binding MessageType, Converter={StaticResource ImageMessageVisibilityConverter}}">
                                     <Image Source="{Binding ImageSource}"
@@ -38,115 +39,157 @@
                                            Stretch="Uniform"
                                            Margin="0,0,0,4"
                                            Cursor="Hand"
-                                           MouseLeftButtonDown="ImageMessage_DoubleClick"/>
+                                           MouseLeftButtonDown="ImageMessage_DoubleClick" />
                                     <TextBlock Text="{Binding FileName}"
                                                Foreground="White"
                                                FontSize="11"
-                                               Opacity="0.8"/>
+                                               Opacity="0.8" />
                                 </StackPanel>
-                                
+
                                 <!-- 文件消息 -->
-                                <StackPanel Orientation="Horizontal" 
+                                <StackPanel Orientation="Horizontal"
                                             Visibility="{Binding MessageType, Converter={StaticResource FileMessageVisibilityConverter}}">
-                                    <ui:SymbolIcon Symbol="Document24" FontSize="24" Foreground="White" Margin="0,0,8,0"/>
+                                    <ui:SymbolIcon Symbol="Document24"
+                                                   FontSize="24"
+                                                   Foreground="White"
+                                                   Margin="0,0,8,0" />
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="{Binding FileName}"
                                                    Foreground="White"
                                                    FontSize="13"
                                                    TextTrimming="CharacterEllipsis"
-                                                   MaxWidth="150"/>
+                                                   MaxWidth="150" />
                                         <TextBlock Text="{Binding FormattedFileSize}"
                                                    Foreground="White"
                                                    FontSize="11"
-                                                   Opacity="0.7"/>
+                                                   Opacity="0.7" />
                                     </StackPanel>
                                 </StackPanel>
                             </Grid>
                         </Border>
                     </StackPanel>
-                </Border>
-                
+
+                    <!-- 自己的头像 - 显示用户名第一个字 -->
+                    <Border Width="32"
+                            Height="32"
+                            CornerRadius="16"
+                            Background="#0078D4"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Top">
+                        <TextBlock Text="{Binding SenderName, Converter={StaticResource FirstCharacterConverter}}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontSize="14"
+                                   FontWeight="SemiBold"
+                                   Foreground="White" />
+                    </Border>
+                </StackPanel>
+
                 <!-- 他人发送的消息 -->
                 <StackPanel HorizontalAlignment="Left"
+                            Orientation="Horizontal"
                             Visibility="{Binding IsFromSelf, Converter={StaticResource InverseBoolToVisConverter}}">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
-                        <TextBlock Text="{Binding SenderName}"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   Opacity="0.7"
-                                   Margin="0,0,8,0"/>
-                        <TextBlock Text="{Binding FormattedTime}"
-                                   FontSize="10"
-                                   Opacity="0.5"/>
-                    </StackPanel>
-                    <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
-                            CornerRadius="12,12,12,4"
-                            Padding="12,8"
-                            MaxWidth="280">
-                        <Grid>
-                            <!-- 文本消息 -->
-                            <TextBlock Text="{Binding Content}"
-                                       TextWrapping="Wrap"
-                                       FontSize="13"
-                                       Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}"/>
-                            
-                            <!-- 图片消息 -->
-                            <StackPanel Visibility="{Binding MessageType, Converter={StaticResource ImageMessageVisibilityConverter}}">
-                                <Image Source="{Binding ImageSource}"
-                                       MaxWidth="200"
-                                       MaxHeight="200"
-                                       Stretch="Uniform"
-                                       Margin="0,0,0,4"
-                                       Cursor="Hand"
-                                       MouseLeftButtonDown="ImageMessage_DoubleClick"/>
-                                <TextBlock Text="{Binding FileName}"
-                                           FontSize="11"
-                                           Opacity="0.6"/>
-                            </StackPanel>
-                            
-                            <!-- 文件消息 -->
-                            <Border Background="{DynamicResource ControlFillColorTertiaryBrush}"
-                                    CornerRadius="8"
-                                    Padding="8"
-                                    Cursor="Hand"
-                                    Visibility="{Binding MessageType, Converter={StaticResource FileMessageVisibilityConverter}}"
-                                    MouseLeftButtonDown="FileMessage_Click">
-                                <StackPanel Orientation="Horizontal">
-                                    <ui:SymbolIcon Symbol="Document24" FontSize="24" Margin="0,0,8,0"/>
-                                    <StackPanel VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding FileName}"
-                                                   FontSize="13"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   MaxWidth="150"/>
-                                        <TextBlock Text="{Binding FormattedFileSize}"
-                                                   FontSize="11"
-                                                   Opacity="0.6"/>
-                                    </StackPanel>
-                                    <ui:SymbolIcon Symbol="ArrowDownload24" FontSize="18" Margin="8,0,0,0" Opacity="0.6"/>
-                                </StackPanel>
-                            </Border>
-                        </Grid>
+                    <!-- 头像 - 显示用户名第一个字 -->
+                    <Border Width="32"
+                            Height="32"
+                            CornerRadius="16"
+                            Background="{DynamicResource ControlFillColorTertiaryBrush}"
+                            Margin="0,0,8,0"
+                            VerticalAlignment="Top">
+                        <TextBlock Text="{Binding SenderName, Converter={StaticResource FirstCharacterConverter}}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   FontSize="14"
+                                   FontWeight="SemiBold" />
                     </Border>
+
+                    <StackPanel MaxWidth="280">
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,2">
+                            <TextBlock Text="{Binding SenderName}"
+                                       FontSize="11"
+                                       FontWeight="SemiBold"
+                                       Opacity="0.7"
+                                       Margin="0,0,8,0" />
+                            <TextBlock Text="{Binding FormattedTime}"
+                                       FontSize="10"
+                                       Opacity="0.5" />
+                        </StackPanel>
+                        <Border Background="{DynamicResource ControlFillColorSecondaryBrush}"
+                                CornerRadius="0,12,12,12"
+                                Padding="12,8">
+                            <Grid>
+                                <!-- 文本消息 -->
+                                <TextBlock Text="{Binding Content}"
+                                           TextWrapping="Wrap"
+                                           FontSize="13"
+                                           Visibility="{Binding MessageType, Converter={StaticResource TextMessageVisibilityConverter}}" />
+
+                                <!-- 图片消息 -->
+                                <StackPanel Visibility="{Binding MessageType, Converter={StaticResource ImageMessageVisibilityConverter}}">
+                                    <Image Source="{Binding ImageSource}"
+                                           MaxWidth="200"
+                                           MaxHeight="200"
+                                           Stretch="Uniform"
+                                           Margin="0,0,0,4"
+                                           Cursor="Hand"
+                                           MouseLeftButtonDown="ImageMessage_DoubleClick" />
+                                    <TextBlock Text="{Binding FileName}"
+                                               FontSize="11"
+                                               Opacity="0.6" />
+                                </StackPanel>
+
+                                <!-- 文件消息 -->
+                                <Border Background="{DynamicResource ControlFillColorTertiaryBrush}"
+                                        CornerRadius="8"
+                                        Padding="8"
+                                        Cursor="Hand"
+                                        Visibility="{Binding MessageType, Converter={StaticResource FileMessageVisibilityConverter}}"
+                                        MouseLeftButtonDown="FileMessage_Click">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ui:SymbolIcon Symbol="Document24"
+                                                       FontSize="24"
+                                                       Margin="0,0,8,0" />
+                                        <StackPanel VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding FileName}"
+                                                       FontSize="13"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       MaxWidth="150" />
+                                            <TextBlock Text="{Binding FormattedFileSize}"
+                                                       FontSize="11"
+                                                       Opacity="0.6" />
+                                        </StackPanel>
+                                        <ui:SymbolIcon Symbol="ArrowDownload24"
+                                                       FontSize="18"
+                                                       Margin="8,0,0,0"
+                                                       Opacity="0.6" />
+                                    </StackPanel>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </StackPanel>
                 </StackPanel>
             </Grid>
         </DataTemplate>
 
         <!-- 用户列表模板 -->
-        <DataTemplate x:Key="ChatUserTemplate" DataType="{x:Type models:ChatUser}">
+        <DataTemplate x:Key="ChatUserTemplate"
+                      DataType="{x:Type models:ChatUser}">
             <Border Padding="8,6"
                     Cursor="Hand"
                     Background="Transparent">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    
+
                     <!-- 头像 -->
                     <Border Grid.Column="0"
-                            Width="36" Height="36"
+                            Width="36"
+                            Height="36"
                             CornerRadius="18"
                             Background="{DynamicResource ControlFillColorTertiaryBrush}"
                             Margin="0,0,10,0">
@@ -155,34 +198,38 @@
                                        HorizontalAlignment="Center"
                                        VerticalAlignment="Center"
                                        FontSize="14"
-                                       FontWeight="SemiBold"/>
+                                       FontWeight="SemiBold" />
                             <!-- 被主持人静音标识 -->
                             <Border HorizontalAlignment="Right"
                                     VerticalAlignment="Bottom"
                                     Margin="0,0,-2,-2"
                                     Background="#E81123"
                                     CornerRadius="7"
-                                    Width="14" Height="14"
+                                    Width="14"
+                                    Height="14"
                                     Visibility="{Binding IsMutedByHost, Converter={StaticResource BoolToVisConverter}}">
-                                <ui:SymbolIcon Symbol="MicOff16" FontSize="8" Foreground="White"/>
+                                <ui:SymbolIcon Symbol="MicOff16"
+                                               FontSize="8"
+                                               Foreground="White" />
                             </Border>
                         </Grid>
                     </Border>
-                    
+
                     <!-- 名称 -->
-                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="1"
+                                VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="{Binding DisplayName}"
                                        FontSize="13"
-                                       FontWeight="Medium"/>
+                                       FontWeight="Medium" />
                             <!-- 主持人标识图标 -->
                             <Border Margin="4,0,0,0"
                                     VerticalAlignment="Center"
                                     Visibility="{Binding IsHost, Converter={StaticResource BoolToVisConverter}}">
-                                <ui:SymbolIcon Symbol="Star12" 
-                                               FontSize="12" 
+                                <ui:SymbolIcon Symbol="Star12"
+                                               FontSize="12"
                                                Foreground="#FFD700"
-                                               ToolTip="主持人"/>
+                                               ToolTip="主持人" />
                             </Border>
                             <!-- 静音状态文字 -->
                             <TextBlock Text="(已静音)"
@@ -190,16 +237,16 @@
                                        Foreground="#E81123"
                                        Margin="4,0,0,0"
                                        VerticalAlignment="Center"
-                                       Visibility="{Binding IsMutedByHost, Converter={StaticResource BoolToVisConverter}}"/>
+                                       Visibility="{Binding IsMutedByHost, Converter={StaticResource BoolToVisConverter}}" />
                         </StackPanel>
                         <TextBlock Text="{Binding LastMessagePreview}"
                                    HorizontalAlignment="Left"
                                    FontSize="11"
                                    Opacity="0.6"
                                    TextTrimming="CharacterEllipsis"
-                                   MaxWidth="100"/>
+                                   MaxWidth="100" />
                     </StackPanel>
-                    
+
                     <!-- 主持人控制按钮（仅主持人可见） -->
                     <StackPanel Grid.Column="2"
                                 Orientation="Horizontal"
@@ -215,16 +262,18 @@
                                    CommandParameter="{Binding}">
                             <Grid>
                                 <!-- 静音图标（当前未静音） -->
-                                <ui:SymbolIcon Symbol="MicOff16" FontSize="14"
+                                <ui:SymbolIcon Symbol="MicOff16"
+                                               FontSize="14"
                                                Foreground="#FFA500"
-                                               Visibility="{Binding IsMutedByHost, Converter={StaticResource InverseBoolToVisConverter}}"/>
+                                               Visibility="{Binding IsMutedByHost, Converter={StaticResource InverseBoolToVisConverter}}" />
                                 <!-- 取消静音图标（当前已静音） -->
-                                <ui:SymbolIcon Symbol="Mic16" FontSize="14"
+                                <ui:SymbolIcon Symbol="Mic16"
+                                               FontSize="14"
                                                Foreground="#FFA500"
-                                               Visibility="{Binding IsMutedByHost, Converter={StaticResource BoolToVisConverter}}"/>
+                                               Visibility="{Binding IsMutedByHost, Converter={StaticResource BoolToVisConverter}}" />
                             </Grid>
                         </ui:Button>
-                        
+
                         <!-- 踢出按钮 -->
                         <ui:Button Appearance="Transparent"
                                    Padding="4"
@@ -233,10 +282,10 @@
                                    CommandParameter="{Binding}">
                             <ui:SymbolIcon Symbol="PersonDelete16"
                                            FontSize="14"
-                                           Foreground="#FFA500"/>
+                                           Foreground="#FFA500" />
                         </ui:Button>
                     </StackPanel>
-                    
+
                     <!-- 未读数 -->
                     <Border Grid.Column="3"
                             VerticalAlignment="Center"
@@ -251,7 +300,7 @@
                                        FontSize="11"
                                        FontWeight="Bold"
                                        HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center" />
                         </Border>
                     </Border>
                 </Grid>
@@ -262,9 +311,9 @@
     <Grid>
         <Grid.ColumnDefinitions>
             <!-- 用户列表 -->
-            <ColumnDefinition Width="250"/>
+            <ColumnDefinition Width="250" />
             <!-- 聊天区域 -->
-            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
         <!-- 左侧：用户列表 -->
@@ -273,30 +322,36 @@
                 BorderThickness="0,0,1,0">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
 
                 <!-- 标题 -->
-                <Border Grid.Row="0" Padding="12,10">
+                <Border Grid.Row="0"
+                        Padding="12,10">
                     <StackPanel Orientation="Horizontal">
-                        <ui:SymbolIcon Symbol="People24" FontSize="18" Margin="0,0,8,0"/>
-                        <TextBlock Text="联系人" FontWeight="SemiBold" FontSize="14"/>
+                        <ui:SymbolIcon Symbol="People24"
+                                       FontSize="18"
+                                       Margin="0,0,8,0" />
+                        <TextBlock Text="联系人"
+                                   FontWeight="SemiBold"
+                                   FontSize="14" />
                     </StackPanel>
                 </Border>
 
                 <!-- 搜索框 -->
-                <Border Grid.Row="1" Padding="8,0,8,8">
+                <Border Grid.Row="1"
+                        Padding="8,0,8,8">
                     <ui:TextBox x:Name="SearchTextBox"
                                 PlaceholderText="搜索联系人..."
                                 Icon="{ui:SymbolIcon Search24}"
-                                TextChanged="SearchTextBox_TextChanged"/>
+                                TextChanged="SearchTextBox_TextChanged" />
                 </Border>
 
                 <!-- 群聊选项 -->
-                <Border Grid.Row="2" 
+                <Border Grid.Row="2"
                         Padding="8,4"
                         Background="{DynamicResource ControlFillColorSecondaryBrush}"
                         Cursor="Hand"
@@ -304,27 +359,30 @@
                         MouseLeftButtonDown="GroupChatItem_Click">
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        
+
                         <!-- 群聊图标 -->
                         <Border Grid.Column="0"
-                                Width="36" Height="36"
+                                Width="36"
+                                Height="36"
                                 CornerRadius="18"
                                 Background="#4CAF50"
                                 Margin="0,0,10,0">
-                            <ui:SymbolIcon Symbol="PeopleTeam24" FontSize="16" Foreground="White"/>
+                            <ui:SymbolIcon Symbol="PeopleTeam24"
+                                           FontSize="16"
+                                           Foreground="White" />
                         </Border>
-                        
+
                         <!-- 群聊标签 -->
                         <TextBlock Grid.Column="1"
                                    Text="群聊"
                                    FontSize="13"
                                    FontWeight="Medium"
-                                   VerticalAlignment="Center"/>
-                        
+                                   VerticalAlignment="Center" />
+
                         <!-- 未读消息计数 -->
                         <Border Grid.Column="2"
                                 Visibility="{Binding HasGroupUnread, Converter={StaticResource BoolToVisConverter}}"
@@ -339,7 +397,7 @@
                                            FontSize="11"
                                            FontWeight="Bold"
                                            HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center" />
                             </Border>
                         </Border>
                     </Grid>
@@ -356,12 +414,34 @@
                          SelectionChanged="UserListBox_SelectionChanged">
                     <ListBox.ItemContainerStyle>
                         <Style TargetType="ListBoxItem">
-                            <Setter Property="Padding" Value="0"/>
-                            <Setter Property="Margin" Value="0"/>
-                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Padding"
+                                    Value="0" />
+                            <Setter Property="Margin"
+                                    Value="0" />
+                            <Setter Property="HorizontalContentAlignment"
+                                    Value="Stretch" />
+                            <Setter Property="BorderThickness"
+                                    Value="0" />
+                            <Setter Property="BorderBrush"
+                                    Value="Transparent" />
+                            <Setter Property="FocusVisualStyle"
+                                    Value="{x:Null}" />
                             <Style.Triggers>
-                                <Trigger Property="IsSelected" Value="True">
-                                    <Setter Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+                                <Trigger Property="IsSelected"
+                                         Value="True">
+                                    <Setter Property="Background"
+                                            Value="{DynamicResource ControlFillColorSecondaryBrush}" />
+                                    <Setter Property="BorderThickness"
+                                            Value="0" />
+                                    <Setter Property="BorderBrush"
+                                            Value="Transparent" />
+                                </Trigger>
+                                <Trigger Property="IsMouseOver"
+                                         Value="True">
+                                    <Setter Property="BorderThickness"
+                                            Value="0" />
+                                    <Setter Property="BorderBrush"
+                                            Value="Transparent" />
                                 </Trigger>
                             </Style.Triggers>
                         </Style>
@@ -374,11 +454,11 @@
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
                 <!-- 聊天对象信息 -->
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto" />
                 <!-- 消息列表 -->
-                <RowDefinition Height="*"/>
+                <RowDefinition Height="*" />
                 <!-- 输入区域 -->
-                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
             <!-- 聊天对象信息 -->
@@ -388,26 +468,28 @@
                     BorderThickness="0,0,0,1">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    
+
                     <!-- 左侧：聊天对象名称和状态 -->
-                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
                         <TextBlock x:Name="ChatTargetName"
                                    Text="群聊"
                                    FontWeight="SemiBold"
-                                   FontSize="14"/>
+                                   FontSize="14" />
                         <TextBlock x:Name="ChatTargetStatus"
                                    Text=""
                                    FontSize="12"
                                    Opacity="0.6"
                                    Margin="8,0,0,0"
-                                   VerticalAlignment="Center"/>
+                                   VerticalAlignment="Center" />
                     </StackPanel>
-                    
+
                     <!-- 右侧按钮组 -->
                     <!-- 删除按钮（清空聊天记录） -->
                     <ui:Button Grid.Column="1"
@@ -417,9 +499,10 @@
                                Margin="0,0,4,0"
                                VerticalAlignment="Center"
                                Command="{Binding ClearChatHistoryCommand}">
-                        <ui:SymbolIcon Symbol="Delete24" FontSize="16"/>
+                        <ui:SymbolIcon Symbol="Delete24"
+                                       FontSize="16" />
                     </ui:Button>
-                    
+
                     <!-- 保存按钮（导出聊天记录） -->
                     <ui:Button Grid.Column="2"
                                Appearance="Transparent"
@@ -428,9 +511,10 @@
                                Margin="0,0,4,0"
                                VerticalAlignment="Center"
                                Command="{Binding ExportChatHistoryCommand}">
-                        <ui:SymbolIcon Symbol="Save24" FontSize="16"/>
+                        <ui:SymbolIcon Symbol="Save24"
+                                       FontSize="16" />
                     </ui:Button>
-                    
+
                     <!-- 图钉按钮（折叠聊天面板） -->
                     <ui:Button Grid.Column="3"
                                Appearance="Transparent"
@@ -438,7 +522,8 @@
                                Padding="6"
                                VerticalAlignment="Center"
                                Command="{Binding ChatCommand}">
-                        <ui:SymbolIcon Symbol="Pin24" FontSize="16"/>
+                        <ui:SymbolIcon Symbol="Pin24"
+                                       FontSize="16" />
                     </ui:Button>
                 </Grid>
             </Border>
@@ -450,7 +535,7 @@
                           Padding="4">
                 <ItemsControl x:Name="MessagesControl"
                               ItemsSource="{Binding CurrentMessages}"
-                              ItemTemplate="{StaticResource ChatMessageTemplate}"/>
+                              ItemTemplate="{StaticResource ChatMessageTemplate}" />
             </ScrollViewer>
 
             <!-- 输入区域 -->
@@ -460,13 +545,13 @@
                     BorderThickness="0,1,0,0">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <!-- 工具栏 -->
-                    <StackPanel Grid.Row="0" 
-                                Orientation="Horizontal" 
+                    <StackPanel Grid.Row="0"
+                                Orientation="Horizontal"
                                 Margin="0,0,0,8">
                         <!-- 表情 -->
                         <ui:Button Appearance="Transparent"
@@ -475,18 +560,20 @@
                                    CornerRadius="4,0,0,4"
                                    BorderThickness="1,1,0,1"
                                    Click="EmojiButton_Click">
-                            <ui:SymbolIcon Symbol="Emoji24" FontSize="18"/>
+                            <ui:SymbolIcon Symbol="Emoji24"
+                                           FontSize="18" />
                         </ui:Button>
-                        
+
                         <!-- 图片 -->
                         <ui:Button Appearance="Transparent"
                                    ToolTip="发送图片"
                                    Padding="8"
                                    CornerRadius="0,0,0,0"
                                    Click="ImageButton_Click">
-                            <ui:SymbolIcon Symbol="Image24" FontSize="18"/>
+                            <ui:SymbolIcon Symbol="Image24"
+                                           FontSize="18" />
                         </ui:Button>
-                        
+
                         <!-- 文件 -->
                         <ui:Button Appearance="Transparent"
                                    ToolTip="发送文件"
@@ -494,15 +581,16 @@
                                    CornerRadius="0,4,4,0"
                                    BorderThickness="0,1,1,1"
                                    Click="FileButton_Click">
-                            <ui:SymbolIcon Symbol="Attach24" FontSize="18"/>
+                            <ui:SymbolIcon Symbol="Attach24"
+                                           FontSize="18" />
                         </ui:Button>
                     </StackPanel>
 
                     <!-- 输入框和发送按钮 -->
                     <Grid Grid.Row="1">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
                         <ui:TextBox Grid.Column="0"
@@ -512,25 +600,33 @@
                                     KeyDown="MessageInput_KeyDown">
                             <ui:TextBox.ContextMenu>
                                 <ContextMenu>
-                                    <MenuItem Header="粘贴图片" Click="PasteImageMenuItem_Click">
+                                    <MenuItem Header="粘贴图片"
+                                              Click="PasteImageMenuItem_Click">
                                         <MenuItem.Icon>
-                                            <ui:SymbolIcon Symbol="Image24" FontSize="16"/>
+                                            <ui:SymbolIcon Symbol="Image24"
+                                                           FontSize="16" />
                                         </MenuItem.Icon>
                                     </MenuItem>
-                                    <Separator/>
-                                    <MenuItem Header="粘贴" Command="ApplicationCommands.Paste">
+                                    <Separator />
+                                    <MenuItem Header="粘贴"
+                                              Command="ApplicationCommands.Paste">
                                         <MenuItem.Icon>
-                                            <ui:SymbolIcon Symbol="ClipboardPaste24" FontSize="16"/>
+                                            <ui:SymbolIcon Symbol="ClipboardPaste24"
+                                                           FontSize="16" />
                                         </MenuItem.Icon>
                                     </MenuItem>
-                                    <MenuItem Header="复制" Command="ApplicationCommands.Copy">
+                                    <MenuItem Header="复制"
+                                              Command="ApplicationCommands.Copy">
                                         <MenuItem.Icon>
-                                            <ui:SymbolIcon Symbol="Copy24" FontSize="16"/>
+                                            <ui:SymbolIcon Symbol="Copy24"
+                                                           FontSize="16" />
                                         </MenuItem.Icon>
                                     </MenuItem>
-                                    <MenuItem Header="剩切" Command="ApplicationCommands.Cut">
+                                    <MenuItem Header="剩切"
+                                              Command="ApplicationCommands.Cut">
                                         <MenuItem.Icon>
-                                            <ui:SymbolIcon Symbol="Cut24" FontSize="16"/>
+                                            <ui:SymbolIcon Symbol="Cut24"
+                                                           FontSize="16" />
                                         </MenuItem.Icon>
                                     </MenuItem>
                                 </ContextMenu>
@@ -541,10 +637,13 @@
                                    Appearance="Primary"
                                    Margin="8,0,0,0"
                                    Padding="16,8"
+                                   Foreground="White"
                                    Click="SendButton_Click">
                             <StackPanel Orientation="Horizontal">
-                                <ui:SymbolIcon Symbol="Send24" FontSize="16" Margin="0,0,6,0"/>
-                                <TextBlock Text="发送"/>
+                                <ui:SymbolIcon Symbol="Send24"
+                                               FontSize="16"
+                                               Margin="0,0,6,0" />
+                                <TextBlock Text="发送" />
                             </StackPanel>
                         </ui:Button>
                     </Grid>

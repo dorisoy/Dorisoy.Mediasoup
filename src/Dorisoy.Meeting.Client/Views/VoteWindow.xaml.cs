@@ -26,6 +26,7 @@ public partial class VoteWindow : FluentWindow, INotifyPropertyChanged
     private bool _showResults;
     private bool _hasVoted;
     private int? _selectedOptionIndex;
+    private bool _isForceClosing; // 标记是否是强制关闭（主持人关闭通知）
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -48,6 +49,11 @@ public partial class VoteWindow : FluentWindow, INotifyPropertyChanged
     /// 投票更新事件
     /// </summary>
     public event Action<Vote>? VoteUpdated;
+
+    /// <summary>
+    /// 投票窗口关闭事件（主持人关闭时触发，通知其他用户关闭）
+    /// </summary>
+    public event Action<CloseVoteRequest>? VoteClosed;
 
     #region Properties
 
@@ -190,6 +196,9 @@ public partial class VoteWindow : FluentWindow, INotifyPropertyChanged
         {
             SetVote(existingVote);
         }
+
+        // 窗口关闭控制
+        Closing += VoteWindow_Closing;
     }
 
     /// <summary>
@@ -540,6 +549,77 @@ public partial class VoteWindow : FluentWindow, INotifyPropertyChanged
 
         // 触发提交事件
         VoteSubmitted?.Invoke(CurrentVote.Id, _selectedOptionIndex.Value);
+    }
+
+    #endregion
+
+    #region 窗口关闭控制
+
+    /// <summary>
+    /// 窗口关闭前事件 - 主持人关闭时发送通知给其他用户
+    /// </summary>
+    private void VoteWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        // 如果是强制关闭（收到主持人通知），直接允许
+        if (_isForceClosing)
+        {
+            return;
+        }
+
+        // 如果是主持人关闭窗口，发送关闭通知给其他用户
+        if (_isHost)
+        {
+            NotifyVoteClosed();
+        }
+    }
+
+    /// <summary>
+    /// 通知其他用户投票窗口关闭
+    /// </summary>
+    private void NotifyVoteClosed()
+    {
+        VoteClosed?.Invoke(new CloseVoteRequest
+        {
+            VoteId = CurrentVote?.Id ?? string.Empty,
+            CloserId = _peerId,
+            CloserName = _peerName
+        });
+    }
+
+    #endregion
+
+    #region 公共方法
+
+    /// <summary>
+    /// 强制关闭窗口（由主持人远程通知触发）
+    /// </summary>
+    public void ForceClose()
+    {
+        System.Diagnostics.Debug.WriteLine($"[VoteWindow] ForceClose 被调用, CurrentThread={System.Threading.Thread.CurrentThread.ManagedThreadId}");
+        
+        try
+        {
+            if (Dispatcher.CheckAccess())
+            {
+                System.Diagnostics.Debug.WriteLine($"[VoteWindow] 已在 UI 线程，直接关闭");
+                _isForceClosing = true;
+                Close();
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[VoteWindow] 不在 UI 线程，调用 Dispatcher.Invoke");
+                Dispatcher.Invoke(() =>
+                {
+                    _isForceClosing = true;
+                    Close();
+                });
+            }
+            System.Diagnostics.Debug.WriteLine($"[VoteWindow] ForceClose 完成");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[VoteWindow] ForceClose 异常: {ex.Message}");
+        }
     }
 
     #endregion

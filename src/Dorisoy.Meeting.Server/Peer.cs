@@ -88,7 +88,8 @@ namespace Dorisoy.Meeting.Server
         {
             await using (await _producersLock.ReadLockAsync())
             {
-                return _producers;
+                // 返回副本以避免并发修改问题
+                return new Dictionary<string, Producer>(_producers);
             }
         }
 
@@ -185,11 +186,16 @@ namespace Dorisoy.Meeting.Server
                     var transport = await _room!.Router.CreateWebRtcTransportAsync(webRtcTransportOptions);
                     await using (await _transportsLock.WriteLockAsync())
                     {
+<<<<<<< HEAD
                         if (!isSend && HasConsumingTransport())
                         {
                             throw new Exception("CreateWebRtcTransportAsync() | Consuming transport exists");
                         }
 
+=======
+                        // 幂等操作：只对 send transport 应用
+                        // 对于 recv transport，允许创建多个（解决 SIPSorcery SRTP 限制，每个远端用户需要独立的 transport）
+>>>>>>> pro
                         if (isSend && HasProducingTransport())
                         {
                             throw new Exception("CreateWebRtcTransportAsync() | Producing transport exists");
@@ -441,6 +447,11 @@ namespace Dorisoy.Meeting.Server
         /// </summary>
         public async Task<PeerProduceResult> ProduceAsync(ProduceRequest produceRequest)
         {
+            _logger.LogInformation(
+                "ProduceAsync() | Peer:{PeerId} attempting to produce Source:\"{Source}\", Kind:{Kind}",
+                PeerId, produceRequest.Source, produceRequest.Kind
+            );
+
             if (produceRequest.Source.IsNullOrWhiteSpace())
             {
                 throw new Exception($"ProduceAsync() | Peer:{PeerId} AppData[\"source\"] is null or white space.");
@@ -471,15 +482,45 @@ namespace Dorisoy.Meeting.Server
 
                         await using (await _producersLock.WriteLockAsync())
                         {
-                            var producer = _producers.Values.FirstOrDefault(m => m.Source == produceRequest.Source);
-                            if (producer != null)
+                            _logger.LogDebug(
+                                "ProduceAsync() | Peer:{PeerId} checking existing producers, count:{Count}, sources:[{Sources}]",
+                                PeerId, _producers.Count, string.Join(", ", _producers.Values.Select(p => $"{p.ProducerId}:{p.Source}"))
+                            );
+
+                            // 检查是否已存在相同 Source 的 Producer
+                            var existingProducer = _producers.Values.FirstOrDefault(m => m.Source == produceRequest.Source);
+                            if (existingProducer != null)
                             {
-                                //throw new Exception($"ProduceAsync() | Source:\"{ produceRequest.Source }\" is exists.");
-                                _logger.LogWarning("ProduceAsync() | Source:\"{Source}\" is exists.", produceRequest.Source);
-                                return new PeerProduceResult { Producer = producer, PullPaddings = [] };
+                                // 重要修复：切换摄像头场景下，先关闭旧的 Producer 再创建新的
+                                // 而不是直接返回现有的，因为现有的可能已经是无效状态
+                                _logger.LogWarning(
+                                    "ProduceAsync() | Peer:{PeerId} Source:\"{Source}\" already exists with ProducerId:{ProducerId}, closing old producer first",
+                                    PeerId, produceRequest.Source, existingProducer.ProducerId
+                                );
+                                
+                                try
+                                {
+                                    await existingProducer.CloseAsync();
+                                    _logger.LogInformation(
+                                        "ProduceAsync() | Peer:{PeerId} old Producer:{ProducerId} closed successfully for Source:\"{Source}\"",
+                                        PeerId, existingProducer.ProducerId, produceRequest.Source
+                                    );
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, 
+                                        "ProduceAsync() | Peer:{PeerId} failed to close old Producer:{ProducerId}, will continue creating new one",
+                                        PeerId, existingProducer.ProducerId
+                                    );
+                                }
                             }
 
-                            producer = await transport.ProduceAsync(
+                            _logger.LogInformation(
+                                "ProduceAsync() | Peer:{PeerId} creating new producer for Source:\"{Source}\"",
+                                PeerId, produceRequest.Source
+                            );
+
+                            var producer = await transport.ProduceAsync(
                                 new ProducerOptions
                                 {
                                     Kind = produceRequest.Kind,
@@ -530,6 +571,11 @@ namespace Dorisoy.Meeting.Server
                             // Store the Producer into the Peer data Object.
                             _producers[producer.ProducerId] = producer;
 
+                            _logger.LogInformation(
+                                "ProduceAsync() | Peer:{PeerId} producer created successfully: ProducerId:{ProducerId}, Source:\"{Source}\", producers now: [{Producers}]",
+                                PeerId, producer.ProducerId, producer.Source, string.Join(", ", _producers.Keys)
+                            );
+
                             // Add into the audioLevelObserver.
                             if (producer.Data.Kind == MediaKind.AUDIO)
                             {
@@ -572,6 +618,10 @@ namespace Dorisoy.Meeting.Server
                             // 已经在消费
                             if (_consumers.Any(m => m.Value.ProducerId == producerId))
                             {
+                                _logger.LogDebug(
+                                    "ConsumeAsync() | Peer:{PeerId} already consuming ProducerId:{ProducerId} from ProducerPeer:{ProducerPeerId}",
+                                    PeerId, producerId, producerPeer.PeerId
+                                );
                                 return null;
                             }
 
@@ -579,14 +629,23 @@ namespace Dorisoy.Meeting.Server
                             {
                                 if (!producerPeer._producers.TryGetValue(producerId, out var producer))
                                 {
+                                    _logger.LogWarning(
+                                        "ConsumeAsync() | Peer:{PeerId} - ProducerPeer:{ProducerPeerId} has no Producer:{ProducerId}, available producers: [{Producers}]",
+                                        PeerId, producerPeer.PeerId, producerId, 
+                                        string.Join(", ", producerPeer._producers.Keys)
+                                    );
                                     throw new Exception(
                                         $"ConsumeAsync() | Peer:{PeerId} - ProducerPeer:{producerPeer.PeerId} has no Producer:{producerId}"
                                     );
                                 }
 
-                                if (!await _room!.Router.CanConsumeAsync(producer.ProducerId, _rtpCapabilities)
-                                )
+                                var canConsume = await _room!.Router.CanConsumeAsync(producer.ProducerId, _rtpCapabilities);
+                                if (!canConsume)
                                 {
+                                    _logger.LogWarning(
+                                        "ConsumeAsync() | Peer:{PeerId} cannot consume ProducerId:{ProducerId} from ProducerPeer:{ProducerPeerId} - RTP capabilities mismatch",
+                                        PeerId, producerId, producerPeer.PeerId
+                                    );
                                     throw new Exception($"ConsumeAsync() | Peer:{PeerId} Can not consume.");
                                 }
 
@@ -642,6 +701,11 @@ namespace Dorisoy.Meeting.Server
         /// </summary>
         public async Task<bool> CloseProducerAsync(string producerId)
         {
+            _logger.LogInformation(
+                "CloseProducerAsync() | Peer:{PeerId} attempting to close Producer:{ProducerId}",
+                PeerId, producerId
+            );
+
             await using (await _joinedLock.ReadLockAsync())
             {
                 CheckJoined("CloseProducerAsync()");
@@ -658,7 +722,19 @@ namespace Dorisoy.Meeting.Server
                             throw new Exception($"CloseProducerAsync() | Peer:{PeerId} has no Producer:{producerId}.");
                         }
 
+                        var source = producer.Source;
+                        _logger.LogDebug(
+                            "CloseProducerAsync() | Peer:{PeerId} closing Producer:{ProducerId}, Source:\"{Source}\", producers before close: [{Producers}]",
+                            PeerId, producerId, source, string.Join(", ", _producers.Keys)
+                        );
+
                         await producer.CloseAsync();
+
+                        _logger.LogInformation(
+                            "CloseProducerAsync() | Peer:{PeerId} Producer:{ProducerId} closed successfully, Source:\"{Source}\", producers after close: [{Producers}]",
+                            PeerId, producerId, source, string.Join(", ", _producers.Keys)
+                        );
+
                         return true;
                     }
                 }
@@ -1110,6 +1186,24 @@ namespace Dorisoy.Meeting.Server
                         {
                             await transport.CloseAsync();
                         }
+                        
+                        // 关键修复：显式清理 _transports 字典，避免重新加入时残留
+                        _transports.Clear();
+                        _logger.LogDebug("LeaveRoomAsync() | Peer:{PeerId} cleared _transports", PeerId);
+                    }
+                    
+                    // 关键修复：显式清理 _consumers 和 _producers 字典
+                    // 虽然 Transport 关闭会触发事件清理，但显式清理可确保状态干净
+                    await using (await _consumersLock.WriteLockAsync())
+                    {
+                        _consumers.Clear();
+                        _logger.LogDebug("LeaveRoomAsync() | Peer:{PeerId} cleared _consumers", PeerId);
+                    }
+                    
+                    await using (await _producersLock.WriteLockAsync())
+                    {
+                        _producers.Clear();
+                        _logger.LogDebug("LeaveRoomAsync() | Peer:{PeerId} cleared _producers", PeerId);
                     }
 
                     var result = await _room!.PeerLeaveAsync(PeerId);
@@ -1147,6 +1241,23 @@ namespace Dorisoy.Meeting.Server
                         {
                             await transport.CloseAsync();
                         }
+                        
+                        // 关键修复：显式清理 _transports 字典
+                        _transports.Clear();
+                        _logger.LogDebug("ForceLeaveRoomAsync() | Peer:{PeerId} cleared _transports", PeerId);
+                    }
+                    
+                    // 关键修复：显式清理 _consumers 和 _producers 字典
+                    await using (await _consumersLock.WriteLockAsync())
+                    {
+                        _consumers.Clear();
+                        _logger.LogDebug("ForceLeaveRoomAsync() | Peer:{PeerId} cleared _consumers", PeerId);
+                    }
+                    
+                    await using (await _producersLock.WriteLockAsync())
+                    {
+                        _producers.Clear();
+                        _logger.LogDebug("ForceLeaveRoomAsync() | Peer:{PeerId} cleared _producers", PeerId);
                     }
 
                     // 不调用 Room.PeerLeaveAsync，因为在被踢出场景中 peer 已经被 Room.KickPeerAsync 移除
@@ -1187,6 +1298,23 @@ namespace Dorisoy.Meeting.Server
                         {
                             await transport.CloseAsync();
                         }
+                        
+                        // 关键修复：显式清理 _transports 字典
+                        _transports.Clear();
+                        _logger.LogDebug("LeaveAsync() | Peer:{PeerId} cleared _transports", PeerId);
+                    }
+                    
+                    // 关键修复：显式清理 _consumers 和 _producers 字典
+                    await using (await _consumersLock.WriteLockAsync())
+                    {
+                        _consumers.Clear();
+                        _logger.LogDebug("LeaveAsync() | Peer:{PeerId} cleared _consumers", PeerId);
+                    }
+                    
+                    await using (await _producersLock.WriteLockAsync())
+                    {
+                        _producers.Clear();
+                        _logger.LogDebug("LeaveAsync() | Peer:{PeerId} cleared _producers", PeerId);
                     }
 
                     if (_room != null)
@@ -1442,6 +1570,17 @@ namespace Dorisoy.Meeting.Server
             return _transports.Values.Any(m =>
                 m.AppData.TryGetValue("Consuming", out var value) && (bool)value
             );
+        }
+
+        /// <summary>
+        /// 检查 Peer 是否已创建 Recv Transport（用于判断是否可以消费其他 Peer 的视频）
+        /// </summary>
+        public async Task<bool> HasRecvTransportAsync()
+        {
+            await using (await _transportsLock.ReadLockAsync())
+            {
+                return HasConsumingTransport();
+            }
         }
 
         private void CheckJoined(string tag)
