@@ -343,10 +343,10 @@ public class MediasoupTransport : IDisposable
 
     /// <summary>
     /// 处理接收到的 RTP 包（按 m-line 索引）
-    /// 关键修复：使用 ByIndex 版本接收所有流，而不仅仅是主流
-    /// 优先使用 streamIndex 映射到 consumer，如果失败再使用 SSRC 映射
+    /// 重要修复：由于 SIPSorcery 在 BUNDLE 多流场景下 streamIndex 不可靠，
+    /// 我们优先使用 SSRC 进行精确匹配，只有当 SSRC 完全无法匹配时才使用其他策略
     /// </summary>
-    /// <param name="streamIndex">m-line 索引（0=第一个视频, 1=第一个音频, 2=第二个视频...）</param>
+    /// <param name="streamIndex">m-line 索引（注意：SIPSorcery 在多流时此值可能不准确）</param>
     private void OnRtpPacketReceivedByIndex(int streamIndex, IPEndPoint remoteEndPoint, SDPMediaTypesEnum mediaType, RTPPacket rtpPacket)
     {
         try
@@ -371,31 +371,10 @@ public class MediasoupTransport : IDisposable
                     _recvRtpPacketCount, streamIndex, ssrc, payloadType, payload.Length, mediaType);
             }
     
-            // ==== 关键修复：优先使用 streamIndex 映射 ====
-            // streamIndex 由 SIPSorcery 根据 SDP m-line 索引提供，这是最可靠的映射方式
-            // 因为我们在 AddReceiveTracks 时已经建立了 streamIndex -> consumerId 的映射
-            if (_streamIndexToConsumerMap.TryGetValue(streamIndex, out var consumerIdByIndex))
-            {
-                if (_remoteConsumers.TryGetValue(consumerIdByIndex, out var consumerByIndex))
-                {
-                    // 更新 SSRC 映射（用于后续快速查找）
-                    if (!consumerByIndex.HasReceivedRtp || consumerByIndex.Ssrc != ssrc)
-                    {
-                        _logger.LogInformation(
-                            "StreamIndex mapping hit: index={StreamIndex} -> Consumer {ConsumerId} (Kind={Kind}), SSRC={Ssrc}",
-                            streamIndex, consumerIdByIndex, consumerByIndex.Kind, ssrc);
-                        EstablishSsrcMapping(ssrc, consumerByIndex);
-                        consumerByIndex.Ssrc = ssrc;
-                    }
-                    DispatchRtpToConsumer(consumerByIndex, rtpPacket);
-                    return;
-                }
-            }
-    
-            // ==== 回退方案：使用 SSRC 映射 ====
-            // 如果 streamIndex 映射失败（可能是旧的 consumer 或者映射未建立），尝试 SSRC 映射
+            // ==== 关键修复：优先使用 SSRC 精确匹配 ====
+            // SIPSorcery 的 streamIndex 在 BUNDLE 多流场景下不可靠，所以我们优先使用 SSRC 匹配
             
-            // 1. 检查 SSRC 映射表（已建立的映射）
+            // 1. 首先检查已建立的 SSRC 映射表（最快路径）
             if (_ssrcToConsumerMap.TryGetValue(ssrc, out var mappedConsumerId))
             {
                 if (_remoteConsumers.TryGetValue(mappedConsumerId, out var mappedConsumer))
@@ -409,6 +388,9 @@ public class MediasoupTransport : IDisposable
             var consumer = _remoteConsumers.Values.FirstOrDefault(c => c.Ssrc == ssrc);
             if (consumer != null)
             {
+                _logger.LogInformation(
+                    "SSRC exact match: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind}, PeerId={PeerId})",
+                    ssrc, consumer.ConsumerId, consumer.Kind, consumer.PeerId);
                 // 建立映射并分发
                 EstablishSsrcMapping(ssrc, consumer);
                 DispatchRtpToConsumer(consumer, rtpPacket);
@@ -425,6 +407,9 @@ public class MediasoupTransport : IDisposable
                 return;
             }
     
+            // ==== SSRC 无法匹配，尝试基于 MediaType 的智能分配 ====
+            // 注意：我们不再依赖 streamIndex，因为它在多流场景下不可靠
+            
             // 4. SSRC 不匹配，需要智能分配
             // 关键改进：只分配给最近创建且尚未收到 RTP 的 Consumer
             var kind = mediaType == SDPMediaTypesEnum.video ? "video" : "audio";
@@ -439,14 +424,14 @@ public class MediasoupTransport : IDisposable
                     
                 if (unassignedConsumer != null)
                 {
-                    // 检查该 Consumer 是否是在最近 5 秒内创建的
+                    // 检查该 Consumer 是否是在最近 30 秒内创建的
                     // 如果是很久之前创建的，可能表示该 Consumer 的 Producer 没有发送流
                     var ageSeconds = (DateTime.UtcNow - unassignedConsumer.CreatedAt).TotalSeconds;
                     if (ageSeconds < 30)  // 30 秒内创建的 Consumer
                     {
                         _logger.LogInformation(
-                            "Dynamic SSRC mapping: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind}, Age={Age:F1}s, expected SSRC={ExpectedSsrc})",
-                            ssrc, unassignedConsumer.ConsumerId, kind, ageSeconds, unassignedConsumer.Ssrc);
+                            "Dynamic SSRC mapping: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind}, PeerId={PeerId}, Age={Age:F1}s, expected SSRC={ExpectedSsrc})",
+                            ssrc, unassignedConsumer.ConsumerId, kind, unassignedConsumer.PeerId, ageSeconds, unassignedConsumer.Ssrc);
                         
                         // 更新 Consumer 的实际 SSRC
                         unassignedConsumer.Ssrc = ssrc;
@@ -498,13 +483,33 @@ public class MediasoupTransport : IDisposable
                 return;
             }
     
+            // 6. 最后的回退：尝试使用 streamIndex 映射（虽然不可靠，但作为最后的尝试）
+            // 注意：streamIndex 在 SIPSorcery BUNDLE 模式下可能不正确
+            if (_streamIndexToConsumerMap.TryGetValue(streamIndex, out var consumerIdByIndex))
+            {
+                if (_remoteConsumers.TryGetValue(consumerIdByIndex, out var consumerByIndex))
+                {
+                    // 只在 mediaType 匹配时才使用（避免音视频混淆）
+                    if ((mediaType == SDPMediaTypesEnum.video && consumerByIndex.Kind == "video") ||
+                        (mediaType == SDPMediaTypesEnum.audio && consumerByIndex.Kind == "audio"))
+                    {
+                        _logger.LogWarning(
+                            "Fallback to streamIndex mapping (unreliable): index={StreamIndex} -> Consumer {ConsumerId} (Kind={Kind}), SSRC={Ssrc}",
+                            streamIndex, consumerIdByIndex, consumerByIndex.Kind, ssrc);
+                        EstablishSsrcMapping(ssrc, consumerByIndex);
+                        consumerByIndex.Ssrc = ssrc;
+                        DispatchRtpToConsumer(consumerByIndex, rtpPacket);
+                        return;
+                    }
+                }
+            }
+    
             if (_recvRtpPacketCount % 100 == 1)
             {
                 _logger.LogWarning(
-                    "Received RTP for unknown mapping: streamIndex={StreamIndex}, SSRC={Ssrc}, PT={PayloadType}, MediaType={MediaType}. StreamIndexMap: {StreamIndexMap}, Known consumers: {Consumers}",
+                    "Received RTP for unknown mapping: streamIndex={StreamIndex}, SSRC={Ssrc}, PT={PayloadType}, MediaType={MediaType}. Known consumers: {Consumers}",
                     streamIndex, ssrc, payloadType, mediaType,
-                    string.Join(", ", _streamIndexToConsumerMap.Select(kv => $"{kv.Key}->{kv.Value.Substring(0, Math.Min(8, kv.Value.Length))}")),
-                    string.Join(", ", _remoteConsumers.Values.Select(c => $"{c.Kind}:SSRC={c.Ssrc},PT={c.PayloadType},Id={c.ConsumerId.Substring(0, Math.Min(8, c.ConsumerId.Length))},HasRtp={c.HasReceivedRtp}")));
+                    string.Join(", ", _remoteConsumers.Values.Select(c => $"{c.Kind}:SSRC={c.Ssrc},PT={c.PayloadType},PeerId={c.PeerId},HasRtp={c.HasReceivedRtp}")));
             }
         }
         catch (Exception ex)
