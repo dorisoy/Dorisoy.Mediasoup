@@ -35,6 +35,11 @@ public class MediasoupTransport : IDisposable
     private readonly HashSet<string> _consumersWithRtp = new();
     private readonly object _ssrcMapLock = new();
     
+    // streamIndex (m-line 索引) 到 ConsumerId 的映射
+    // 关键修复：使用 SIPSorcery 的 OnRtpPacketReceivedByIndex 提供的 streamIndex 直接映射到 consumer
+    // 这比 SSRC 映射更可靠，因为 streamIndex 由 SDP m-line 顺序决定
+    private readonly ConcurrentDictionary<int, string> _streamIndexToConsumerMap = new();
+    
     // SDP 状态 (预留用于后续 SDP 重新协商)
     #pragma warning disable CS0414
     private bool _sdpNegotiated;
@@ -257,8 +262,10 @@ public class MediasoupTransport : IDisposable
         // 注意：SIPSorcery 不直接暴露 PLI/FIR 回调
         // 但 OnReceiveReport 可以用于此目的
 
-        // 监听 RTP 包接收事件 - 这是接收远端媒体的关键
-        _peerConnection.OnRtpPacketReceived += OnRtpPacketReceived;
+        // 监听 RTP 包接收事件 - 关键修复：使用 OnRtpPacketReceivedByIndex 接收所有流
+        // OnRtpPacketReceived 只触发主流（primary），无法接收第二个视频流
+        // OnRtpPacketReceivedByIndex 按 m-line 索引触发，可以接收所有 video/audio 流
+        _peerConnection.OnRtpPacketReceivedByIndex += OnRtpPacketReceivedByIndex;
         
         // 监听所有传入的 RTP 数据（包括 SRTP 解密前）
         var rtpChannel = _peerConnection.GetRtpChannel();
@@ -308,7 +315,7 @@ public class MediasoupTransport : IDisposable
         }
         
         // 记录回调注册成功
-        _logger.LogInformation("OnRtpPacketReceived callback registered for transport {TransportId}", TransportId);
+        _logger.LogInformation("OnRtpPacketReceivedByIndex callback registered for transport {TransportId} (supports multiple streams)", TransportId);
 
         // 添加服务器提供的 ICE Candidates
         if (IceCandidates != null)
@@ -335,10 +342,12 @@ public class MediasoupTransport : IDisposable
     }
 
     /// <summary>
-    /// 处理接收到的 RTP 包
-    /// 关键修复：支持多个视频 Consumer，通过 SSRC 动态映射正确路由 RTP 包
+    /// 处理接收到的 RTP 包（按 m-line 索引）
+    /// 关键修复：使用 ByIndex 版本接收所有流，而不仅仅是主流
+    /// 优先使用 streamIndex 映射到 consumer，如果失败再使用 SSRC 映射
     /// </summary>
-    private void OnRtpPacketReceived(IPEndPoint remoteEndPoint, SDPMediaTypesEnum mediaType, RTPPacket rtpPacket)
+    /// <param name="streamIndex">m-line 索引（0=第一个视频, 1=第一个音频, 2=第二个视频...）</param>
+    private void OnRtpPacketReceivedByIndex(int streamIndex, IPEndPoint remoteEndPoint, SDPMediaTypesEnum mediaType, RTPPacket rtpPacket)
     {
         try
         {
@@ -358,11 +367,35 @@ public class MediasoupTransport : IDisposable
             // 每100个包输出一次统计
             if (_recvRtpPacketCount % 100 == 1)
             {
-                _logger.LogInformation("RTP recv stats: count={Count}, SSRC={Ssrc}, PT={PayloadType}, Size={Size}, MediaType={MediaType}", 
-                    _recvRtpPacketCount, ssrc, payloadType, payload.Length, mediaType);
+                _logger.LogInformation("RTP recv stats: count={Count}, streamIndex={StreamIndex}, SSRC={Ssrc}, PT={PayloadType}, Size={Size}, MediaType={MediaType}", 
+                    _recvRtpPacketCount, streamIndex, ssrc, payloadType, payload.Length, mediaType);
             }
     
-            // 1. 首先检查 SSRC 映射表（已建立的映射）
+            // ==== 关键修复：优先使用 streamIndex 映射 ====
+            // streamIndex 由 SIPSorcery 根据 SDP m-line 索引提供，这是最可靠的映射方式
+            // 因为我们在 AddReceiveTracks 时已经建立了 streamIndex -> consumerId 的映射
+            if (_streamIndexToConsumerMap.TryGetValue(streamIndex, out var consumerIdByIndex))
+            {
+                if (_remoteConsumers.TryGetValue(consumerIdByIndex, out var consumerByIndex))
+                {
+                    // 更新 SSRC 映射（用于后续快速查找）
+                    if (!consumerByIndex.HasReceivedRtp || consumerByIndex.Ssrc != ssrc)
+                    {
+                        _logger.LogInformation(
+                            "StreamIndex mapping hit: index={StreamIndex} -> Consumer {ConsumerId} (Kind={Kind}), SSRC={Ssrc}",
+                            streamIndex, consumerIdByIndex, consumerByIndex.Kind, ssrc);
+                        EstablishSsrcMapping(ssrc, consumerByIndex);
+                        consumerByIndex.Ssrc = ssrc;
+                    }
+                    DispatchRtpToConsumer(consumerByIndex, rtpPacket);
+                    return;
+                }
+            }
+    
+            // ==== 回退方案：使用 SSRC 映射 ====
+            // 如果 streamIndex 映射失败（可能是旧的 consumer 或者映射未建立），尝试 SSRC 映射
+            
+            // 1. 检查 SSRC 映射表（已建立的映射）
             if (_ssrcToConsumerMap.TryGetValue(ssrc, out var mappedConsumerId))
             {
                 if (_remoteConsumers.TryGetValue(mappedConsumerId, out var mappedConsumer))
@@ -468,8 +501,9 @@ public class MediasoupTransport : IDisposable
             if (_recvRtpPacketCount % 100 == 1)
             {
                 _logger.LogWarning(
-                    "Received RTP for unknown SSRC: {Ssrc}, PT: {PayloadType}, MediaType: {MediaType}. Known consumers: {Consumers}",
-                    ssrc, payloadType, mediaType,
+                    "Received RTP for unknown mapping: streamIndex={StreamIndex}, SSRC={Ssrc}, PT={PayloadType}, MediaType={MediaType}. StreamIndexMap: {StreamIndexMap}, Known consumers: {Consumers}",
+                    streamIndex, ssrc, payloadType, mediaType,
+                    string.Join(", ", _streamIndexToConsumerMap.Select(kv => $"{kv.Key}->{kv.Value.Substring(0, Math.Min(8, kv.Value.Length))}")),
                     string.Join(", ", _remoteConsumers.Values.Select(c => $"{c.Kind}:SSRC={c.Ssrc},PT={c.PayloadType},Id={c.ConsumerId.Substring(0, Math.Min(8, c.ConsumerId.Length))},HasRtp={c.HasReceivedRtp}")));
             }
         }
@@ -1233,6 +1267,12 @@ public class MediasoupTransport : IDisposable
             {
                 var consumer = consumers[i];
                 
+                // 关键修复：建立 streamIndex (m-line 索引) 到 consumerId 的映射
+                // 这样在 OnRtpPacketReceivedByIndex 中可以直接通过 streamIndex 找到对应的 consumer
+                _streamIndexToConsumerMap[i] = consumer.ConsumerId;
+                _logger.LogInformation("StreamIndex mapping: index {Index} -> ConsumerId {ConsumerId} (Kind={Kind})",
+                    i, consumer.ConsumerId, consumer.Kind);
+                
                 if (consumer.Kind == "video")
                 {
                     var videoCodec = consumer.RtpParameters?.Codecs?.FirstOrDefault();
@@ -1377,6 +1417,17 @@ public class MediasoupTransport : IDisposable
                     
                     // 从已收到 RTP 的 Consumer 集合中移除
                     _consumersWithRtp.Remove(consumerId);
+                }
+                
+                // 清理 streamIndex 映射
+                var streamIndexToRemove = _streamIndexToConsumerMap
+                    .Where(kv => kv.Value == consumerId)
+                    .Select(kv => kv.Key)
+                    .ToList();
+                foreach (var index in streamIndexToRemove)
+                {
+                    _streamIndexToConsumerMap.TryRemove(index, out _);
+                    _logger.LogDebug("已移除 streamIndex 映射: index={Index} -> {ConsumerId}", index, consumerId);
                 }
             }
         }
