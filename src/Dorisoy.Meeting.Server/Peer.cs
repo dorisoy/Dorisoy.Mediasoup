@@ -449,6 +449,11 @@ namespace Dorisoy.Meeting.Server
         /// </summary>
         public async Task<PeerProduceResult> ProduceAsync(ProduceRequest produceRequest)
         {
+            _logger.LogInformation(
+                "ProduceAsync() | Peer:{PeerId} attempting to produce Source:\"{Source}\", Kind:{Kind}",
+                PeerId, produceRequest.Source, produceRequest.Kind
+            );
+
             if (produceRequest.Source.IsNullOrWhiteSpace())
             {
                 throw new Exception($"ProduceAsync() | Peer:{PeerId} AppData[\"source\"] is null or white space.");
@@ -479,15 +484,45 @@ namespace Dorisoy.Meeting.Server
 
                         await using (await _producersLock.WriteLockAsync())
                         {
-                            var producer = _producers.Values.FirstOrDefault(m => m.Source == produceRequest.Source);
-                            if (producer != null)
+                            _logger.LogDebug(
+                                "ProduceAsync() | Peer:{PeerId} checking existing producers, count:{Count}, sources:[{Sources}]",
+                                PeerId, _producers.Count, string.Join(", ", _producers.Values.Select(p => $"{p.ProducerId}:{p.Source}"))
+                            );
+
+                            // 检查是否已存在相同 Source 的 Producer
+                            var existingProducer = _producers.Values.FirstOrDefault(m => m.Source == produceRequest.Source);
+                            if (existingProducer != null)
                             {
-                                //throw new Exception($"ProduceAsync() | Source:\"{ produceRequest.Source }\" is exists.");
-                                _logger.LogWarning("ProduceAsync() | Source:\"{Source}\" is exists.", produceRequest.Source);
-                                return new PeerProduceResult { Producer = producer, PullPaddings = [] };
+                                // 重要修复：切换摄像头场景下，先关闭旧的 Producer 再创建新的
+                                // 而不是直接返回现有的，因为现有的可能已经是无效状态
+                                _logger.LogWarning(
+                                    "ProduceAsync() | Peer:{PeerId} Source:\"{Source}\" already exists with ProducerId:{ProducerId}, closing old producer first",
+                                    PeerId, produceRequest.Source, existingProducer.ProducerId
+                                );
+                                
+                                try
+                                {
+                                    await existingProducer.CloseAsync();
+                                    _logger.LogInformation(
+                                        "ProduceAsync() | Peer:{PeerId} old Producer:{ProducerId} closed successfully for Source:\"{Source}\"",
+                                        PeerId, existingProducer.ProducerId, produceRequest.Source
+                                    );
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.LogWarning(ex, 
+                                        "ProduceAsync() | Peer:{PeerId} failed to close old Producer:{ProducerId}, will continue creating new one",
+                                        PeerId, existingProducer.ProducerId
+                                    );
+                                }
                             }
 
-                            producer = await transport.ProduceAsync(
+                            _logger.LogInformation(
+                                "ProduceAsync() | Peer:{PeerId} creating new producer for Source:\"{Source}\"",
+                                PeerId, produceRequest.Source
+                            );
+
+                            var producer = await transport.ProduceAsync(
                                 new ProducerOptions
                                 {
                                     Kind = produceRequest.Kind,
@@ -537,6 +572,11 @@ namespace Dorisoy.Meeting.Server
 
                             // Store the Producer into the Peer data Object.
                             _producers[producer.ProducerId] = producer;
+
+                            _logger.LogInformation(
+                                "ProduceAsync() | Peer:{PeerId} producer created successfully: ProducerId:{ProducerId}, Source:\"{Source}\", producers now: [{Producers}]",
+                                PeerId, producer.ProducerId, producer.Source, string.Join(", ", _producers.Keys)
+                            );
 
                             // Add into the audioLevelObserver.
                             if (producer.Data.Kind == MediaKind.AUDIO)
@@ -663,6 +703,11 @@ namespace Dorisoy.Meeting.Server
         /// </summary>
         public async Task<bool> CloseProducerAsync(string producerId)
         {
+            _logger.LogInformation(
+                "CloseProducerAsync() | Peer:{PeerId} attempting to close Producer:{ProducerId}",
+                PeerId, producerId
+            );
+
             await using (await _joinedLock.ReadLockAsync())
             {
                 CheckJoined("CloseProducerAsync()");
@@ -679,7 +724,19 @@ namespace Dorisoy.Meeting.Server
                             throw new Exception($"CloseProducerAsync() | Peer:{PeerId} has no Producer:{producerId}.");
                         }
 
+                        var source = producer.Source;
+                        _logger.LogDebug(
+                            "CloseProducerAsync() | Peer:{PeerId} closing Producer:{ProducerId}, Source:\"{Source}\", producers before close: [{Producers}]",
+                            PeerId, producerId, source, string.Join(", ", _producers.Keys)
+                        );
+
                         await producer.CloseAsync();
+
+                        _logger.LogInformation(
+                            "CloseProducerAsync() | Peer:{PeerId} Producer:{ProducerId} closed successfully, Source:\"{Source}\", producers after close: [{Producers}]",
+                            PeerId, producerId, source, string.Join(", ", _producers.Keys)
+                        );
+
                         return true;
                     }
                 }

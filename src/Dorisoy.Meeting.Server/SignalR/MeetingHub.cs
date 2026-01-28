@@ -1422,13 +1422,13 @@ namespace Dorisoy.Meeting.Server
             catch (MeetingException ex)
             {
                 _logger.LogError("Produce 调用失败: {Message}", ex.Message);
+                return MeetingMessage<ProduceResponse>.Failure($"Produce 失败: {ex.Message}");
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Produce 调用失败.");
+                _logger.LogError(ex, "Produce 调用失败: {Message}", ex.Message);
+                return MeetingMessage<ProduceResponse>.Failure($"Produce 失败: {ex.Message}");
             }
-
-            return MeetingMessage<ProduceResponse>.Failure("Produce 失败");
         }
 
         /// <summary>

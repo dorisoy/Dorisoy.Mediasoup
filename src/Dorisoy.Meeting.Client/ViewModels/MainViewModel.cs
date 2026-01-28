@@ -3235,84 +3235,256 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 切换摄像头到指定设备
+    /// 切换摄像头到指定设备（增强版，带重试机制）
     /// </summary>
     private async Task SwitchCameraAsync(string deviceId)
     {
+        const int MaxRetries = 3;
+        const int RetryDelayMs = 500;
+        const int CloseProducerWaitMs = 300;
+
         try
         {
-            _logger.LogInformation("Switching camera to device: {DeviceId}", deviceId);
+            _logger.LogInformation("SwitchCameraAsync() | Switching camera to device: {DeviceId}", deviceId);
             StatusMessage = "正在切换摄像头...";
 
             // 1. 先关闭服务器端的旧 Producer（如果存在）
-            if (!string.IsNullOrEmpty(_videoProducerId))
+            var oldProducerId = _videoProducerId;
+            if (!string.IsNullOrEmpty(oldProducerId))
             {
-                _logger.LogInformation("Closing old video producer: {ProducerId}", _videoProducerId);
-                await _signalRService.InvokeAsync("CloseProducer", _videoProducerId);
+                _logger.LogInformation("SwitchCameraAsync() | Closing old video producer: {ProducerId}", oldProducerId);
+                try
+                {
+                    var closeResult = await _signalRService.InvokeAsync("CloseProducer", oldProducerId);
+                    if (closeResult.IsSuccess)
+                    {
+                        _logger.LogInformation("SwitchCameraAsync() | CloseProducer succeeded for {ProducerId}", oldProducerId);
+                        // 等待服务端完成状态清理
+                        await Task.Delay(CloseProducerWaitMs);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("SwitchCameraAsync() | CloseProducer returned failure: {Message}", closeResult.Message);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "SwitchCameraAsync() | CloseProducer exception, will continue anyway");
+                }
                 _videoProducerId = null;
             }
 
             // 2. 停止当前摄像头
+            _logger.LogInformation("SwitchCameraAsync() | Stopping current camera...");
             await _webRtcService.StopCameraAsync();
 
             // 3. 启动新摄像头
+            _logger.LogInformation("SwitchCameraAsync() | Starting new camera: {DeviceId}", deviceId);
             await _webRtcService.StartCameraAsync(deviceId);
 
-            // 4. 如果已加入房间，重新创建 Producer
+            // 4. 如果已加入房间，重新创建 Producer（带重试机制）
             if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
             {
-                _logger.LogInformation("Re-creating video producer after camera switch");
-                await ProduceVideoAsync();
+                _logger.LogInformation("SwitchCameraAsync() | Re-creating video producer after camera switch");
+                
+                var success = false;
+                string? lastError = null;
+                
+                for (int retry = 0; retry < MaxRetries && !success; retry++)
+                {
+                    if (retry > 0)
+                    {
+                        _logger.LogInformation("SwitchCameraAsync() | Retrying ProduceVideoAsync, attempt {Attempt}/{Max}", retry + 1, MaxRetries);
+                        await Task.Delay(RetryDelayMs * retry); // 递增延迟
+                    }
+
+                    try
+                    {
+                        await ProduceVideoWithResultAsync();
+                        if (!string.IsNullOrEmpty(_videoProducerId))
+                        {
+                            success = true;
+                            _logger.LogInformation("SwitchCameraAsync() | ProduceVideoAsync succeeded on attempt {Attempt}", retry + 1);
+                        }
+                        else
+                        {
+                            lastError = "ProducerId 为空";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lastError = ex.Message;
+                        _logger.LogWarning(ex, "SwitchCameraAsync() | ProduceVideoAsync failed on attempt {Attempt}", retry + 1);
+                    }
+                }
+
+                if (!success)
+                {
+                    _logger.LogError("SwitchCameraAsync() | Failed to recreate video producer after {Max} retries. Last error: {Error}", MaxRetries, lastError);
+                    StatusMessage = $"视频推送失败: {lastError}（已重试 {MaxRetries} 次）";
+                    return;
+                }
             }
 
             StatusMessage = "摄像头已切换";
-            _logger.LogInformation("Camera switched to device: {DeviceId}", deviceId);
+            _logger.LogInformation("SwitchCameraAsync() | Camera switched to device: {DeviceId}", deviceId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to switch camera to device: {DeviceId}", deviceId);
+            _logger.LogError(ex, "SwitchCameraAsync() | Failed to switch camera to device: {DeviceId}", deviceId);
             StatusMessage = $"切换摄像头失败: {ex.Message}";
         }
     }
 
     /// <summary>
-    /// 切换麦克风到指定设备
+    /// 生产视频流（带结果返回，用于重试机制）
+    /// </summary>
+    private async Task ProduceVideoWithResultAsync()
+    {
+        // 从 SendTransport 获取实际使用的 SSRC，确保与 RTP 发送一致
+        var videoSsrc = _webRtcService.SendTransport?.VideoSsrc ?? 0;
+        var currentCodec = _webRtcService.CurrentVideoCodec;
+        var produceRequest = RtpParametersFactory.CreateVideoProduceRequest(videoSsrc, currentCodec);
+        _logger.LogInformation("ProduceVideoWithResultAsync() | 创建视频 Producer: SSRC={Ssrc}, Codec={Codec}, Source={Source}", 
+            videoSsrc, currentCodec, produceRequest.Source);
+
+        var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
+        if (result.IsSuccess && result.Data != null)
+        {
+            _videoProducerId = result.Data.Id;
+            _logger.LogInformation("ProduceVideoWithResultAsync() | Video producer created: {ProducerId}, SSRC: {Ssrc}", _videoProducerId, videoSsrc);
+            StatusMessage = "视频推送中";
+        }
+        else
+        {
+            _logger.LogWarning("ProduceVideoWithResultAsync() | Failed to produce video: {Message}", result.Message);
+            throw new Exception(result.Message ?? "Produce 失败");
+        }
+    }
+
+    /// <summary>
+    /// 切换麦克风到指定设备（增强版，带重试机制）
     /// </summary>
     private async Task SwitchMicrophoneAsync(string deviceId)
     {
+        const int MaxRetries = 3;
+        const int RetryDelayMs = 500;
+        const int CloseProducerWaitMs = 300;
+
         try
         {
-            _logger.LogInformation("Switching microphone to device: {DeviceId}", deviceId);
+            _logger.LogInformation("SwitchMicrophoneAsync() | Switching microphone to device: {DeviceId}", deviceId);
             StatusMessage = "正在切换麦克风...";
 
             // 1. 先关闭服务器端的旧 Audio Producer（如果存在）
-            if (!string.IsNullOrEmpty(_audioProducerId))
+            var oldProducerId = _audioProducerId;
+            if (!string.IsNullOrEmpty(oldProducerId))
             {
-                _logger.LogInformation("Closing old audio producer: {ProducerId}", _audioProducerId);
-                await _signalRService.InvokeAsync("CloseProducer", _audioProducerId);
+                _logger.LogInformation("SwitchMicrophoneAsync() | Closing old audio producer: {ProducerId}", oldProducerId);
+                try
+                {
+                    var closeResult = await _signalRService.InvokeAsync("CloseProducer", oldProducerId);
+                    if (closeResult.IsSuccess)
+                    {
+                        _logger.LogInformation("SwitchMicrophoneAsync() | CloseProducer succeeded for {ProducerId}", oldProducerId);
+                        // 等待服务端完成状态清理
+                        await Task.Delay(CloseProducerWaitMs);
+                    }
+                    else
+                    {
+                        _logger.LogWarning("SwitchMicrophoneAsync() | CloseProducer returned failure: {Message}", closeResult.Message);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "SwitchMicrophoneAsync() | CloseProducer exception, will continue anyway");
+                }
                 _audioProducerId = null;
             }
 
             // 2. 停止当前麦克风
+            _logger.LogInformation("SwitchMicrophoneAsync() | Stopping current microphone...");
             await _webRtcService.StopMicrophoneAsync();
 
             // 3. 启动新麦克风
+            _logger.LogInformation("SwitchMicrophoneAsync() | Starting new microphone: {DeviceId}", deviceId);
             await _webRtcService.StartMicrophoneAsync(deviceId);
 
-            // 4. 如果已加入房间，重新创建 Audio Producer
+            // 4. 如果已加入房间，重新创建 Audio Producer（带重试机制）
             if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
             {
-                _logger.LogInformation("Re-creating audio producer after microphone switch");
-                await ProduceAudioAsync();
+                _logger.LogInformation("SwitchMicrophoneAsync() | Re-creating audio producer after microphone switch");
+                
+                var success = false;
+                string? lastError = null;
+                
+                for (int retry = 0; retry < MaxRetries && !success; retry++)
+                {
+                    if (retry > 0)
+                    {
+                        _logger.LogInformation("SwitchMicrophoneAsync() | Retrying ProduceAudioAsync, attempt {Attempt}/{Max}", retry + 1, MaxRetries);
+                        await Task.Delay(RetryDelayMs * retry); // 递增延迟
+                    }
+
+                    try
+                    {
+                        await ProduceAudioWithResultAsync();
+                        if (!string.IsNullOrEmpty(_audioProducerId))
+                        {
+                            success = true;
+                            _logger.LogInformation("SwitchMicrophoneAsync() | ProduceAudioAsync succeeded on attempt {Attempt}", retry + 1);
+                        }
+                        else
+                        {
+                            lastError = "ProducerId 为空";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        lastError = ex.Message;
+                        _logger.LogWarning(ex, "SwitchMicrophoneAsync() | ProduceAudioAsync failed on attempt {Attempt}", retry + 1);
+                    }
+                }
+
+                if (!success)
+                {
+                    _logger.LogError("SwitchMicrophoneAsync() | Failed to recreate audio producer after {Max} retries. Last error: {Error}", MaxRetries, lastError);
+                    StatusMessage = $"音频推送失败: {lastError}（已重试 {MaxRetries} 次）";
+                    return;
+                }
             }
 
             StatusMessage = "麦克风已切换";
-            _logger.LogInformation("Microphone switched to device: {DeviceId}", deviceId);
+            _logger.LogInformation("SwitchMicrophoneAsync() | Microphone switched to device: {DeviceId}", deviceId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to switch microphone to device: {DeviceId}", deviceId);
+            _logger.LogError(ex, "SwitchMicrophoneAsync() | Failed to switch microphone to device: {DeviceId}", deviceId);
             StatusMessage = $"切换麦克风失败: {ex.Message}";
+        }
+    }
+
+    /// <summary>
+    /// 生产音频流（带结果返回，用于重试机制）
+    /// </summary>
+    private async Task ProduceAudioWithResultAsync()
+    {
+        // 从 SendTransport 获取实际使用的 SSRC，确保与 RTP 发送一致
+        var audioSsrc = _webRtcService.SendTransport?.AudioSsrc ?? 0;
+        var produceRequest = RtpParametersFactory.CreateAudioProduceRequest(audioSsrc);
+        _logger.LogInformation("ProduceAudioWithResultAsync() | 创建音频 Producer: SSRC={Ssrc}, Source={Source}", 
+            audioSsrc, produceRequest.Source);
+
+        var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
+        if (result.IsSuccess && result.Data != null)
+        {
+            _audioProducerId = result.Data.Id;
+            _logger.LogInformation("ProduceAudioWithResultAsync() | Audio producer created: {ProducerId}, SSRC: {Ssrc}", _audioProducerId, audioSsrc);
+        }
+        else
+        {
+            _logger.LogWarning("ProduceAudioWithResultAsync() | Failed to produce audio: {Message}", result.Message);
+            throw new Exception(result.Message ?? "Produce 失败");
         }
     }
 
