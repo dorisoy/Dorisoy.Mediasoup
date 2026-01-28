@@ -21,7 +21,6 @@
 
         <!-- WebRTC - SIPSorcery -->
         <PackageReference Include="SIPSorcery" />
-        <PackageReference Include="SIPSorceryMedia.Abstractions" />
 
         <!-- Opus 音频解码器 -->
         <PackageReference Include="Concentus" />

@@ -186,22 +186,8 @@ namespace Dorisoy.Meeting.Server
                     var transport = await _room!.Router.CreateWebRtcTransportAsync(webRtcTransportOptions);
                     await using (await _transportsLock.WriteLockAsync())
                     {
-                        // 幂等操作：如果已存在则返回现有的 transport
-                        if (!isSend && HasConsumingTransport())
-                        {
-                            // 关闭新创建的 transport
-                            await transport.CloseAsync();
-                            // 返回现有的 consuming transport
-                            var existingTransport = _transports.Values.FirstOrDefault(t => 
-                                t.AppData.TryGetValue("Consuming", out var consuming) && consuming is true);
-                            if (existingTransport is WebRtcTransport webRtcTransport)
-                            {
-                                _logger.LogWarning("CreateWebRtcTransportAsync() | 返回现有的 Consuming transport: {TransportId}", webRtcTransport.TransportId);
-                                return webRtcTransport;
-                            }
-                            throw new Exception("CreateWebRtcTransportAsync() | Consuming transport exists but not found");
-                        }
-
+                        // 幂等操作：只对 send transport 应用
+                        // 对于 recv transport，允许创建多个（解决 SIPSorcery SRTP 限制，每个远端用户需要独立的 transport）
                         if (isSend && HasProducingTransport())
                         {
                             // 关闭新创建的 transport

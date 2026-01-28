@@ -4796,16 +4796,14 @@ public partial class MainViewModel : ObservableObject
             });
         }
 
-        // ==== 简化方案：使用单一 recv transport，确保所有 consumer 都能 Resume ====
-        // Mediasoup 服务端只为每个用户创建一个 recv transport
-        // 所有远端 Peer 的 consumer 都通过这一个 transport 接收
-        
-        // 使用单一的 recv transport 添加 consumer
+        // ==== 单一 Recv Transport 方案（符合 Mediasoup 最佳实践） ====
+        // 所有远端用户的 Consumer 都添加到同一个 recv transport
+        _logger.LogInformation("Adding consumer: {ConsumerId}, Kind: {Kind}", notification.ConsumerId, notification.Kind);
         await _webRtcService.AddConsumerAsync(
             notification.ConsumerId,
             notification.Kind,
             notification.RtpParameters);
-        
+
         _logger.LogInformation("Consumer {ConsumerId} (Kind={Kind}) 已添加到 recv transport", 
             notification.ConsumerId, notification.Kind);
 
