@@ -389,8 +389,8 @@ public class MediasoupTransport : IDisposable
             if (consumer != null)
             {
                 _logger.LogInformation(
-                    "SSRC exact match: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind}, PeerId={PeerId})",
-                    ssrc, consumer.ConsumerId, consumer.Kind, consumer.PeerId);
+                    "SSRC exact match: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind})",
+                    ssrc, consumer.ConsumerId, consumer.Kind);
                 // 建立映射并分发
                 EstablishSsrcMapping(ssrc, consumer);
                 DispatchRtpToConsumer(consumer, rtpPacket);
@@ -430,8 +430,8 @@ public class MediasoupTransport : IDisposable
                     if (ageSeconds < 30)  // 30 秒内创建的 Consumer
                     {
                         _logger.LogInformation(
-                            "Dynamic SSRC mapping: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind}, PeerId={PeerId}, Age={Age:F1}s, expected SSRC={ExpectedSsrc})",
-                            ssrc, unassignedConsumer.ConsumerId, kind, unassignedConsumer.PeerId, ageSeconds, unassignedConsumer.Ssrc);
+                            "Dynamic SSRC mapping: SSRC={Ssrc} -> Consumer {ConsumerId} (Kind={Kind}, Age={Age:F1}s, expected SSRC={ExpectedSsrc})",
+                            ssrc, unassignedConsumer.ConsumerId, kind, ageSeconds, unassignedConsumer.Ssrc);
                         
                         // 更新 Consumer 的实际 SSRC
                         unassignedConsumer.Ssrc = ssrc;
@@ -509,7 +509,7 @@ public class MediasoupTransport : IDisposable
                 _logger.LogWarning(
                     "Received RTP for unknown mapping: streamIndex={StreamIndex}, SSRC={Ssrc}, PT={PayloadType}, MediaType={MediaType}. Known consumers: {Consumers}",
                     streamIndex, ssrc, payloadType, mediaType,
-                    string.Join(", ", _remoteConsumers.Values.Select(c => $"{c.Kind}:SSRC={c.Ssrc},PT={c.PayloadType},PeerId={c.PeerId},HasRtp={c.HasReceivedRtp}")));
+                    string.Join(", ", _remoteConsumers.Values.Select(c => $"{c.Kind}:SSRC={c.Ssrc},PT={c.PayloadType},HasRtp={c.HasReceivedRtp}")));
             }
         }
         catch (Exception ex)
@@ -2500,6 +2500,7 @@ public class RemoteConsumerInfo
 {
     public string ConsumerId { get; set; } = string.Empty;
     public string Kind { get; set; } = string.Empty;
+    public string PeerId { get; set; } = string.Empty;  // 远端用户 ID
     public uint Ssrc { get; set; }
     public uint RtxSsrc { get; set; }  // RTX 重传 SSRC
     public int PayloadType { get; set; }
