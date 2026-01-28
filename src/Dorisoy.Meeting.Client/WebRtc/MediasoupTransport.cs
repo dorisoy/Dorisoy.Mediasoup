@@ -163,7 +163,14 @@ public class MediasoupTransport : IDisposable
     /// </summary>
     private void InitializePeerConnection()
     {
-        var config = new RTCConfiguration();
+        var config = new RTCConfiguration
+        {
+            // 关键修复：使用 RSA 证书进行 DTLS 握手
+            // 服务端 Mediasoup 使用 RSA 证书 (dtls-cert.pem)，因此客户端也必须使用 RSA
+            // 否则 DTLS cipher suite 不兼容，会导致 "no shared cipher" 错误
+            // RSA 证书会使用 TLS_ECDHE_RSA_WITH_* cipher suite，与服务端兼容
+            X_UseRsaForDtlsCertificate = true
+        };
 
         // 添加服务器提供的 ICE Candidates 作为 ICE servers (如果适用)
         // 对于 mediasoup，服务器直接提供 candidates，不需要 STUN/TURN
