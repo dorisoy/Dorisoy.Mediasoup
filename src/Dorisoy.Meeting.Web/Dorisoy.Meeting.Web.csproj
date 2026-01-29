@@ -32,9 +32,13 @@
         </ProjectReference>
     </ItemGroup>
     <ItemGroup>
+        <Compile Remove="bin\Debug\net8.0\logs\**" />
+        <Content Remove="bin\Debug\net8.0\logs\**" />
+        <EmbeddedResource Remove="bin\Debug\net8.0\logs\**" />
+        <None Remove="bin\Debug\net8.0\logs\**" />
         <None Remove="docs\*" />
     </ItemGroup>
     <ItemGroup>
-      <Content Include="bin\Debug\net8.0\logs\log.txt" />
+      <Folder Include="bin\Debug\net8.0\" />
     </ItemGroup>
 </Project>

@@ -554,7 +554,9 @@ public class MediasoupTransport : IDisposable
     
     // 上次关键帧请求时间 - 用于节流
     private DateTime _lastKeyFrameRequestTime = DateTime.MinValue;
-    private const int KEYFRAME_REQUEST_THROTTLE_MS = 1000; // 最小请求间隔 1 秒
+    // 优化：增加关键帧请求间隔到 3 秒，减少 PLI 请求频率，降低编码器负载
+    // 配合 VP9 编码器的 2 秒关键帧间隔设置，避免过度请求导致延迟和高负载
+    private const int KEYFRAME_REQUEST_THROTTLE_MS = 3000; // 最小请求间隔 3 秒
 
     /// <summary>
     /// 创建 RTC ICE Candidate

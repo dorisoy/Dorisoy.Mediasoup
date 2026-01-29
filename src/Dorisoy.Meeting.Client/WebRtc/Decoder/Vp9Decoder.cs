@@ -26,7 +26,11 @@ public unsafe class Vp9Decoder : IVideoDecoder
     
     // 解码统计 - 用于检测需要请求关键帧的情况
     private int _consecutiveDecodeFailures;
-    private const int MAX_CONSECUTIVE_FAILURES = 5;  // 连续失败5次后需要关键帧
+    private const int MAX_CONSECUTIVE_FAILURES = 10;  // 增加到 10 次，减少关键帧请求频率
+    
+    // 关键帧请求节流 - 避免短时间内重复请求
+    private DateTime _lastKeyFrameRequestTime = DateTime.MinValue;
+    private static readonly TimeSpan KeyFrameRequestCooldown = TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// 解码后的视频帧事件 (BGR24 数据, 宽度, 高度)
@@ -79,8 +83,12 @@ public unsafe class Vp9Decoder : IVideoDecoder
             }
 
             // 打开编解码器 - 启用多线程解码
-            _codecContext->thread_count = Math.Max(4, Environment.ProcessorCount);  // 至少4线程
-            _codecContext->thread_type = ffmpeg.FF_THREAD_FRAME | ffmpeg.FF_THREAD_SLICE;  // 帧+切片多线程
+            _codecContext->thread_count = Math.Min(4, Environment.ProcessorCount);  // 限制线程数
+            _codecContext->thread_type = ffmpeg.FF_THREAD_SLICE;  // 仅使用切片多线程，减少延迟
+            
+            // 启用低延迟解码模式
+            _codecContext->flags |= ffmpeg.AV_CODEC_FLAG_LOW_DELAY;
+            _codecContext->flags2 |= ffmpeg.AV_CODEC_FLAG2_FAST;  // 启用快速解码模式
             
             var result = ffmpeg.avcodec_open2(_codecContext, codec, null);
             if (result < 0)
@@ -157,8 +165,14 @@ public unsafe class Vp9Decoder : IVideoDecoder
                             _consecutiveDecodeFailures++;
                             if (_consecutiveDecodeFailures >= MAX_CONSECUTIVE_FAILURES)
                             {
-                                _logger.LogWarning("VP9 解码连续失败 {Count} 次，请求关键帧", _consecutiveDecodeFailures);
-                                OnKeyFrameRequested?.Invoke();
+                                // 检查节流时间
+                                var now = DateTime.UtcNow;
+                                if (now - _lastKeyFrameRequestTime > KeyFrameRequestCooldown)
+                                {
+                                    _logger.LogWarning("VP9 解码连续失败 {Count} 次，请求关键帧", _consecutiveDecodeFailures);
+                                    OnKeyFrameRequested?.Invoke();
+                                    _lastKeyFrameRequestTime = now;
+                                }
                                 _consecutiveDecodeFailures = 0;  // 重置计数
                             }
                             return false;
@@ -217,7 +231,7 @@ public unsafe class Vp9Decoder : IVideoDecoder
             _swsContext = ffmpeg.sws_getContext(
                 width, height, (AVPixelFormat)_frame->format,
                 width, height, AVPixelFormat.AV_PIX_FMT_BGR24,
-                ffmpeg.SWS_BICUBIC,  // 使用双三次插值，画质更好
+                ffmpeg.SWS_FAST_BILINEAR,  // 使用快速双线性插值，减少 CPU 开销
                 null, null, null);
 
             if (_swsContext == null)
