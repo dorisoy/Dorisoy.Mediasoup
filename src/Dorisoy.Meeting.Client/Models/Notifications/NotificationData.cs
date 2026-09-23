@@ -132,8 +132,6 @@ public class ProducerScoreData
     /// </summary>
     public object? Score { get; set; }
 }
-<<<<<<< HEAD
-=======
 
 /// <summary>
 /// 聊天消息数据（用于反序列化）
@@ -369,4 +367,3 @@ public class PeerMutedData
     /// </summary>
     public string? HostPeerId { get; set; }
 }
->>>>>>> pro

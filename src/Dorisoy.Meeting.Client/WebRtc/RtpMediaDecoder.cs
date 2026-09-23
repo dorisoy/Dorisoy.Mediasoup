@@ -20,10 +20,6 @@ public class RtpMediaDecoder : IDisposable
     // VP8 解包器
     private readonly ConcurrentDictionary<string, Vp8Depacketizer> _videoDepacketizers = new();
     
-<<<<<<< HEAD
-    // VP8 解码器 (使用 FFmpeg)
-    private readonly ConcurrentDictionary<string, Vp8Decoder> _videoDecoders = new();
-=======
     // 视频解码器 - 支持多种编解码器类型
     private readonly ConcurrentDictionary<string, IVideoDecoder> _videoDecoders = new();
     
@@ -32,7 +28,6 @@ public class RtpMediaDecoder : IDisposable
     
     // 每个 Consumer 独立的编解码器类型（用于接收端）
     private readonly ConcurrentDictionary<string, VideoCodecType> _consumerCodecTypes = new();
->>>>>>> pro
 
     // Opus 解码器 (Concentus - 纯 C# 实现)
     private readonly ConcurrentDictionary<string, OpusDecoder> _audioDecoders = new();
@@ -74,25 +69,11 @@ public class RtpMediaDecoder : IDisposable
     {
         try
         {
-<<<<<<< HEAD
-            _logger.LogDebug("Processing video RTP: ConsumerId={ConsumerId}, Seq={Seq}, Marker={Marker}",
-                consumerId, rtpPacket.Header.SequenceNumber, rtpPacket.Header.MarkerBit);
-            // 获取或创建解包器
-            if (!_videoDepacketizers.TryGetValue(consumerId, out var depacketizer))
-            {
-                depacketizer = new Vp8Depacketizer();
-                _videoDepacketizers[consumerId] = depacketizer;
-                _logger.LogDebug("Created VP8 depacketizer for consumer {ConsumerId}", consumerId);
-            }
-
-            // 解包 RTP 负载
-=======
             // 获取该 Consumer 的编解码器类型
             var codecType = GetConsumerCodecType(consumerId);
             
             //_logger.LogDebug("Processing video RTP: ConsumerId={ConsumerId}, Seq={Seq}, Marker={Marker}, Codec={Codec}",consumerId, rtpPacket.Header.SequenceNumber, rtpPacket.Header.MarkerBit, codecType);
             
->>>>>>> pro
             var payload = rtpPacket.Payload;
             var marker = rtpPacket.Header.MarkerBit == 1;
 

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -127,8 +127,6 @@ namespace Dorisoy.Meeting.Server
             }
         }
 
-<<<<<<< HEAD
-=======
         /// <summary>
         /// 获取当前加入房间结果（用于幂等操作）
         /// </summary>
@@ -196,7 +194,6 @@ namespace Dorisoy.Meeting.Server
             }
         }
 
->>>>>>> pro
         public async Task<LeaveRoomResult> PeerLeaveAsync(string peerId)
         {
             await using (await _closeLock.ReadLockAsync())

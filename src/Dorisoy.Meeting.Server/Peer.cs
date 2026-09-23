@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -186,16 +186,8 @@ namespace Dorisoy.Meeting.Server
                     var transport = await _room!.Router.CreateWebRtcTransportAsync(webRtcTransportOptions);
                     await using (await _transportsLock.WriteLockAsync())
                     {
-<<<<<<< HEAD
-                        if (!isSend && HasConsumingTransport())
-                        {
-                            throw new Exception("CreateWebRtcTransportAsync() | Consuming transport exists");
-                        }
-
-=======
                         // 幂等操作：只对 send transport 应用
                         // 对于 recv transport，允许创建多个（解决 SIPSorcery SRTP 限制，每个远端用户需要独立的 transport）
->>>>>>> pro
                         if (isSend && HasProducingTransport())
                         {
                             throw new Exception("CreateWebRtcTransportAsync() | Producing transport exists");

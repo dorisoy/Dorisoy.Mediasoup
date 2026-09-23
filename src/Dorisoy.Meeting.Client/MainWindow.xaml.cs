@@ -2,6 +2,8 @@ using System.ComponentModel;
 using System.Windows;
 using Dorisoy.Meeting.Client.Models;
 using Dorisoy.Meeting.Client.ViewModels;
+using Dorisoy.Meeting.Client.Views;
+using Microsoft.Extensions.DependencyInjection;
 using Wpf.Ui.Appearance;
 using Wpf.Ui.Controls;
 
@@ -13,8 +15,6 @@ namespace Dorisoy.Meeting.Client;
 public partial class MainWindow : FluentWindow
 {
     private readonly MainViewModel _viewModel;
-<<<<<<< HEAD
-=======
     private bool _isReturningToJoinRoom;
     private WindowState _previousWindowState;
     private WindowStyle _previousWindowStyle;
@@ -22,7 +22,6 @@ public partial class MainWindow : FluentWindow
     private VoteWindow? _currentVoteWindow; // 当前打开的投票窗口引用
     private CollaborativeEditorWindow? _currentEditorWindow; // 当前打开的编辑器窗口引用
     private WhiteboardWindow? _currentWhiteboardWindow; // 当前打开的白板窗口引用
->>>>>>> pro
 
     public MainWindow(MainViewModel viewModel)
     {
@@ -32,77 +31,75 @@ public partial class MainWindow : FluentWindow
         InitializeComponent();
         _viewModel = viewModel;
         DataContext = viewModel;
-<<<<<<< HEAD
-=======
 
         // 订阅打开设置请求事件
         _viewModel.OpenSettingsRequested += OnOpenSettingsRequested;
-        
+
         // 订阅打开表情选择器事件
         _viewModel.OpenEmojiPickerRequested += OnOpenEmojiPickerRequested;
-        
+
         // 订阅返回加入房间事件
         _viewModel.ReturnToJoinRoomRequested += OnReturnToJoinRoomRequested;
-        
+
         // 订阅全屏请求事件
         _viewModel.FullScreenRequested += OnFullScreenRequested;
-        
+
         // 订阅打开分享房间窗口事件
         _viewModel.OpenShareRoomWindowRequested += OnOpenShareRoomWindowRequested;
-        
+
         // 订阅打开同步转译窗口事件
         _viewModel.OpenTranslateWindowRequested += OnOpenTranslateWindowRequested;
-        
+
         // 订阅打开投票窗口事件
         _viewModel.OpenPollRequested += OnOpenPollRequested;
         _viewModel.VoteCreatedReceived += OnVoteCreatedReceived;
-        
+
         // 订阅编辑器事件
         _viewModel.EditorOpenedReceived += OnEditorOpenedReceived;
         _viewModel.EditorContentUpdated += OnEditorContentUpdated;
         _viewModel.EditorClosedReceived += OnEditorClosedReceived;
-        
+
         // 订阅白板事件
         _viewModel.WhiteboardOpenedReceived += OnWhiteboardOpenedReceived;
         _viewModel.WhiteboardStrokeUpdated += OnWhiteboardStrokeUpdated;
         _viewModel.WhiteboardClosedReceived += OnWhiteboardClosedReceived;
-        
+
         // 订阅投票窗口关闭事件
         _viewModel.VoteClosedReceived += OnVoteClosedReceived;
-        
+
         // 订阅关闭所有子窗口事件（主持人断开/房间解散时）
         _viewModel.CloseAllChildWindowsRequested += OnCloseAllChildWindows;
-        
+
         // 订阅屏幕截图事件
         _viewModel.CaptureScreenRequested += OnCaptureScreenRequested;
-        
+
         // 订阅私聊消息闪烁事件
         _viewModel.PrivateMessageFlashRequested += OnPrivateMessageFlashRequested;
-        
+
         // 订阅窗口关闭事件
         Closed += OnWindowClosed;
-        
+
         // 订阅键盘事件用于 Esc 退出全屏
         KeyDown += OnWindowKeyDown;
     }
-    
+
     /// <summary>
     /// 全屏请求处理
     /// </summary>
     private void OnFullScreenRequested(bool isFullScreen)
     {
-        if (isFullScreen)
+        if(isFullScreen)
         {
             // 保存当前状态
             _previousWindowState = WindowState;
             _previousWindowStyle = WindowStyle;
             _previousTopmost = Topmost;
-            
+
             // 进入全屏
             WindowStyle = WindowStyle.None;
             WindowState = WindowState.Maximized;
             Topmost = true;
-            
+
             // 隐藏标题栏
             TitleBar.Visibility = Visibility.Collapsed;
         }
@@ -112,18 +109,18 @@ public partial class MainWindow : FluentWindow
             WindowStyle = _previousWindowStyle;
             WindowState = _previousWindowState;
             Topmost = _previousTopmost;
-            
+
             // 显示标题栏
             TitleBar.Visibility = Visibility.Visible;
         }
     }
-    
+
     /// <summary>
     /// 键盘事件 - Esc 退出全屏
     /// </summary>
     private void OnWindowKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        if (e.Key == System.Windows.Input.Key.Escape && _viewModel.IsFullScreen)
+        if(e.Key == System.Windows.Input.Key.Escape && _viewModel.IsFullScreen)
         {
             _viewModel.FullScreenCommand.Execute(null);
         }
@@ -145,13 +142,13 @@ public partial class MainWindow : FluentWindow
     private async void OnOpenEmojiPickerRequested()
     {
         var picker = new EmojiPickerWindow { Owner = this };
-        if (picker.ShowDialog() == true && !string.IsNullOrEmpty(picker.SelectedEmoji))
+        if(picker.ShowDialog() == true && !string.IsNullOrEmpty(picker.SelectedEmoji))
         {
             // 发送表情广播
             await _viewModel.SendEmojiReactionAsync(picker.SelectedEmoji);
         }
     }
-    
+
     /// <summary>
     /// 打开分享房间窗口（二维码）
     /// </summary>
@@ -163,7 +160,7 @@ public partial class MainWindow : FluentWindow
         };
         shareWindow.ShowDialog();
     }
-    
+
     /// <summary>
     /// 打开同步转译窗口
     /// </summary>
@@ -173,16 +170,16 @@ public partial class MainWindow : FluentWindow
         {
             Owner = this
         };
-        
+
         // 窗口关闭时重置转译状态
         translateWindow.Closed += (s, e) =>
         {
             _viewModel.IsTranslateEnabled = false;
         };
-        
+
         translateWindow.Show();
     }
-    
+
     /// <summary>
     /// 处理屏幕截图请求
     /// </summary>
@@ -190,7 +187,7 @@ public partial class MainWindow : FluentWindow
     {
         // 创建屏幕截取遮罩（全屏覆盖，支持直接在选区上绘制标记）
         var overlay = new ScreenCaptureOverlay();
-        
+
         // 截图完成事件（图片已复制到剪贴板）
         overlay.CaptureCompleted += (screenshot) =>
         {
@@ -200,7 +197,7 @@ public partial class MainWindow : FluentWindow
                 _viewModel.StatusMessage = "截图已复制到剪贴板，可在聊天中 Ctrl+V 粘贴发送";
             });
         };
-        
+
         // 截图取消事件
         overlay.CaptureCancelled += () =>
         {
@@ -210,11 +207,11 @@ public partial class MainWindow : FluentWindow
                 _viewModel.StatusMessage = "截图已取消";
             });
         };
-        
+
         // 显示截图遮罩
         overlay.Show();
     }
-    
+
     /// <summary>
     /// 私聊消息收到时聊天按钮闪烁3次
     /// </summary>
@@ -228,19 +225,19 @@ public partial class MainWindow : FluentWindow
                 var originalBrush = ChatButton.Background;
                 var highlightBrush = new System.Windows.Media.SolidColorBrush(
                     System.Windows.Media.Color.FromArgb(255, 0, 120, 212)); // 蓝色高亮
-                
-                for (int i = 0; i < 3; i++)
+
+                for(int i = 0; i < 3; i++)
                 {
                     // 高亮
                     ChatButton.Background = highlightBrush;
                     await Task.Delay(200);
-                    
+
                     // 恢复
                     ChatButton.Background = originalBrush;
                     await Task.Delay(200);
                 }
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"[聊天闪烁] 异常: {ex.Message}");
             }
@@ -253,12 +250,12 @@ public partial class MainWindow : FluentWindow
     private void OnOpenPollRequested()
     {
         // 如果已有投票窗口打开，则激活它
-        if (_currentVoteWindow != null && _currentVoteWindow.IsLoaded)
+        if(_currentVoteWindow != null && _currentVoteWindow.IsLoaded)
         {
             _currentVoteWindow.Activate();
             return;
         }
-        
+
         OpenVoteWindow(null);
     }
 
@@ -270,13 +267,13 @@ public partial class MainWindow : FluentWindow
         Dispatcher.Invoke(() =>
         {
             // 如果是主持人且已有投票窗口打开，直接更新现有窗口内容
-            if (_viewModel.IsHost && _currentVoteWindow != null && _currentVoteWindow.IsLoaded)
+            if(_viewModel.IsHost && _currentVoteWindow != null && _currentVoteWindow.IsLoaded)
             {
                 // 更新现有窗口的投票内容
                 _currentVoteWindow.SetVote(vote);
                 return;
             }
-            
+
             // 非主持人或者没有投票窗口打开，则新建窗口
             OpenVoteWindow(vote);
         });
@@ -288,12 +285,12 @@ public partial class MainWindow : FluentWindow
     private void OpenVoteWindow(Vote? existingVote)
     {
         // 如果已有窗口打开，先关闭
-        if (_currentVoteWindow != null && _currentVoteWindow.IsLoaded)
+        if(_currentVoteWindow != null && _currentVoteWindow.IsLoaded)
         {
             // 先取消事件绑定
             _currentVoteWindow.Close();
         }
-        
+
         var voteWindow = new VoteWindow(
             _viewModel.CurrentPeerId,
             _viewModel.CurrentUserName,
@@ -303,65 +300,65 @@ public partial class MainWindow : FluentWindow
         {
             Owner = this
         };
-        
+
         // 保存窗口引用
         _currentVoteWindow = voteWindow;
-        
+
         // 窗口关闭时清理引用
         voteWindow.Closed += (s, e) =>
         {
-            if (_currentVoteWindow == voteWindow)
+            if(_currentVoteWindow == voteWindow)
             {
                 _currentVoteWindow = null;
             }
         };
-        
+
         // 绑定投票事件
         voteWindow.VoteCreated += async (vote) =>
         {
             await _viewModel.CreateVoteAsync(vote);
         };
-        
+
         voteWindow.VoteSubmitted += async (voteId, optionIndex) =>
         {
             await _viewModel.SubmitVoteAsync(voteId, optionIndex);
         };
-        
+
         voteWindow.VoteDeleted += async (voteId) =>
         {
             await _viewModel.DeleteVoteAsync(voteId);
         };
-        
+
         // 绑定投票窗口关闭事件 - 主持人关闭时发送通知给其他用户
         voteWindow.VoteClosed += async (request) =>
         {
             await _viewModel.CloseVoteAsync(request);
         };
-        
+
         // 绑定投票结果更新事件
         _viewModel.VoteResultUpdated += (submitData) =>
         {
             Dispatcher.Invoke(() =>
             {
-                if (voteWindow.CurrentVote?.Id == submitData.VoteId)
+                if(voteWindow.CurrentVote?.Id == submitData.VoteId)
                 {
                     // 窗口内部已经通过数据绑定更新，无需额外处理
                 }
             });
         };
-        
+
         // 绑定投票删除事件
         _viewModel.VoteDeletedReceived += (voteId) =>
         {
             Dispatcher.Invoke(() =>
             {
-                if (voteWindow.CurrentVote?.Id == voteId)
+                if(voteWindow.CurrentVote?.Id == voteId)
                 {
                     voteWindow.Close();
                 }
             });
         };
-        
+
         voteWindow.Show();
     }
 
@@ -375,7 +372,7 @@ public partial class MainWindow : FluentWindow
         Dispatcher.Invoke(() =>
         {
             // 如果已有编辑器窗口打开，激活它
-            if (_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
+            if(_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
             {
                 _currentEditorWindow.Activate();
                 return;
@@ -409,7 +406,7 @@ public partial class MainWindow : FluentWindow
             // 窗口关闭时清理引用
             editorWindow.Closed += (s, e) =>
             {
-                if (_currentEditorWindow == editorWindow)
+                if(_currentEditorWindow == editorWindow)
                 {
                     _currentEditorWindow = null;
                 }
@@ -426,7 +423,7 @@ public partial class MainWindow : FluentWindow
     {
         Dispatcher.Invoke(() =>
         {
-            if (_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
+            if(_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
             {
                 _currentEditorWindow.UpdateContent(update);
             }
@@ -440,7 +437,7 @@ public partial class MainWindow : FluentWindow
     {
         Dispatcher.Invoke(() =>
         {
-            if (_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
+            if(_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
             {
                 // 使用 ForceClose 强制关闭，跳过 Closing 事件检查
                 _currentEditorWindow.ForceClose();
@@ -461,7 +458,7 @@ public partial class MainWindow : FluentWindow
         Dispatcher.Invoke(() =>
         {
             // 如果已有白板窗口打开，激活它
-            if (_currentWhiteboardWindow != null && _currentWhiteboardWindow.IsLoaded)
+            if(_currentWhiteboardWindow != null && _currentWhiteboardWindow.IsLoaded)
             {
                 _currentWhiteboardWindow.Activate();
                 return;
@@ -493,7 +490,7 @@ public partial class MainWindow : FluentWindow
             // 窗口关闭时清理引用
             whiteboardWindow.Closed += (s, e) =>
             {
-                if (_currentWhiteboardWindow == whiteboardWindow)
+                if(_currentWhiteboardWindow == whiteboardWindow)
                 {
                     _currentWhiteboardWindow = null;
                 }
@@ -510,7 +507,7 @@ public partial class MainWindow : FluentWindow
     {
         Dispatcher.Invoke(() =>
         {
-            if (_currentWhiteboardWindow != null && _currentWhiteboardWindow.IsLoaded)
+            if(_currentWhiteboardWindow != null && _currentWhiteboardWindow.IsLoaded)
             {
                 _currentWhiteboardWindow.ApplyRemoteStroke(update);
             }
@@ -523,12 +520,12 @@ public partial class MainWindow : FluentWindow
     private void OnWhiteboardClosedReceived(string sessionId)
     {
         System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] 收到白板关闭通知: SessionId={sessionId}");
-        
+
         Dispatcher.Invoke(() =>
         {
             System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] _currentWhiteboardWindow={_currentWhiteboardWindow != null}, IsLoaded={_currentWhiteboardWindow?.IsLoaded}");
-            
-            if (_currentWhiteboardWindow != null)
+
+            if(_currentWhiteboardWindow != null)
             {
                 try
                 {
@@ -536,7 +533,7 @@ public partial class MainWindow : FluentWindow
                     System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] 强制关闭白板窗口...");
                     _currentWhiteboardWindow.ForceClose();
                 }
-                catch (Exception ex)
+                catch(Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"[WhiteboardClose] 关闭异常: {ex.Message}");
                 }
@@ -562,12 +559,12 @@ public partial class MainWindow : FluentWindow
     private void OnVoteClosedReceived(string voteId)
     {
         System.Diagnostics.Debug.WriteLine($"[VoteClose] 收到投票关闭通知: VoteId={voteId}");
-        
+
         Dispatcher.Invoke(() =>
         {
             System.Diagnostics.Debug.WriteLine($"[VoteClose] _currentVoteWindow={_currentVoteWindow != null}, IsLoaded={_currentVoteWindow?.IsLoaded}");
-            
-            if (_currentVoteWindow != null)
+
+            if(_currentVoteWindow != null)
             {
                 try
                 {
@@ -575,7 +572,7 @@ public partial class MainWindow : FluentWindow
                     System.Diagnostics.Debug.WriteLine($"[VoteClose] 强制关闭投票窗口...");
                     _currentVoteWindow.ForceClose();
                 }
-                catch (Exception ex)
+                catch(Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"[VoteClose] 关闭异常: {ex.Message}");
                 }
@@ -606,21 +603,21 @@ public partial class MainWindow : FluentWindow
             try
             {
                 // 关闭投票窗口
-                if (_currentVoteWindow != null && _currentVoteWindow.IsLoaded)
+                if(_currentVoteWindow != null && _currentVoteWindow.IsLoaded)
                 {
                     _currentVoteWindow.Close();
                     _currentVoteWindow = null;
                 }
 
                 // 关闭编辑器窗口
-                if (_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
+                if(_currentEditorWindow != null && _currentEditorWindow.IsLoaded)
                 {
                     _currentEditorWindow.ForceClose();
                     _currentEditorWindow = null;
                 }
 
                 // 关闭白板窗口
-                if (_currentWhiteboardWindow != null && _currentWhiteboardWindow.IsLoaded)
+                if(_currentWhiteboardWindow != null && _currentWhiteboardWindow.IsLoaded)
                 {
                     _currentWhiteboardWindow.ForceClose();
                     _currentWhiteboardWindow = null;
@@ -628,15 +625,15 @@ public partial class MainWindow : FluentWindow
 
                 // 关闭所有其他子窗口（遍历 OwnedWindows）
                 var windowsToClose = new List<Window>();
-                foreach (Window window in OwnedWindows)
+                foreach(Window window in OwnedWindows)
                 {
-                    if (window != this && window.IsLoaded)
+                    if(window != this && window.IsLoaded)
                     {
                         windowsToClose.Add(window);
                     }
                 }
 
-                foreach (var window in windowsToClose)
+                foreach(var window in windowsToClose)
                 {
                     try
                     {
@@ -648,7 +645,7 @@ public partial class MainWindow : FluentWindow
                     }
                 }
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine($"关闭子窗口时发生异常: {ex.Message}");
             }
@@ -656,32 +653,32 @@ public partial class MainWindow : FluentWindow
     }
 
     #endregion
-    
+
     /// <summary>
     /// 返回加入房间窗口
     /// </summary>
     private void OnReturnToJoinRoomRequested()
     {
         _isReturningToJoinRoom = true;
-        
+
         Application.Current.Dispatcher.Invoke(() =>
         {
             // 隐藏主窗口
             this.Hide();
-            
+
             // 创建并显示 JoinRoomWindow
             var joinRoomViewModel = App.ServiceProvider?.GetRequiredService<JoinRoomViewModel>();
-            if (joinRoomViewModel != null)
+            if(joinRoomViewModel != null)
             {
                 var joinRoomWindow = new JoinRoomWindow(joinRoomViewModel);
                 joinRoomWindow.ShowDialog();
-                
-                if (joinRoomWindow.IsConfirmed && joinRoomWindow.JoinRoomInfo != null)
+
+                if(joinRoomWindow.IsConfirmed && joinRoomWindow.JoinRoomInfo != null)
                 {
                     // 用户确认加入，重新显示主窗口并加入房间
                     this.WindowState = WindowState.Maximized;
                     this.Show();
-                    
+
                     // 自动加入房间
                     _ = _viewModel.AutoJoinAsync(joinRoomWindow.JoinRoomInfo);
                     _isReturningToJoinRoom = false;
@@ -693,7 +690,6 @@ public partial class MainWindow : FluentWindow
                 }
             }
         });
->>>>>>> pro
     }
 
     /// <summary>
@@ -703,8 +699,6 @@ public partial class MainWindow : FluentWindow
     {
         try
         {
-<<<<<<< HEAD
-=======
             // 取消事件订阅
             _viewModel.OpenSettingsRequested -= OnOpenSettingsRequested;
             _viewModel.OpenEmojiPickerRequested -= OnOpenEmojiPickerRequested;
@@ -724,14 +718,25 @@ public partial class MainWindow : FluentWindow
             _viewModel.CloseAllChildWindowsRequested -= OnCloseAllChildWindows;
             _viewModel.PrivateMessageFlashRequested -= OnPrivateMessageFlashRequested;
             KeyDown -= OnWindowKeyDown;
-            
->>>>>>> pro
+
             // 异步清理资源
             await _viewModel.CleanupAsync();
         }
-        catch (Exception)
+        catch(Exception)
         {
             // 忽略关闭时的异常，确保窗口能正常关闭
+        }
+    }
+
+    /// <summary>
+    /// 窗口已关闭事件处理 - 退出应用
+    /// </summary>
+    private void OnWindowClosed(object? sender, EventArgs e)
+    {
+        // 如果不是返回加入房间的情况，才退出应用
+        if(!_isReturningToJoinRoom)
+        {
+            Application.Current.Shutdown();
         }
     }
 }

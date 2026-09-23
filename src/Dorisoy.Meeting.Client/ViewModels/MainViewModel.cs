@@ -20,6 +20,7 @@ public partial class MainViewModel : ObservableObject
     private readonly ILogger<MainViewModel> _logger;
     private readonly ISignalRService _signalRService;
     private readonly IWebRtcService _webRtcService;
+    private readonly SoundService _soundService;
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -44,6 +45,12 @@ public partial class MainViewModel : ObservableObject
     private bool _isJoinedRoom;
 
     /// <summary>
+    /// 是否在大厅（已连接但未加入房间）
+    /// </summary>
+    [ObservableProperty]
+    private bool _isInLobby;
+
+    /// <summary>
     /// 服务器地址
     /// </summary>
     [ObservableProperty]
@@ -60,6 +67,12 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private int _selectedRoomIndex;
+
+    /// <summary>
+    /// 房间号码（用于加入房间）
+    /// </summary>
+    [ObservableProperty]
+    private string _roomId = "0";
 
     /// <summary>
     /// 服务模式
@@ -118,6 +131,12 @@ public partial class MainViewModel : ObservableObject
     public ObservableCollection<PeerInfo> Peers { get; } = [];
 
     /// <summary>
+    /// 在线人数 - 直接等于 Peers 集合的数量（包含自己）
+    /// 注意：Peers 集合包含房间内所有用户，包括自己
+    /// </summary>
+    public int OnlinePeerCount => Peers.Count;
+
+    /// <summary>
     /// 房间列表
     /// </summary>
     public ObservableCollection<string> Rooms { get; } =
@@ -156,8 +175,6 @@ public partial class MainViewModel : ObservableObject
     private bool _isSidebarVisible = true;
 
     /// <summary>
-<<<<<<< HEAD
-=======
     /// 自我视图是否可见（画中画模式时显示右下角预览）
     /// </summary>
     [ObservableProperty]
@@ -194,7 +211,6 @@ public partial class MainViewModel : ObservableObject
     private string _currentUserName = "我";
 
     /// <summary>
->>>>>>> pro
     /// 可用摄像头列表
     /// </summary>
     public ObservableCollection<MediaDeviceInfo> Cameras { get; } = [];
@@ -226,8 +242,6 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private VideoQualitySettings _selectedVideoQuality = VideoQualitySettings.GetPreset(VideoQualityPreset.High);
-<<<<<<< HEAD
-=======
     
     /// <summary>
     /// 可用的视频编解码器列表
@@ -426,16 +440,12 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private bool _showManualReconnect;
->>>>>>> pro
 
     #endregion
 
     #region 私有字段
 
     /// <summary>
-<<<<<<< HEAD
-    /// 预设的测试 Token - 2024-12-22 生成，有效期 300 天
-=======
     /// 媒体设置文件路径
     /// </summary>
     private static readonly string MediaSettingsPath = Path.Combine(
@@ -444,31 +454,13 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// 当前用户的访问令牌 - 从 JoinRoomInfo 传入
->>>>>>> pro
     /// </summary>
-    private readonly string[] _accessTokens =
-    [
-        // Peer 0
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiMCIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.jOYQxKv8b_dQ04HlaOWE_wKEPyD6cjqHbY315q6vbt8",
-        // Peer 1
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiMSIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.ebWA7vkeQZyw3r6EpkL9gcrcO5hvfNPVWNdgY8FDBmM",
-        // Peer 2
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiMiIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.9kDOHUQ981zO_NvEG0OHvXS1g4id-DdPyQhtDhgGoEg",
-        // Peer 3
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiMyIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.lP0Ip4UjLd5YkDgFCV1hEHCbP4M2QvsTL4FcpICqP-k",
-        // Peer 4
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiNCIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.8PoprZl9sbL9GNqnnq1m9PoNyGZdPUN0vZRlvKGvGMg",
-        // Peer 5
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiNSIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.RJwY5X-6UROHy-nnkXPMJjGT4cgJxnMshxAvNnevvk8",
-        // Peer 6
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiNiIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.9BvxRplgwzfCCSabCszQ_Jmu9sxzKWpeA0CYtR1HmmM",
-        // Peer 7
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiNyIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.3hVVcQ4o5_iR-mhdwjOldCheO2ib8_YC7kbIzfyhuSg",
-        // Peer 8 (Admin)
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiOCIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.zYmqT6G87Ucpegewrr9HPqCrnyAwk3-7iSXW81_Jkls",
-        // Peer 9 (Admin)
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiOSIsIm5iZiI6MTc2NjM3MDM0MiwiZXhwIjoxNzkyMjkwMzQyLCJpc3MiOiJpc3N1ZXIiLCJhdWQiOiJhdWRpZW5jZSJ9.hGMms3iLeuabuPp6RBWsAOWmnxJ3s_ltC2z2CR-W69g"
-    ];
+    private string _currentAccessToken = string.Empty;
+
+    /// <summary>
+    /// 文件上传服务 - 支持大文件分片上传
+    /// </summary>
+    private FileUploadService? _fileUploadService;
 
     private object? _routerRtpCapabilities;
     private string? _sendTransportId;
@@ -507,11 +499,13 @@ public partial class MainViewModel : ObservableObject
     public MainViewModel(
         ILogger<MainViewModel> logger,
         ISignalRService signalRService,
-        IWebRtcService webRtcService)
+        IWebRtcService webRtcService,
+        SoundService soundService)
     {
         _logger = logger;
         _signalRService = signalRService;
         _webRtcService = webRtcService;
+        _soundService = soundService;
 
         // 订阅事件
         _signalRService.OnNotification += HandleNotification;
@@ -524,9 +518,10 @@ public partial class MainViewModel : ObservableObject
 
         // 订阅 recv transport DTLS 连接完成事件 - 在这之后才能 Resume Consumer
         _webRtcService.OnRecvTransportDtlsConnected += OnRecvTransportDtlsConnected;
+        
+        // 订阅解码失败关键帧请求事件 - 当解码失败多次时请求关键帧
+        _webRtcService.OnKeyFrameRequestNeeded += OnKeyFrameRequestNeeded;
 
-<<<<<<< HEAD
-=======
         // 订阅 Peers 集合变化事件 - 同步更新在线人数
         Peers.CollectionChanged += (s, e) => OnPropertyChanged(nameof(OnlinePeerCount));
 
@@ -541,7 +536,6 @@ public partial class MainViewModel : ObservableObject
         // 订阅分块消息重组完成事件
         _signalRService.OnChunkedMessageReceived += OnChunkedMessageReceived;
 
->>>>>>> pro
         // 初始化视频质量配置
         _webRtcService.VideoQuality = SelectedVideoQuality;
 
@@ -569,6 +563,9 @@ public partial class MainViewModel : ObservableObject
             _signalRService.OnNotification -= HandleNotification;
             _signalRService.OnConnected -= OnSignalRConnected;
             _signalRService.OnDisconnected -= OnSignalRDisconnected;
+            _signalRService.OnReconnecting -= OnSignalRReconnecting;
+            _signalRService.OnReconnected -= OnSignalRReconnected;
+            _signalRService.OnChunkedMessageReceived -= OnChunkedMessageReceived;
 
             _webRtcService.OnLocalVideoFrame -= OnLocalVideoFrameReceived;
             _webRtcService.OnRemoteVideoFrame -= OnRemoteVideoFrameReceived;
@@ -587,6 +584,105 @@ public partial class MainViewModel : ObservableObject
             _logger.LogError(ex, "Error during cleanup");
         }
     }
+
+    #region 断线重连处理
+
+    /// <summary>
+    /// SignalR 正在重连事件处理
+    /// </summary>
+    private async void OnSignalRReconnecting(int attempt)
+    {
+        await Application.Current.Dispatcher.InvokeAsync(() =>
+        {
+            IsReconnecting = true;
+            ShowManualReconnect = false;
+            ReconnectCountdown = 30;
+            ReconnectMessage = $"网络连接中断，正在尝试重连 ({attempt})...";
+            StatusMessage = "正在重连...";
+        });
+
+        // 启动倒计时
+        while (IsReconnecting && ReconnectCountdown > 0)
+        {
+            await Task.Delay(1000);
+            
+            // 如果已经重连成功，退出循环
+            if (_signalRService.IsConnected)
+            {
+                return;
+            }
+            
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                ReconnectCountdown--;
+            });
+        }
+
+        // 倒计时结束，检查连接状态
+        if (IsReconnecting && !_signalRService.IsConnected)
+        {
+            await Application.Current.Dispatcher.InvokeAsync(() =>
+            {
+                ReconnectMessage = "重连失败，请检查网络后重试";
+                ShowManualReconnect = true;
+            });
+        }
+    }
+
+    /// <summary>
+    /// SignalR 重连成功事件处理
+    /// </summary>
+    private void OnSignalRReconnected()
+    {
+        Application.Current?.Dispatcher.Invoke(() =>
+        {
+            IsReconnecting = false;
+            ShowManualReconnect = false;
+            ReconnectCountdown = 0;
+            ReconnectMessage = "";
+            StatusMessage = "重连成功";
+            _logger.LogInformation("重连成功");
+        });
+    }
+
+    /// <summary>
+    /// 手动重连命令
+    /// </summary>
+    [RelayCommand]
+    private async Task ManualReconnectAsync()
+    {
+        if (IsBusy) return;
+
+        IsBusy = true;
+        try
+        {
+            ShowManualReconnect = false;
+            IsReconnecting = true;
+            ReconnectMessage = "正在手动重连...";
+
+            // 先断开现有连接
+            await _signalRService.DisconnectAsync();
+
+            // 重新连接
+            await _signalRService.ConnectAsync(ServerUrl, _currentAccessToken);
+
+            IsReconnecting = false;
+            ReconnectMessage = "";
+            StatusMessage = "手动重连成功";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "手动重连失败");
+            ReconnectMessage = $"重连失败: {ex.Message}";
+            ShowManualReconnect = true;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    #endregion
 
     /// <summary>
     /// 连接/断开服务器
@@ -625,14 +721,23 @@ public partial class MainViewModel : ObservableObject
         IsBusy = true;
         try
         {
+            _logger.LogInformation("切换房间状态: 当前IsJoinedRoom={IsJoinedRoom}", IsJoinedRoom);
+            
             if (IsJoinedRoom)
             {
+                _logger.LogInformation("开始离开房间...");
                 await LeaveRoomAsync();
             }
             else
             {
+                _logger.LogInformation("开始加入房间...");
                 await JoinRoomAsync();
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "切换房间状态失败");
+            StatusMessage = $"操作失败: {ex.Message}";
         }
         finally
         {
@@ -723,8 +828,6 @@ public partial class MainViewModel : ObservableObject
         IsSidebarVisible = !IsSidebarVisible;
     }
 
-<<<<<<< HEAD
-=======
     #region 左侧工具栏命令
 
     /// <summary>
@@ -3003,7 +3106,6 @@ public partial class MainViewModel : ObservableObject
 
     #endregion
 
->>>>>>> pro
     /// <summary>
     /// 切换摄像头设备
     /// </summary>
@@ -3060,7 +3162,15 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnIsJoinedRoomChanged(bool value)
     {
+        _logger.LogInformation("=== IsJoinedRoom 属性变化: OldValue -> NewValue={NewValue}, 当前线程={ThreadId} ===", 
+            value, System.Threading.Thread.CurrentThread.ManagedThreadId);
+        
+        // 通知相关计算属性
         OnPropertyChanged(nameof(CanToggleMedia));
+        
+        // 输出堆栈追踪以便调试
+        _logger.LogDebug("IsJoinedRoom 变化调用栈: {StackTrace}", 
+            new System.Diagnostics.StackTrace().ToString());
     }
 
     /// <summary>
@@ -3079,8 +3189,6 @@ public partial class MainViewModel : ObservableObject
             SaveMediaSettings();
         }
     }
-<<<<<<< HEAD
-=======
     
     /// <summary>
     /// 视频编解码器变化时应用到 WebRTC 服务
@@ -3098,7 +3206,6 @@ public partial class MainViewModel : ObservableObject
             SaveMediaSettings();
         }
     }
->>>>>>> pro
 
     /// <summary>
     /// 屏幕共享设置变化时保存
@@ -3417,9 +3524,6 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ToggleCameraAsync()
     {
-        if (IsBusy) return;
-
-        IsBusy = true;
         try
         {
             if (IsCameraEnabled)
@@ -3434,17 +3538,19 @@ public partial class MainViewModel : ObservableObject
                     _videoProducerId = null;
                 }
 
-                IsCameraEnabled = false;
+                UpdateMediaStateOnUiThread(camera: false, mic: null);
                 LocalVideoFrame = null;
                 StatusMessage = "摄像头已关闭";
+                _logger.LogInformation("摄像头已关闭");
             }
             else
             {
                 // 启动摄像头（使用选中的设备）
                 var deviceId = SelectedCamera?.DeviceId;
                 await _webRtcService.StartCameraAsync(deviceId);
-                IsCameraEnabled = true;
+                UpdateMediaStateOnUiThread(camera: true, mic: null);
                 StatusMessage = "摄像头采集中...";
+                _logger.LogInformation("摄像头已开启");
 
                 // 如果已加入房间，调用 Produce 推送视频
                 if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
@@ -3458,10 +3564,6 @@ public partial class MainViewModel : ObservableObject
             _logger.LogError(ex, "Failed to toggle camera");
             StatusMessage = $"摄像头操作失败: {ex.Message}";
         }
-        finally
-        {
-            IsBusy = false;
-        }
     }
 
     /// <summary>
@@ -3470,9 +3572,6 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ToggleMicrophoneAsync()
     {
-        if (IsBusy) return;
-
-        IsBusy = true;
         try
         {
             if (IsMicrophoneEnabled)
@@ -3487,16 +3586,18 @@ public partial class MainViewModel : ObservableObject
                     _audioProducerId = null;
                 }
 
-                IsMicrophoneEnabled = false;
+                UpdateMediaStateOnUiThread(camera: null, mic: false);
                 StatusMessage = "麦克风已关闭";
+                _logger.LogInformation("麦克风已关闭");
             }
             else
             {
                 // 启动麦克风（使用选中的设备）
                 var deviceId = SelectedMicrophone?.DeviceId;
                 await _webRtcService.StartMicrophoneAsync(deviceId);
-                IsMicrophoneEnabled = true;
+                UpdateMediaStateOnUiThread(camera: null, mic: true);
                 StatusMessage = "麦克风已开启";
+                _logger.LogInformation("麦克风已开启");
 
                 // 如果已加入房间，调用 Produce 推送音频
                 if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
@@ -3509,10 +3610,6 @@ public partial class MainViewModel : ObservableObject
         {
             _logger.LogError(ex, "Failed to toggle microphone");
             StatusMessage = $"麦克风操作失败: {ex.Message}";
-        }
-        finally
-        {
-            IsBusy = false;
         }
     }
 
@@ -3528,8 +3625,16 @@ public partial class MainViewModel : ObservableObject
         try
         {
             StatusMessage = "正在连接...";
-            var token = _accessTokens[SelectedPeerIndex];
-            await _signalRService.ConnectAsync(ServerUrl, token);
+            
+            // 使用动态获取的 Token
+            if (string.IsNullOrEmpty(_currentAccessToken))
+            {
+                _logger.LogError("访问令牌为空，无法连接");
+                StatusMessage = "访问令牌无效";
+                return;
+            }
+            
+            await _signalRService.ConnectAsync(ServerUrl, _currentAccessToken);
             await StartMeetingAsync();
             StatusMessage = "已连接";
         }
@@ -3597,12 +3702,12 @@ public partial class MainViewModel : ObservableObject
             }
         }
 
-        // 4. 加入会议
+        // 4. 加入会议 - 使用真实用户名
         var joinRequest = new
         {
             rtpCapabilities = _routerRtpCapabilities,
             sctpCapabilities = (object?)null,
-            displayName = $"WPF Peer {SelectedPeerIndex}",
+            displayName = CurrentUserName,  // 使用用户输入的真实用户名
             sources = new[] { "audio:mic", "video:cam" },
             appData = new Dictionary<string, object>()
         };
@@ -3623,27 +3728,42 @@ public partial class MainViewModel : ObservableObject
     private async Task JoinRoomAsync()
     {
         var isAdmin = SelectedPeerIndex >= 8;
+        var roomIdToJoin = !string.IsNullOrEmpty(RoomId) ? RoomId : Rooms[SelectedRoomIndex];
         var joinRoomRequest = new
         {
-            roomId = Rooms[SelectedRoomIndex],
+            roomId = roomIdToJoin,
             role = isAdmin ? "admin" : "normal"
         };
 
         StatusMessage = "正在加入房间...";
+        _logger.LogInformation("调用JoinRoom: RoomId={RoomId}, IsAdmin={IsAdmin}, CurrentUserName={CurrentUserName}", 
+            roomIdToJoin, isAdmin, CurrentUserName);
 
         var result = await _signalRService.InvokeAsync<JoinRoomResponse>("JoinRoom", joinRoomRequest);
+        
+        // 详细日志：输出 JoinRoom 响应的完整信息
+        _logger.LogInformation("JoinRoom 响应: IsSuccess={IsSuccess}, Code={Code}, Message={Message}, Data={Data}, Peers={Peers}", 
+            result.IsSuccess, result.Code, result.Message, 
+            result.Data != null ? "not null" : "null",
+            result.Data?.Peers?.Length ?? 0);
+        
         if (!result.IsSuccess)
         {
             _logger.LogError("JoinRoom failed: {Message}", result.Message);
+            
+            // 检查是否是"已在房间中"的错误
+            if (result.Message?.Contains("already") == true || result.Message?.Contains("已在") == true)
+            {
+                _logger.LogWarning("检测到已在房间中，同步状态为已加入");
+                SyncRoomState(roomIdToJoin, true);
+                StatusMessage = $"已在房间 {roomIdToJoin} 中";
+                return;
+            }
+            
             StatusMessage = $"加入房间失败: {result.Message}";
             return;
         }
 
-<<<<<<< HEAD
-        // 更新 Peer 列表
-        Peers.Clear();
-        if (result.Data?.Peers != null)
-=======
         // 在 UI 线程上更新 Peer 列表和 ChatUsers 列表
         var peersData = result.Data?.Peers;
         var hostPeerId = result.Data?.HostPeerId;
@@ -3664,17 +3784,9 @@ public partial class MainViewModel : ObservableObject
         // 使用 Dispatcher.Invoke 确保在 UI 线程上更新集合
         var dispatcher = Application.Current?.Dispatcher;
         if (dispatcher != null && !dispatcher.CheckAccess())
->>>>>>> pro
         {
-            foreach (var peer in result.Data.Peers)
-            {
-                Peers.Add(peer);
-            }
+            dispatcher.Invoke(() => UpdatePeersCollection(peersData, roomIdToJoin));
         }
-<<<<<<< HEAD
-
-        IsJoinedRoom = true;
-=======
         else
         {
             UpdatePeersCollection(peersData, roomIdToJoin);
@@ -3682,15 +3794,24 @@ public partial class MainViewModel : ObservableObject
         
         _logger.LogInformation("加入房间成功: RoomId={RoomId}, PeerCount={PeerCount}, ChatUserCount={ChatUserCount}, IsHost={IsHost}", 
             roomIdToJoin, Peers.Count, ChatUsers.Count, IsHost);
->>>>>>> pro
 
         // 创建 WebRTC Transport
         await CreateTransportsAsync();
 
+        // 记录 ServeMode 状态
+        _logger.LogInformation("当前 ServeMode={ServeMode}，准备启用媒体", ServeMode);
+        
         // 如果是 Open 模式，自动开始生产
         if (ServeMode == "Open")
         {
+            _logger.LogInformation("开始调用 EnableMediaAsync...");
             await EnableMediaAsync();
+            _logger.LogInformation("EnableMediaAsync 完成: IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}", 
+                IsCameraEnabled, IsMicrophoneEnabled);
+        }
+        else
+        {
+            _logger.LogWarning("ServeMode={ServeMode} 不是 Open，跳过 EnableMediaAsync", ServeMode);
         }
 
         // 通知服务器准备就绪
@@ -3702,9 +3823,6 @@ public partial class MainViewModel : ObservableObject
             _ = DelayedRefreshSubscriptionsAsync();
         }
 
-<<<<<<< HEAD
-        StatusMessage = $"已加入房间 {Rooms[SelectedRoomIndex]}";
-=======
         StatusMessage = $"已加入房间 {roomIdToJoin}";
     }
     
@@ -3914,20 +4032,27 @@ public partial class MainViewModel : ObservableObject
         
         _logger.LogInformation("房间状态同步完成: IsJoinedRoom={IsJoinedRoom}, OnlinePeerCount={OnlinePeerCount}", 
             IsJoinedRoom, OnlinePeerCount);
->>>>>>> pro
     }
 
     /// <summary>
-    /// 离开房间
+    /// 离开房间（回到大厅，保持SignalR连接）
     /// </summary>
     private async Task LeaveRoomAsync()
     {
+        _logger.LogInformation("开始离开房间...");
+        
+        try
+        {
+            // 调用服务器 LeaveRoom，但保持 SignalR 连接
+            await _signalRService.InvokeAsync("LeaveRoom");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "调用 LeaveRoom 失败");
+        }
+        
+        // 关闭 WebRTC 媒体，但保持 SignalR 连接
         await _webRtcService.CloseAsync();
-<<<<<<< HEAD
-
-        var result = await _signalRService.InvokeAsync("LeaveRoom");
-        if (result.IsSuccess)
-=======
         
         // 重置房间相关状态，但保持连接状态
         IsJoinedRoom = false;
@@ -4043,19 +4168,13 @@ public partial class MainViewModel : ObservableObject
         _logger.LogInformation("完全退出会议...");
         
         try
->>>>>>> pro
         {
-            IsJoinedRoom = false;
-            IsCameraEnabled = false;
-            IsMicrophoneEnabled = false;
-            Peers.Clear();
-            RemoteVideos.Clear();
-            HasNoRemoteVideos = true;
-            LocalVideoFrame = null;
-            StatusMessage = "已离开房间";
+            // 如果在房间中，先离开房间
+            if (IsJoinedRoom)
+            {
+                await _signalRService.InvokeAsync("LeaveRoom");
+            }
         }
-<<<<<<< HEAD
-=======
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "退出时调用 LeaveRoom 失败");
@@ -4112,7 +4231,6 @@ public partial class MainViewModel : ObservableObject
         
         // 通知窗口返回加入房间界面
         ReturnToJoinRoomRequested?.Invoke();
->>>>>>> pro
     }
 
     /// <summary>
@@ -4221,7 +4339,9 @@ public partial class MainViewModel : ObservableObject
             var micDeviceId = SelectedMicrophone?.DeviceId;
 
             await _webRtcService.StartCameraAsync(cameraDeviceId);
-            IsCameraEnabled = true;
+            
+            // 确保在 UI 线程上更新状态
+            UpdateMediaStateOnUiThread(camera: true, mic: null);
             StatusMessage = "摄像头采集中...";
 
             // 调用 Produce 推送视频
@@ -4231,7 +4351,9 @@ public partial class MainViewModel : ObservableObject
             }
 
             await _webRtcService.StartMicrophoneAsync(micDeviceId);
-            IsMicrophoneEnabled = true;
+            
+            // 确保在 UI 线程上更新状态
+            UpdateMediaStateOnUiThread(camera: null, mic: true);
 
             // 调用 Produce 推送音频
             if (!string.IsNullOrEmpty(_sendTransportId))
@@ -4239,15 +4361,14 @@ public partial class MainViewModel : ObservableObject
                 await ProduceAudioAsync();
             }
 
-            _logger.LogInformation("Media enabled");
+            _logger.LogInformation("Media enabled: IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}", 
+                IsCameraEnabled, IsMicrophoneEnabled);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to enable media");
         }
     }
-<<<<<<< HEAD
-=======
     
     /// <summary>
     /// 在 UI 线程上更新媒体状态
@@ -4297,7 +4418,6 @@ public partial class MainViewModel : ObservableObject
         // 使用 BeginInvoke 异步执行，确保 UI 更新
         dispatcher.BeginInvoke(new Action(DoUpdate), System.Windows.Threading.DispatcherPriority.Send);
     }
->>>>>>> pro
 
     /// <summary>
     /// 生产视频流
@@ -4308,7 +4428,9 @@ public partial class MainViewModel : ObservableObject
         {
             // 从 SendTransport 获取实际使用的 SSRC，确保与 RTP 发送一致
             var videoSsrc = _webRtcService.SendTransport?.VideoSsrc ?? 0;
-            var produceRequest = RtpParametersFactory.CreateVideoProduceRequest(videoSsrc);
+            var currentCodec = _webRtcService.CurrentVideoCodec;
+            var produceRequest = RtpParametersFactory.CreateVideoProduceRequest(videoSsrc, currentCodec);
+            _logger.LogInformation("创建视频 Producer: SSRC={Ssrc}, Codec={Codec}", videoSsrc, currentCodec);
 
             var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
             if (result.IsSuccess && result.Data != null)
@@ -4394,6 +4516,9 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
+            _logger.LogDebug("收到远端视频帧: ConsumerId={ConsumerId}, Frame={Width}x{Height}",
+                consumerId, frame?.PixelWidth ?? 0, frame?.PixelHeight ?? 0);
+            
             // 查找或创建对应的远端视频项
             var existingVideo = RemoteVideos.FirstOrDefault(v => v.ConsumerId == consumerId);
             if (existingVideo != null)
@@ -4447,12 +4572,82 @@ public partial class MainViewModel : ObservableObject
             {
                 _logger.LogDebug("Resuming consumer after DTLS: {ConsumerId}", consumerId);
                 await _signalRService.InvokeAsync("ResumeConsumer", consumerId);
+                
+                // 请求关键帧以消除初始马赛克
+                // 对于所有 Consumer 都请求关键帧，服务端对音频会忽略此请求
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(100);  // 100ms 延迟确保 Resume 完成
+                    try
+                    {
+                        _logger.LogInformation("请求关键帧(DTLS后): ConsumerId={ConsumerId}", consumerId);
+                        await _signalRService.InvokeAsync("RequestConsumerKeyFrame", consumerId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "请求关键帧失败(DTLS后): {ConsumerId}", consumerId);
+                    }
+                });
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Failed to resume consumer {ConsumerId}", consumerId);
             }
         }
+    }
+
+    /// <summary>
+    /// 解码失败时请求关键帧事件处理
+    /// 当解码器检测到多次解码失败时，请求服务器发送关键帧
+    /// </summary>
+    private async void OnKeyFrameRequestNeeded(string consumerId)
+    {
+        try
+        {
+            _logger.LogInformation("解码失败触发关键帧请求: ConsumerId={ConsumerId}", consumerId);
+            await _signalRService.InvokeAsync("RequestConsumerKeyFrame", consumerId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "解码失败后请求关键帧失败: {ConsumerId}", consumerId);
+        }
+    }
+
+    /// <summary>
+    /// 处理分块消息重组完成事件
+    /// 当服务器将大消息分块发送到客户端并重组后触发
+    /// </summary>
+    private void OnChunkedMessageReceived(string type, string json)
+    {
+        _logger.LogDebug("分块消息重组完成: Type={Type}", type);
+        
+        System.Windows.Application.Current?.Dispatcher.Invoke(() =>
+        {
+            try
+            {
+                // 根据类型处理重组后的消息
+                switch (type)
+                {
+                    case "chatMessage":
+                        // 解析聊天消息并处理
+                        var chatData = JsonSerializer.Deserialize<object>(json, JsonOptions);
+                        HandleChatMessage(chatData);
+                        break;
+                    case "broadcastMessage":
+                        // 解析广播消息并处理
+                        var broadcastData = JsonSerializer.Deserialize<object>(json, JsonOptions);
+                        HandleBroadcastMessage(broadcastData);
+                        break;
+                    default:
+                        _logger.LogDebug("未处理的分块消息类型: {Type}", type);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "处理分块消息失败: Type={Type}", type);
+            }
+        });
     }
 
     /// <summary>
@@ -4486,8 +4681,6 @@ public partial class MainViewModel : ObservableObject
                     case "producerClosed":
                         HandleProducerClosed(notification.Data);
                         break;
-<<<<<<< HEAD
-=======
                     case "chatMessage":
                         HandleChatMessage(notification.Data);
                         break;
@@ -4548,13 +4741,9 @@ public partial class MainViewModel : ObservableObject
                     case "whiteboardClosed":
                         HandleWhiteboardClosed(notification.Data);
                         break;
-<<<<<<< HEAD
->>>>>>> pro
-=======
                     case "voteClosed":
                         HandleVoteClosed(notification.Data);
                         break;
->>>>>>> pro
                     default:
                         _logger.LogDebug("Unhandled notification: {Type}", notification.Type);
                         break;
@@ -4575,11 +4764,16 @@ public partial class MainViewModel : ObservableObject
         var notification = JsonSerializer.Deserialize<PeerJoinRoomData>(json, JsonOptions);
         if (notification?.Peer != null)
         {
-            Peers.Add(notification.Peer);
-            _logger.LogInformation("Peer joined: {PeerId}", notification.Peer.PeerId);
+            // 检查是否已存在，避免重复添加
+            var existingPeer = Peers.FirstOrDefault(p => p.PeerId == notification.Peer.PeerId);
+            if (existingPeer == null)
+            {
+                Peers.Add(notification.Peer);
+            }
+            
+            _logger.LogInformation("Peer joined: PeerId={PeerId}, DisplayName={DisplayName}", 
+                notification.Peer.PeerId, notification.Peer.DisplayName);
             StatusMessage = $"用户 {notification.Peer.DisplayName} 加入房间";
-<<<<<<< HEAD
-=======
 
             // 同步到聊天用户列表 - 使用 DisplayName 比较来排除自己
             bool isSelf = string.Equals(notification.Peer.DisplayName, CurrentUserName, StringComparison.OrdinalIgnoreCase);
@@ -4599,7 +4793,6 @@ public partial class MainViewModel : ObservableObject
             
             // 手动触发在线人数更新
             OnPropertyChanged(nameof(OnlinePeerCount));
->>>>>>> pro
         }
     }
 
@@ -4620,13 +4813,8 @@ public partial class MainViewModel : ObservableObject
             if (peer != null)
             {
                 Peers.Remove(peer);
-<<<<<<< HEAD
-                _logger.LogInformation("Peer left: {PeerId}", notification.PeerId);
-                StatusMessage = $"用户 {peer.DisplayName} 离开房间";
-=======
                 _logger.LogInformation("移除 Peer: PeerId={PeerId}, DisplayName={DisplayName}", 
                     notification.PeerId, peer.DisplayName);
->>>>>>> pro
             }
 
             // 移除该 peer 对应的所有远端视频
@@ -4639,8 +4827,6 @@ public partial class MainViewModel : ObservableObject
 
             // 更新无远端视频状态
             HasNoRemoteVideos = RemoteVideos.Count == 0;
-<<<<<<< HEAD
-=======
 
             // 从聊天用户列表移除
             _logger.LogDebug("当前 ChatUsers 列表: {Users}", 
@@ -4663,7 +4849,6 @@ public partial class MainViewModel : ObservableObject
             
             // 手动触发在线人数更新
             OnPropertyChanged(nameof(OnlinePeerCount));
->>>>>>> pro
         }
     }
 
@@ -4840,15 +5025,7 @@ public partial class MainViewModel : ObservableObject
         // 如果是视频 Consumer，立即在 UI 中添加占位符
         if (notification.Kind == "video")
         {
-<<<<<<< HEAD
-            _logger.LogInformation("New consumer: {ConsumerId}, Kind: {Kind}",
-                notification.ConsumerId, notification.Kind);
-
-            // 如果是视频 Consumer，立即在 UI 中添加占位符
-            if (notification.Kind == "video")
-=======
             Application.Current?.Dispatcher.Invoke(() =>
->>>>>>> pro
             {
                 // 检查是否已存在
                 var existing = RemoteVideos.FirstOrDefault(v => v.ConsumerId == notification.ConsumerId);
@@ -4856,42 +5033,6 @@ public partial class MainViewModel : ObservableObject
                 {
                     var remoteVideo = new RemoteVideoItem
                     {
-<<<<<<< HEAD
-                        var peerName = notification.ProducerPeerId ?? "remote";
-                        var remoteVideo = new RemoteVideoItem
-                        {
-                            ConsumerId = notification.ConsumerId,
-                            PeerId = notification.ProducerPeerId ?? "",
-                            DisplayName = $"远端用户_{peerName.Substring(0, Math.Min(8, peerName.Length))}",
-                            VideoFrame = null // 占位符，等待视频帧
-                        };
-                        RemoteVideos.Add(remoteVideo);
-                        HasNoRemoteVideos = false;
-                        _logger.LogInformation("添加远端视频占位符: {ConsumerId}", notification.ConsumerId);
-                    }
-                });
-            }
-
-            await _webRtcService.AddConsumerAsync(
-                notification.ConsumerId,
-                notification.Kind,
-                notification.RtpParameters);
-
-            // 判断 recv transport 是否已完成 DTLS 连接
-            // 如果已连接，立即恢复 Consumer
-            // 如果未连接，将 Consumer ID 添加到待恢复列表，等待 DTLS 连接后再恢复
-            if (_webRtcService.IsRecvTransportDtlsConnected)
-            {
-                _logger.LogDebug("Recv transport already connected, resuming consumer immediately: {ConsumerId}", notification.ConsumerId);
-                await _signalRService.InvokeAsync("ResumeConsumer", notification.ConsumerId);
-            }
-            else
-            {
-                _logger.LogDebug("Recv transport not yet connected, adding consumer to pending resume list: {ConsumerId}", notification.ConsumerId);
-                lock (_pendingResumeConsumers)
-                {
-                    _pendingResumeConsumers.Add(notification.ConsumerId);
-=======
                         ConsumerId = notification.ConsumerId,
                         PeerId = peerId,
                         DisplayName = $"远端用户_{peerId.Substring(0, Math.Min(8, peerId.Length))}",
@@ -4900,7 +5041,6 @@ public partial class MainViewModel : ObservableObject
                     RemoteVideos.Add(remoteVideo);
                     HasNoRemoteVideos = false;
                     _logger.LogInformation("添加远端视频占位符: {ConsumerId}, PeerId={PeerId}", notification.ConsumerId, peerId);
->>>>>>> pro
                 }
             });
         }
@@ -4925,6 +5065,25 @@ public partial class MainViewModel : ObservableObject
             // Transport 已连接，立即 Resume consumer
             _logger.LogInformation("立即 Resume consumer: {ConsumerId}", notification.ConsumerId);
             await _signalRService.InvokeAsync("ResumeConsumer", notification.ConsumerId);
+            
+            // 请求关键帧以消除初始马赛克 - 对于视频 Consumer
+            if (notification.Kind == "video")
+            {
+                // 稍微延迟后请求关键帧，确保 Resume 已完成
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(100);  // 100ms 延迟
+                    try
+                    {
+                        _logger.LogInformation("请求初始关键帧: ConsumerId={ConsumerId}", notification.ConsumerId);
+                        await _signalRService.InvokeAsync("RequestConsumerKeyFrame", notification.ConsumerId);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "请求关键帧失败: {ConsumerId}", notification.ConsumerId);
+                    }
+                });
+            }
         }
         else
         {
@@ -5001,8 +5160,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
-<<<<<<< HEAD
-=======
     /// <summary>
     /// 处理屏幕共享请求
     /// </summary>
@@ -5807,7 +5964,6 @@ public partial class MainViewModel : ObservableObject
         }
     }
 
->>>>>>> pro
     #endregion
 
     #region 媒体设置持久化

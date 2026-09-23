@@ -30,7 +30,7 @@ public partial class SettingPage
     /// </summary>
     private void BrowseRecordingPath_Click(object sender, System.Windows.RoutedEventArgs e)
     {
-        // 使用 .NET 8 WPF 原生的 OpenFolderDialog
+        // 使用 .NET 10 WPF 原生的 OpenFolderDialog
         var dialog = new OpenFolderDialog
         {
             Title = "选择录制视频保存目录",

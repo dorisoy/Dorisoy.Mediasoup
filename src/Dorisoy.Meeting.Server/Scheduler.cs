@@ -828,8 +828,6 @@ namespace Dorisoy.Meeting.Server
             }
         }
 
-<<<<<<< HEAD
-=======
         /// <summary>
         /// 获取 Peer 信息（用于消息广播等）
         /// </summary>
@@ -898,7 +896,6 @@ namespace Dorisoy.Meeting.Server
             }
         }
 
->>>>>>> pro
         private static void CheckConnection(Peer peer, string connectionId)
         {
             if (peer.ConnectionId != connectionId)

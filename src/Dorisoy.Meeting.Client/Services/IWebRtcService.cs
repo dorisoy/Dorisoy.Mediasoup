@@ -97,8 +97,6 @@ public interface IWebRtcService : IDisposable
     Task StopMicrophoneAsync();
 
     /// <summary>
-<<<<<<< HEAD
-=======
     /// 开始屏幕共享
     /// </summary>
     Task StartScreenShareAsync();
@@ -129,7 +127,6 @@ public interface IWebRtcService : IDisposable
     event Action<WriteableBitmap>? OnScreenShareFrame;
 
     /// <summary>
->>>>>>> pro
     /// 加载设备能力
     /// </summary>
     void LoadDevice(object routerRtpCapabilities);

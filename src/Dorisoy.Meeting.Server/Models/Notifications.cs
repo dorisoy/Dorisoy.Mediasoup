@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using FBS.RtpParameters;
@@ -131,8 +131,6 @@ namespace Dorisoy.Meeting.Server
         public string Message { get; set; }
     }
 
-<<<<<<< HEAD
-=======
     /// <summary>
     /// 广播消息通知 - 支持即时聊天
     /// </summary>
@@ -227,7 +225,6 @@ namespace Dorisoy.Meeting.Server
         public string Reason { get; set; }
     }
 
->>>>>>> pro
     #endregion
 
     #region Consumer

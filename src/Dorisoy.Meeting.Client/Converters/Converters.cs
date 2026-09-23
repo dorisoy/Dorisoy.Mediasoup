@@ -358,8 +358,6 @@ public class MediaAppearanceConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
-<<<<<<< HEAD
-=======
 
 /// <summary>
 /// 预览图标转换器 - 根据是否正在预览显示不同图标
@@ -640,9 +638,6 @@ public class BoolToYesNoConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
-<<<<<<< HEAD
->>>>>>> pro
-=======
 
 /// <summary>
 /// 字符串首字母转换器 - 用于显示用户名的第一个字符作为头像
@@ -663,4 +658,3 @@ public class FirstCharacterConverter : IValueConverter
         throw new NotImplementedException();
     }
 }
->>>>>>> pro

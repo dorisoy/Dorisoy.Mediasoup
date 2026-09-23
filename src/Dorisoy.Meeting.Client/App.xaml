@@ -33,8 +33,6 @@
             <converters:ConnectedAppearanceConverter x:Key="ConnectedAppearanceConverter"/>
             <converters:RoomAppearanceConverter x:Key="RoomAppearanceConverter"/>
             <converters:MediaAppearanceConverter x:Key="MediaAppearanceConverter"/>
-<<<<<<< HEAD
-=======
             
             <!-- 新增转换器 -->
             <converters:PreviewIconConverter x:Key="PreviewIconConverter"/>
@@ -51,11 +49,7 @@
             <converters:MuteTooltipConverter x:Key="MuteTooltipConverter"/>
             <converters:RemoteVideoMuteTooltipConverter x:Key="RemoteVideoMuteTooltipConverter"/>
             <converters:BoolToYesNoConverter x:Key="BoolToYesNoConverter"/>
-<<<<<<< HEAD
->>>>>>> pro
-=======
             <converters:FirstCharacterConverter x:Key="FirstCharacterConverter"/>
->>>>>>> pro
         </ResourceDictionary>
     </Application.Resources>
 </Application>

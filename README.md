@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![.NET 8](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/)
+[![.NET 10](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/)
 [![WPF](https://img.shields.io/badge/WPF-Windows-0078D6)](https://docs.microsoft.com/en-us/dotnet/desktop/wpf/)
 [![mediasoup](https://img.shields.io/badge/mediasoup-3.15.7-orange)](https://github.com/versatica/mediasoup)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
@@ -13,7 +13,7 @@
 
 ---
 
-Dorisoy.Mediasoup 是一个基于 .NET 8 和 Mediasoup SFU（选择性转发单元）架构的**企业级开源视频会议系统**。项目采用纯 C# 实现 Mediasoup 核心库，提供 WPF 桌面客户端和 Vue.js Web 客户端，支持**低延迟、高并发**的实时音视频通信。
+Dorisoy.Mediasoup 是一个基于 .NET 10 和 Mediasoup SFU（选择性转发单元）架构的**企业级开源视频会议系统**。项目采用纯 C# 实现 Mediasoup 核心库，提供 WPF 桌面客户端和 Vue.js Web 客户端，支持**低延迟、高并发**的实时音视频通信。
 
 系统集成了丰富的协作功能：**协同白板**、**实时投票**、**同步转译**、**屏幕截图标注**、**即时聊天**等，是构建在线会议、远程协作、在线教育、直播互动等场景的理想选择。
 
@@ -350,7 +350,7 @@ Dorisoy.Mediasoup.sln
 
 ### 环境要求
 
-- .NET 8.0 SDK
+- .NET 10.0 SDK
 - Node.js 18+ (Web 客户端)
 - FFmpeg DLL（客户端编解码，构建时自动复制）
 - mediasoup-worker 原生二进制文件
