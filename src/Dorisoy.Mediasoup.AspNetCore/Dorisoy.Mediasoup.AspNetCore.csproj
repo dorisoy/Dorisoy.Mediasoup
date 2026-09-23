@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <Nullable>enable</Nullable>
         <PackageId>Dorisoy.Mediasoup.AspNetCore</PackageId>
         <Version>6.2.0</Version>
@@ -14,16 +14,16 @@
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     </PropertyGroup>
     <ItemGroup>
-        <PackageReference Include="Google.FlatBuffers"  />
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer"  />
+        <PackageReference Include="Google.FlatBuffers" />
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
         <PackageReference Include="Microsoft.AspNetCore.Http.Abstractions" />
         <PackageReference Include="Microsoft.AspNetCore.Http.Connections" />
         <PackageReference Include="Microsoft.AspNetCore.Http.Features" />
-        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions"  />
-        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions"  />
+        <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+        <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
         <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" />
-        <PackageReference Include="Microsoft.Extensions.Configuration.Binder"  />
-        <PackageReference Include="PinYinConverterCore"  />
+        <PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+        <PackageReference Include="PinYinConverterCore" />
     </ItemGroup>
     <ItemGroup>
         <ProjectReference Include="..\Dorisoy.Utils\Dorisoy.Utils.csproj" />
