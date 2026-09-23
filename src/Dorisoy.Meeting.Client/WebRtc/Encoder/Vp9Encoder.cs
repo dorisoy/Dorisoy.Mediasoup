@@ -373,7 +373,7 @@ public unsafe class Vp9Encoder : IVideoEncoder
                 _swsContext = ffmpeg.sws_getContext(
                     width, height, AVPixelFormat.AV_PIX_FMT_BGR24,
                     _width, _height, AVPixelFormat.AV_PIX_FMT_YUV420P,
-                    SwsFlags.SWS_FAST_BILINEAR, null, null, null);
+                    (int)SwsFlags.SWS_FAST_BILINEAR, null, null, null);
 
                 if (_swsContext == null)
                 {

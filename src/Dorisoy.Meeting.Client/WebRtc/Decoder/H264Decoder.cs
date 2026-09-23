@@ -187,7 +187,7 @@ public unsafe class H264Decoder : IVideoDecoder
             _swsContext = ffmpeg.sws_getContext(
                 width, height, (AVPixelFormat)_frame->format,
                 width, height, AVPixelFormat.AV_PIX_FMT_BGR24,
-                SwsFlags.SWS_BILINEAR, null, null, null);
+                (int)SwsFlags.SWS_BILINEAR, null, null, null);
 
             if (_swsContext == null)
             {

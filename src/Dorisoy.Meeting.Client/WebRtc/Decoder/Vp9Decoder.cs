@@ -231,7 +231,7 @@ public unsafe class Vp9Decoder : IVideoDecoder
             _swsContext = ffmpeg.sws_getContext(
                 width, height, (AVPixelFormat)_frame->format,
                 width, height, AVPixelFormat.AV_PIX_FMT_BGR24,
-                SwsFlags.SWS_FAST_BILINEAR,  // 使用快速双线性插值，减少 CPU 开销
+                (int)SwsFlags.SWS_FAST_BILINEAR,  // 使用快速双线性插值，减少 CPU 开销
                 null, null, null);
 
             if (_swsContext == null)
