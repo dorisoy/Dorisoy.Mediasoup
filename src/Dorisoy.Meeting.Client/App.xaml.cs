@@ -68,9 +68,11 @@ public partial class App : Application
         // 服务 - 单例
         services.AddSingleton<ISignalRService, SignalRService>();
         services.AddSingleton<IWebRtcService, WebRtcService>();
+        services.AddSingleton<SoundService>();
 
         // ViewModels
         services.AddTransient<MainViewModel>();
+        services.AddTransient<JoinRoomViewModel>();
 
         // Views
         services.AddTransient<MainWindow>();
