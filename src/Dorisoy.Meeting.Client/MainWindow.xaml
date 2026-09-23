@@ -33,7 +33,7 @@
                 <ui:SymbolIcon Symbol="Video24"
                                FontSize="20" />
             </ui:TitleBar.Icon>
-            <ui:TitleBar.MenuContent>
+            <ui:TitleBar.Header>
                 <Menu FontSize="14">
                     <ui:MenuItem Header="文件(F)"
                                  Icon="{ui:SymbolIcon Folder20}">
@@ -54,9 +54,9 @@
                         <MenuItem Header="检查更新" />
                     </ui:MenuItem>
                 </Menu>
-            </ui:TitleBar.MenuContent>
+            </ui:TitleBar.Header>
 
-            <ui:TitleBar.RightMenuContent>
+            <ui:TitleBar.TrailingContent>
                 <!-- 右侧：房间信息和成员数 -->
                 <StackPanel HorizontalAlignment="Right"
                             VerticalAlignment="Center"
@@ -76,7 +76,7 @@
                                Opacity="0.6"
                                VerticalAlignment="Center" />
                 </StackPanel>
-            </ui:TitleBar.RightMenuContent>
+            </ui:TitleBar.TrailingContent>
         </ui:TitleBar>
 
         <!-- 主布局：视频区 + 浮动工具栏 -->
