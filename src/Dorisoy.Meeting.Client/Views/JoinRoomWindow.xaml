@@ -1,0 +1,405 @@
+<ui:FluentWindow x:Class="Dorisoy.Meeting.Client.Views.JoinRoomWindow"
+                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                 xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                 xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+                 mc:Ignorable="d"
+                 Title="加入会议"
+                 Height="650"
+                 Width="800"
+                 MinHeight="600"
+                 MinWidth="700"
+                 WindowStartupLocation="CenterScreen"
+                 WindowState="Maximized"
+                 ExtendsContentIntoTitleBar="True"
+                 WindowBackdropType="Mica"
+                 WindowCornerPreference="Round"
+                 ResizeMode="CanResize">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- 标题栏 -->
+        <ui:TitleBar x:Name="TitleBar"
+                     Title="加入会议"
+                     Grid.Row="0"
+                     ShowMaximize="False"
+                     ShowMinimize="True">
+            <ui:TitleBar.Icon>
+                <ui:SymbolIcon Symbol="Video24"
+                               FontSize="20" />
+            </ui:TitleBar.Icon>
+        </ui:TitleBar>
+
+        <!-- 主内容 -->
+        <Grid Grid.Row="1"
+              Margin="0" Width="900" Height="680">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="350" />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+
+            <!-- 左侧：摄像头预览区域 -->
+            <Border Grid.Row="0"
+                    Grid.Column="0"
+                    Margin="0,0,12,12"
+                    CornerRadius="6"
+                    x:Name="CameraPreviewBorder"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}"
+                    ClipToBounds="True">
+                <Grid>
+                    <!-- 视频预览 -->
+                    <Image x:Name="CameraPreview" Source="{Binding CameraPreviewFrame}"
+                           Stretch="UniformToFill"
+                           RenderOptions.BitmapScalingMode="HighQuality" Width="538" Height="326" />
+
+                    <!-- 无预览时的占位符 -->
+                    <StackPanel HorizontalAlignment="Center"
+                                VerticalAlignment="Center"
+                                Visibility="{Binding CameraPreviewFrame, 
+                                    Converter={StaticResource NullToVisibleConverter}}">
+                        <ui:SymbolIcon Symbol="Video24"
+                                       FontSize="64"
+                                       Opacity="0.3" />
+                        <TextBlock Text="摄像头预览"
+                                   Opacity="0.5"
+                                   FontSize="16"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,12,0,0" />
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
+                                    Opacity="0.3"
+                                    Margin="0,4,0,0">
+                            <TextBlock FontSize="12"
+                                       Text="{Binding ElementName=CameraPreviewBorder, Path=ActualWidth, StringFormat='{}{0:F0}'}" />
+                            <TextBlock FontSize="12"
+                                       Text=" x " />
+                            <TextBlock FontSize="12"
+                                       Text="{Binding ElementName=CameraPreviewBorder, Path=ActualHeight, StringFormat='{}{0:F0}'}" />
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- 预览控制按钮 -->
+                    <ui:Button HorizontalAlignment="Center"
+                               VerticalAlignment="Bottom"
+                               Margin="0,0,0,16"
+                               Padding="16,8"
+                               CornerRadius="20"
+                               Command="{Binding TogglePreviewCommand}">
+                        <StackPanel Orientation="Horizontal">
+                            <ui:SymbolIcon Symbol="{Binding IsPreviewing, 
+                                Converter={StaticResource PreviewIconConverter}}"
+                                           FontSize="16"
+                                           Margin="0,0,8,0" />
+                            <TextBlock Text="{Binding IsPreviewing, 
+                                Converter={StaticResource PreviewTextConverter}}" />
+                        </StackPanel>
+                    </ui:Button>
+                </Grid>
+            </Border>
+
+            <!-- 右侧：设置面板 -->
+            <StackPanel  Grid.Row="0"
+                         Grid.Column="1">
+
+                <!-- 设备选择 -->
+                <ui:Card Margin="0,0,0,12">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <ui:Button Grid.Column="1"
+                                       Appearance="Transparent"
+                                       ToolTip="刷新设备"
+                                       Command="{Binding RefreshDevicesCommand}">
+                                <ui:SymbolIcon Symbol="ArrowSync24"
+                                               FontSize="14" />
+                            </ui:Button>
+                        </Grid>
+
+                        <!-- 摄像头 -->
+                        <TextBlock Text="摄像头"
+                                   Margin="0,0,0,6"
+                                   Opacity="0.7" />
+                        <ComboBox ItemsSource="{Binding Cameras}"
+                                  SelectedItem="{Binding SelectedCamera}"
+                                  DisplayMemberPath="Label"
+                                  Margin="0,0,0,12"
+                                  HorizontalAlignment="Stretch" />
+
+                        <!-- 麦克风 -->
+                        <TextBlock Text="麦克风"
+                                   Margin="0,0,0,6"
+                                   Opacity="0.7" />
+                        <ComboBox ItemsSource="{Binding Microphones}"
+                                  SelectedItem="{Binding SelectedMicrophone}"
+                                  DisplayMemberPath="Label"
+                                  HorizontalAlignment="Stretch" />
+                    </StackPanel>
+                </ui:Card>
+
+                <!-- 加入选项 -->
+                <ui:Card Margin="0,0,0,12">
+                    <StackPanel>
+                        <!--<StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,12">
+                            <ui:SymbolIcon Symbol="Settings24"
+                                           Margin="0,0,8,0"
+                                           VerticalAlignment="Center" />
+                            <TextBlock Text="加入选项"
+                                       FontWeight="SemiBold"
+                                       VerticalAlignment="Center" />
+                        </StackPanel>-->
+
+                        <CheckBox Content="加入后关闭麦克风"
+                                  IsChecked="{Binding MuteMicrophoneOnJoin}"
+                                  Margin="0,0,0,8" />
+
+                        <CheckBox Content="加入后关闭摄像头"
+                                  IsChecked="{Binding MuteCameraOnJoin}" />
+                    </StackPanel>
+                </ui:Card>
+
+            </StackPanel>
+
+            <!-- 底部：用户面板 -->
+            <StackPanel  Grid.Row="1"
+                         Grid.Column="0"
+                         Grid.ColumnSpan="2">
+
+                <!-- 房间设置 -->
+                <ui:Card Margin="0,0,0,12">
+                    <StackPanel Margin="0,0,0,20">
+                        <!-- 房间号码 - 5位自动输入框 -->
+                        <!-- 记忆的房间号列表 -->
+                        <StackPanel Orientation="Horizontal"
+                                    Margin="0,0,0,8"
+                                    HorizontalAlignment="Right"
+                                    Visibility="{Binding HasRecentRooms, Converter={StaticResource BoolToVisConverter}}">
+                            <TextBlock Text="最近:"
+                                       VerticalAlignment="Center"
+                                       Opacity="0.5"
+                                       Margin="0,0,8,0" />
+                            <ItemsControl ItemsSource="{Binding RecentRooms}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <StackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <ui:Button Content="{Binding}"
+                                                   Margin="0,0,6,0"
+                                                   Padding="8,4"
+                                                   Appearance="Secondary"
+                                                   Command="{Binding DataContext.SelectRecentRoomCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
+                                                   CommandParameter="{Binding}" />
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+
+                        <!-- 5位房间号输入框 -->
+                        <Grid HorizontalAlignment="Center">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0"
+                                        Orientation="Horizontal">
+                                <ui:TextBox x:Name="RoomDigit1"
+                                            Text="{Binding RoomDigit1, UpdateSourceTrigger=PropertyChanged}"
+                                            MaxLength="1"
+                                            Width="55"
+                                            Height="55"
+                                            FontSize="25"
+                                            TextAlignment="Center"
+                                            VerticalContentAlignment="Center"
+                                            Margin="0,0,6,0"
+                                            ClearButtonEnabled="False"
+                                            GotFocus="RoomDigit_GotFocus"
+                                            PreviewTextInput="RoomDigit_PreviewTextInput"
+                                            TextChanged="RoomDigit_TextChanged" />
+                                <ui:TextBox x:Name="RoomDigit2"
+                                            Text="{Binding RoomDigit2, UpdateSourceTrigger=PropertyChanged}"
+                                            MaxLength="1"
+                                            Width="55"
+                                            Height="55"
+                                            FontSize="25"
+                                            TextAlignment="Center"
+                                            VerticalContentAlignment="Center"
+                                            Margin="0,0,6,0"
+                                            ClearButtonEnabled="False"
+                                            GotFocus="RoomDigit_GotFocus"
+                                            PreviewTextInput="RoomDigit_PreviewTextInput"
+                                            TextChanged="RoomDigit_TextChanged" />
+                                <ui:TextBox x:Name="RoomDigit3"
+                                            Text="{Binding RoomDigit3, UpdateSourceTrigger=PropertyChanged}"
+                                            MaxLength="1"
+                                            Width="55"
+                                            Height="55"
+                                            FontSize="25"
+                                            TextAlignment="Center"
+                                            VerticalContentAlignment="Center"
+                                            Margin="0,0,6,0"
+                                            ClearButtonEnabled="False"
+                                            GotFocus="RoomDigit_GotFocus"
+                                            PreviewTextInput="RoomDigit_PreviewTextInput"
+                                            TextChanged="RoomDigit_TextChanged" />
+                                <ui:TextBox x:Name="RoomDigit4"
+                                            Text="{Binding RoomDigit4, UpdateSourceTrigger=PropertyChanged}"
+                                            MaxLength="1"
+                                            Width="55"
+                                            Height="55"
+                                            FontSize="25"
+                                            TextAlignment="Center"
+                                            VerticalContentAlignment="Center"
+                                            Margin="0,0,6,0"
+                                            ClearButtonEnabled="False"
+                                            GotFocus="RoomDigit_GotFocus"
+                                            PreviewTextInput="RoomDigit_PreviewTextInput"
+                                            TextChanged="RoomDigit_TextChanged" />
+                                <ui:TextBox x:Name="RoomDigit5"
+                                            Text="{Binding RoomDigit5, UpdateSourceTrigger=PropertyChanged}"
+                                            MaxLength="1"
+                                            Width="55"
+                                            Height="55"
+                                            FontSize="25"
+                                            VerticalAlignment="Center"
+                                            VerticalContentAlignment="Center"
+                                            TextAlignment="Center"
+                                            ClearButtonEnabled="False"
+                                            GotFocus="RoomDigit_GotFocus"
+                                            PreviewTextInput="RoomDigit_PreviewTextInput"
+                                            TextChanged="RoomDigit_TextChanged" />
+                            </StackPanel>
+
+                            <ui:Button Grid.Column="1"
+                                       Margin="8,0,0,0"
+                                       Width="55"
+                                       Height="55"
+                                       ToolTip="生成随机房间号"
+                                       Command="{Binding GenerateRandomRoomIdCommand}">
+                                <ui:SymbolIcon Symbol="ArrowSync24"
+                                               FontSize="25" />
+                            </ui:Button>
+                        </Grid>
+
+                        <!-- 用户名 -->
+                        <ui:TextBox Text="{Binding UserName, UpdateSourceTrigger=PropertyChanged}"
+                                    PlaceholderText="输入您的用户名..."
+                                    Margin="0,12,0,0"
+                                    Width="360"
+                                    Height="55"
+                                    VerticalContentAlignment="Center"
+                                    FontSize="14" />
+                    </StackPanel>
+                </ui:Card>
+
+                <!-- 错误信息 -->
+                <Border Margin="0,0,0,0"
+                        Background="{DynamicResource SystemFillColorCriticalBackgroundBrush}"
+                        CornerRadius="4"
+                        Padding="12,8"
+                        Visibility="{Binding HasError, Converter={StaticResource BoolToVisConverter}}">
+                    <StackPanel Orientation="Horizontal">
+                        <ui:SymbolIcon Symbol="ErrorCircle24"
+                                       Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                       Margin="0,0,8,0" />
+                        <TextBlock Text="{Binding ErrorMessage}"
+                                   Foreground="{DynamicResource SystemFillColorCriticalBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <!-- 操作按钮 -->
+                <Grid Margin="0,0,0,0">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+
+                    <ui:Button Grid.Column="0"
+                               Content="分享"
+                               HorizontalAlignment="Stretch"
+                               Margin="0,0,6,0"
+                               Height="50"
+                               FontWeight="Bold"
+                               IsEnabled="{Binding IsCheckingConnection, Converter={StaticResource InverseBoolConverter}}"
+                               Command="{Binding CancelCommand}" />
+
+                    <ui:Button Grid.Column="1"
+                               Content="取消"
+                               HorizontalAlignment="Stretch"
+                               Margin="6,0,6,0"
+                               Height="50"
+                               FontWeight="Bold"
+                               IsEnabled="{Binding IsCheckingConnection, Converter={StaticResource InverseBoolConverter}}"
+                               Command="{Binding CancelCommand}" />
+
+                    <ui:Button Grid.Column="2"
+                               HorizontalAlignment="Stretch"
+                               Margin="6,0,0,0"
+                               Height="50"
+                               FontWeight="Bold"
+                               Appearance="Primary"
+                               Command="{Binding JoinCommand}">
+                        <ui:Button.Style>
+                            <Style TargetType="ui:Button"
+                                   BasedOn="{StaticResource {x:Type ui:Button}}">
+                                <Setter Property="IsEnabled"
+                                        Value="{Binding CanJoin}" />
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsCheckingConnection}"
+                                                 Value="True">
+                                        <Setter Property="IsEnabled"
+                                                Value="False" />
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </ui:Button.Style>
+                        <StackPanel Orientation="Horizontal">
+                            <ui:ProgressRing Width="16"
+                                             Height="16"
+                                             Margin="0,0,8,0"
+                                             IsIndeterminate="True"
+                                             Visibility="{Binding IsCheckingConnection, Converter={StaticResource BoolToVisConverter}}" />
+                            <TextBlock>
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="Text"
+                                                Value="加入" />
+                                        <Setter Property="Foreground"
+                                                Value="White" />
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsCheckingConnection}"
+                                                         Value="True">
+                                                <Setter Property="Text"
+                                                        Value="连接中..." />
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </StackPanel>
+                    </ui:Button>
+                </Grid>
+
+            </StackPanel>
+
+            
+        </Grid>
+    </Grid>
+</ui:FluentWindow>

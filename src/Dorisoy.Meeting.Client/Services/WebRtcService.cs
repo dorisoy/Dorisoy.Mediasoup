@@ -61,7 +61,7 @@ public class WebRtcService : IWebRtcService
     private volatile bool _isAudioCaptureRunning;
 
     // 远端音频播放
-    private WaveOutEvent? _waveOut;
+    private WaveOut? _waveOut;
     private BufferedWaveProvider? _audioBuffer;
     private readonly object _audioPlaybackLock = new();
 
@@ -1570,15 +1570,14 @@ public class WebRtcService : IWebRtcService
             try
             {
                 // 创建音频缓冲区 - 48kHz, 16-bit, 立体声
-                _audioBuffer = new BufferedWaveProvider(new WaveFormat(48000, 16, 2))
+                _audioBuffer = new BufferedWaveProvider(new WaveFormat(48000, 16, 2), TimeSpan.FromSeconds(1))
                 {
-                    BufferDuration = TimeSpan.FromSeconds(1),
                     DiscardOnBufferOverflow = true
                 };
 
-                _waveOut = new WaveOutEvent
+                _waveOut = new WaveOut
                 {
-                    DesiredLatency = 100
+                    BufferMilliseconds = 100
                 };
                 _waveOut.Init(_audioBuffer);
                 _waveOut.Play();

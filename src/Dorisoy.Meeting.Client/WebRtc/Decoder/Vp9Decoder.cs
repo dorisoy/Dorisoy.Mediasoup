@@ -8,7 +8,7 @@ namespace Dorisoy.Meeting.Client.WebRtc.Decoder;
 /// VP9 视频解码器 - 使用 FFmpeg 解码 VP9 帧
 /// 将从 mediasoup 接收的 VP9 编码数据解码为 BGR24 图像用于显示
 /// </summary>
-public unsafe class Vp9Decoder : IDisposable
+public unsafe class Vp9Decoder : IVideoDecoder
 {
     private readonly ILogger _logger;
     private readonly object _lock = new();  // 线程安全锁
@@ -23,11 +23,24 @@ public unsafe class Vp9Decoder : IDisposable
     
     private int _lastWidth;
     private int _lastHeight;
+    
+    // 解码统计 - 用于检测需要请求关键帧的情况
+    private int _consecutiveDecodeFailures;
+    private const int MAX_CONSECUTIVE_FAILURES = 10;  // 增加到 10 次，减少关键帧请求频率
+    
+    // 关键帧请求节流 - 避免短时间内重复请求
+    private DateTime _lastKeyFrameRequestTime = DateTime.MinValue;
+    private static readonly TimeSpan KeyFrameRequestCooldown = TimeSpan.FromSeconds(2);
 
     /// <summary>
     /// 解码后的视频帧事件 (BGR24 数据, 宽度, 高度)
     /// </summary>
     public event Action<byte[], int, int>? OnFrameDecoded;
+    
+    /// <summary>
+    /// 请求关键帧事件 - 当解码失败多次时触发
+    /// </summary>
+    public event Action? OnKeyFrameRequested;
 
     public Vp9Decoder(ILogger logger)
     {
@@ -69,7 +82,14 @@ public unsafe class Vp9Decoder : IDisposable
                 return;
             }
 
-            // 打开编解码器
+            // 打开编解码器 - 启用多线程解码
+            _codecContext->thread_count = Math.Min(4, Environment.ProcessorCount);  // 限制线程数
+            _codecContext->thread_type = ffmpeg.FF_THREAD_SLICE;  // 仅使用切片多线程，减少延迟
+            
+            // 启用低延迟解码模式
+            _codecContext->flags |= ffmpeg.AV_CODEC_FLAG_LOW_DELAY;
+            _codecContext->flags2 |= ffmpeg.AV_CODEC_FLAG2_FAST;  // 启用快速解码模式
+            
             var result = ffmpeg.avcodec_open2(_codecContext, codec, null);
             if (result < 0)
             {
@@ -140,8 +160,26 @@ public unsafe class Vp9Decoder : IDisposable
                             {
                                 _logger.LogTrace("Failed to receive frame: {Error}", GetErrorMessage(receiveResult));
                             }
+                            
+                            // 增加连续失败计数
+                            _consecutiveDecodeFailures++;
+                            if (_consecutiveDecodeFailures >= MAX_CONSECUTIVE_FAILURES)
+                            {
+                                // 检查节流时间
+                                var now = DateTime.UtcNow;
+                                if (now - _lastKeyFrameRequestTime > KeyFrameRequestCooldown)
+                                {
+                                    _logger.LogWarning("VP9 解码连续失败 {Count} 次，请求关键帧", _consecutiveDecodeFailures);
+                                    OnKeyFrameRequested?.Invoke();
+                                    _lastKeyFrameRequestTime = now;
+                                }
+                                _consecutiveDecodeFailures = 0;  // 重置计数
+                            }
                             return false;
                         }
+                        
+                        // 解码成功，重置失败计数
+                        _consecutiveDecodeFailures = 0;
 
                         ConvertToBgr24();
                         return true;
@@ -193,7 +231,8 @@ public unsafe class Vp9Decoder : IDisposable
             _swsContext = ffmpeg.sws_getContext(
                 width, height, (AVPixelFormat)_frame->format,
                 width, height, AVPixelFormat.AV_PIX_FMT_BGR24,
-                ffmpeg.SWS_BILINEAR, null, null, null);
+                SwsFlags.SWS_FAST_BILINEAR,  // 使用快速双线性插值，减少 CPU 开销
+                null, null, null);
 
             if (_swsContext == null)
             {

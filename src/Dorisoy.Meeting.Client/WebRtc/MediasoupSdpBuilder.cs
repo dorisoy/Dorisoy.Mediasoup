@@ -1,4 +1,5 @@
 using System.Text;
+using Dorisoy.Meeting.Client.Models;
 
 namespace Dorisoy.Meeting.Client.WebRtc;
 
@@ -334,12 +335,25 @@ public static class MediasoupSdpBuilder
 
     /// <summary>
     /// 添加编解码器行
+    /// 注意：SIPSorcery 对 VP9/H264 支持有限，SDP 中统一使用 VP8 名称
     /// </summary>
     private static void AppendCodecLines(StringBuilder sb, ConsumerRtpCodec codec, bool isVideo)
     {
         var pt = codec.PayloadType;
         var mimeType = codec.MimeType ?? (isVideo ? "video/VP8" : "audio/opus");
-        var codecName = mimeType.Split('/').LastOrDefault() ?? "VP8";
+        
+        // SIPSorcery 对 VP9/H264 处理有问题，SDP 层统一使用 VP8 名称
+        // 但保留正确的 PayloadType，这不影响实际的 RTP 传输
+        string codecName;
+        if (isVideo)
+        {
+            codecName = "VP8";  // 统一使用 VP8 名称以兼容 SIPSorcery
+        }
+        else
+        {
+            codecName = mimeType.Split('/').LastOrDefault() ?? "opus";
+        }
+        
         var clockRate = codec.ClockRate;
 
         if (isVideo)
@@ -453,18 +467,18 @@ public static class MediasoupSdpBuilder
     /// 服务器作为 recvonly，客户端作为 sendonly
     /// 
     /// 关键：PayloadType 必须与以下保持一致：
-    /// - RtpModels.cs 中的 CreateVideoProduceRequest (PT=96) 和 CreateAudioProduceRequest (PT=100)
-    /// - MediasoupTransport.cs 中的 VIDEO_PAYLOAD_TYPE (96) 和 AUDIO_PAYLOAD_TYPE (100)
+    /// - RtpModels.cs 中的 CreateVideoProduceRequest 和 CreateAudioProduceRequest
+    /// - MediasoupTransport.cs 中的 RTP 发送方法
     /// - MediasoupTransport.cs 中的 AddSendTracks() 创建的 track
     /// </summary>
     public static string BuildSendTransportRemoteOffer(
         IceParameters iceParameters,
         List<IceCandidate> iceCandidates,
-        DtlsParameters dtlsParameters)
+        DtlsParameters dtlsParameters,
+        VideoCodecType videoCodec = VideoCodecType.VP8)
     {
-        // 必须与 Producer 注册和 RTP 发送使用的 PT 一致
-        const int VIDEO_PAYLOAD_TYPE = 96;  // VP8
-        const int VIDEO_RTX_PAYLOAD_TYPE = 97;  // RTX for VP8
+        // 根据编解码器类型选择 Payload Type 和名称
+        var (videoPayloadType, videoCodecName, videoRtxPayloadType) = GetVideoCodecInfo(videoCodec);
         const int AUDIO_PAYLOAD_TYPE = 100;  // Opus
 
         var sb = new StringBuilder();
@@ -483,26 +497,28 @@ public static class MediasoupSdpBuilder
         var ip = iceCandidates?.FirstOrDefault()?.Ip ?? "0.0.0.0";
 
         // Video m= section (recvonly from server perspective)
-        // PT 必须与 CreateVideoProduceRequest 中的 PT=96 一致
-        sb.AppendLine($"m=video {port} UDP/TLS/RTP/SAVPF {VIDEO_PAYLOAD_TYPE} {VIDEO_RTX_PAYLOAD_TYPE}");
+        sb.AppendLine($"m=video {port} UDP/TLS/RTP/SAVPF {videoPayloadType} {videoRtxPayloadType}");
         sb.AppendLine($"c=IN IP4 {ip}");
         AppendIceAndDtls(sb, iceParameters, iceCandidates, dtlsParameters);
         sb.AppendLine("a=mid:0");
         sb.AppendLine("a=recvonly");
         sb.AppendLine("a=rtcp-mux");
         sb.AppendLine("a=rtcp-rsize");
-        sb.AppendLine($"a=rtpmap:{VIDEO_PAYLOAD_TYPE} VP8/90000");
-        sb.AppendLine($"a=rtcp-fb:{VIDEO_PAYLOAD_TYPE} nack");
-        sb.AppendLine($"a=rtcp-fb:{VIDEO_PAYLOAD_TYPE} nack pli");
-        sb.AppendLine($"a=rtcp-fb:{VIDEO_PAYLOAD_TYPE} ccm fir");
-        sb.AppendLine($"a=rtcp-fb:{VIDEO_PAYLOAD_TYPE} goog-remb");
-        sb.AppendLine($"a=rtcp-fb:{VIDEO_PAYLOAD_TYPE} transport-cc");
-        sb.AppendLine($"a=rtpmap:{VIDEO_RTX_PAYLOAD_TYPE} rtx/90000");
-        sb.AppendLine($"a=fmtp:{VIDEO_RTX_PAYLOAD_TYPE} apt={VIDEO_PAYLOAD_TYPE}");
+        sb.AppendLine($"a=rtpmap:{videoPayloadType} {videoCodecName}/90000");
+        
+        // 添加 fmtp 参数（VP9 和 H264 需要）
+        AppendVideoFmtp(sb, videoCodec, videoPayloadType);
+        
+        sb.AppendLine($"a=rtcp-fb:{videoPayloadType} nack");
+        sb.AppendLine($"a=rtcp-fb:{videoPayloadType} nack pli");
+        sb.AppendLine($"a=rtcp-fb:{videoPayloadType} ccm fir");
+        sb.AppendLine($"a=rtcp-fb:{videoPayloadType} goog-remb");
+        sb.AppendLine($"a=rtcp-fb:{videoPayloadType} transport-cc");
+        sb.AppendLine($"a=rtpmap:{videoRtxPayloadType} rtx/90000");
+        sb.AppendLine($"a=fmtp:{videoRtxPayloadType} apt={videoPayloadType}");
         sb.AppendLine("a=extmap:4 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time");
 
         // Audio m= section (recvonly from server perspective)
-        // PT 必须与 CreateAudioProduceRequest 中的 PT=100 一致
         sb.AppendLine($"m=audio {port} UDP/TLS/RTP/SAVPF {AUDIO_PAYLOAD_TYPE}");
         sb.AppendLine($"c=IN IP4 {ip}");
         AppendIceAndDtls(sb, iceParameters, iceCandidates, dtlsParameters);
@@ -515,6 +531,41 @@ public static class MediasoupSdpBuilder
         sb.AppendLine("a=extmap:4 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time");
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// 获取视频编解码器信息
+    /// 注意：SIPSorcery 对 VP9/H264 SDP 支持有限，codecName 统一使用 VP8
+    /// 但保留正确的 PayloadType，这不影响实际的 RTP 传输
+    /// </summary>
+    private static (int payloadType, string codecName, int rtxPayloadType) GetVideoCodecInfo(VideoCodecType codecType)
+    {
+        // SIPSorcery 仅支持 VP8 SDP，所以统一使用 VP8 名称
+        // PayloadType 仍然是正确的，这样 RTP 传输不受影响
+        return codecType switch
+        {
+            VideoCodecType.VP8 => (96, "VP8", 97),
+            VideoCodecType.VP9 => (103, "VP8", 104),   // SDP 名称用 VP8，但 PT=103
+            VideoCodecType.H264 => (105, "VP8", 106),  // SDP 名称用 VP8，但 PT=105
+            _ => (96, "VP8", 97)
+        };
+    }
+
+    /// <summary>
+    /// 添加视频 fmtp 参数
+    /// </summary>
+    private static void AppendVideoFmtp(StringBuilder sb, VideoCodecType codecType, int payloadType)
+    {
+        switch (codecType)
+        {
+            case VideoCodecType.VP9:
+                sb.AppendLine($"a=fmtp:{payloadType} profile-id=0");
+                break;
+            case VideoCodecType.H264:
+                sb.AppendLine($"a=fmtp:{payloadType} level-asymmetry-allowed=1;packetization-mode=1;profile-level-id=42e01f");
+                break;
+            // VP8 不需要 fmtp
+        }
     }
 
     /// <summary>
