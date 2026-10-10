@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![.NET 10](https://img.shields.io/badge/.NET-8.0-512BD4)](https://dotnet.microsoft.com/)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 [![WPF](https://img.shields.io/badge/WPF-Windows-0078D6)](https://docs.microsoft.com/en-us/dotnet/desktop/wpf/)
 [![mediasoup](https://img.shields.io/badge/mediasoup-3.15.7-orange)](https://github.com/versatica/mediasoup)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
