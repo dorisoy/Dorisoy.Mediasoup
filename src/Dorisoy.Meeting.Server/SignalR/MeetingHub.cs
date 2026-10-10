@@ -628,7 +628,7 @@ namespace Dorisoy.Meeting.Server
                     
                     foreach (var skippedPeerId in skippedPeerIds)
                     {
-                        var consumerPeer = await _scheduler.GetPeerAsync(skippedPeerId, null);
+                        var consumerPeer = await _scheduler.GetTargetPeerAsync(skippedPeerId);
                         if (consumerPeer == null) continue;
                         
                         var consumerHasRecvTransport = await consumerPeer.HasRecvTransportAsync();
@@ -681,7 +681,7 @@ namespace Dorisoy.Meeting.Server
                         
                         foreach (var skippedPeerId in stillSkippedPeerIds)
                         {
-                            var consumerPeer = await _scheduler.GetPeerAsync(skippedPeerId, null);
+                            var consumerPeer = await _scheduler.GetTargetPeerAsync(skippedPeerId);
                             if (consumerPeer == null) continue;
                             
                             var consumerHasRecvTransport = await consumerPeer.HasRecvTransportAsync();
@@ -926,7 +926,7 @@ namespace Dorisoy.Meeting.Server
                     
                     foreach (var skippedPeerId in skippedPeerIds)
                     {
-                        var consumerPeer = await _scheduler.GetPeerAsync(skippedPeerId, null);
+                        var consumerPeer = await _scheduler.GetTargetPeerAsync(skippedPeerId);
                         if (consumerPeer == null)
                         {
                             continue;
@@ -989,7 +989,7 @@ namespace Dorisoy.Meeting.Server
                 string? selectedPrimaryPeerId = null;
                 if (producer.Data.Kind == MediaKind.VIDEO && producer.Source == ConsumerSubscriptionPolicy.PrimaryVideoSource)
                 {
-                    var consumerPeer = await _scheduler.GetPeerAsync(consumerPeerId, null);
+                    var consumerPeer = await _scheduler.GetTargetPeerAsync(consumerPeerId);
                     if (consumerPeer == null)
                         return;
                     selectedPrimaryPeerId = await consumerPeer.GetPrimaryVideoSelectionAsync();
@@ -1041,7 +1041,7 @@ namespace Dorisoy.Meeting.Server
                 Producer? targetProducer = null;
                 if (targetPeerId != null)
                 {
-                    targetPeer = await _scheduler.GetPeerAsync(targetPeerId, null);
+                    targetPeer = await _scheduler.GetTargetPeerAsync(targetPeerId);
                     if (targetPeer == null)
                         return MeetingMessage.Failure("目标 Peer 不存在");
                     var producers = await targetPeer.GetProducersASync();
@@ -1427,7 +1427,7 @@ namespace Dorisoy.Meeting.Server
                             
                             foreach (var skippedPeerId in skippedPeerIds)
                             {
-                                var consumerPeer = await _scheduler.GetPeerAsync(skippedPeerId, null);
+                                var consumerPeer = await _scheduler.GetTargetPeerAsync(skippedPeerId);
                                 if (consumerPeer == null) continue;
                                 
                                 if (!await consumerPeer.HasRecvTransportAsync())
@@ -1450,7 +1450,7 @@ namespace Dorisoy.Meeting.Server
                                 
                                 foreach (var skippedPeerId in stillSkippedPeerIds)
                                 {
-                                    var consumerPeer = await _scheduler.GetPeerAsync(skippedPeerId, null);
+                                    var consumerPeer = await _scheduler.GetTargetPeerAsync(skippedPeerId);
                                     if (consumerPeer == null) continue;
                                     
                                     if (!await consumerPeer.HasRecvTransportAsync())

@@ -334,26 +334,15 @@ public static class MediasoupSdpBuilder
     }
 
     /// <summary>
-    /// 添加编解码器行
-    /// 注意：SIPSorcery 对 VP9/H264 支持有限，SDP 中统一使用 VP8 名称
+    /// 添加编解码器行。
+    /// SDP 中的编码器名称必须与 Consumer RTP 参数一致；将 H.264/VP9 声明为 VP8
+    /// 会使 SIPSorcery 为错误的负载格式创建接收会话，导致 RTP 已到达但无法解码。
     /// </summary>
     private static void AppendCodecLines(StringBuilder sb, ConsumerRtpCodec codec, bool isVideo)
     {
         var pt = codec.PayloadType;
         var mimeType = codec.MimeType ?? (isVideo ? "video/VP8" : "audio/opus");
-        
-        // SIPSorcery 对 VP9/H264 处理有问题，SDP 层统一使用 VP8 名称
-        // 但保留正确的 PayloadType，这不影响实际的 RTP 传输
-        string codecName;
-        if (isVideo)
-        {
-            codecName = "VP8";  // 统一使用 VP8 名称以兼容 SIPSorcery
-        }
-        else
-        {
-            codecName = mimeType.Split('/').LastOrDefault() ?? "opus";
-        }
-        
+        var codecName = mimeType.Split('/').LastOrDefault() ?? (isVideo ? "VP8" : "opus");
         var clockRate = codec.ClockRate;
 
         if (isVideo)
