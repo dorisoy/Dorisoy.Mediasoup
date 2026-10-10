@@ -18,7 +18,7 @@ public class JoinRoomInfo
     /// <summary>
     /// 服务器地址
     /// </summary>
-    public string ServerUrl { get; set; } = "http://192.168.30.8:9000";
+    public string ServerUrl { get; set; } = "";
 
     /// <summary>
     /// 访问令牌 (JWT Token) - 用于 SignalR 连接认证

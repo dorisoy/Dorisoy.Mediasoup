@@ -5,6 +5,15 @@ namespace Dorisoy.Meeting.Client.Models;
 /// </summary>
 public class MediaSettings
 {
+    #region 连接设置
+
+    /// <summary>
+    /// 服务器地址
+    /// </summary>
+    public string? ServerUrl { get; set; }
+
+    #endregion
+
     #region 设备设置
 
     /// <summary>

@@ -25,6 +25,12 @@ public partial class ChatPanel : UserControl
         InitializeComponent();
         
         Loaded += ChatPanel_Loaded;
+        ChatEmojiPicker.EmojiSelected += InsertEmoji;
+        Unloaded += (_, _) => ChatEmojiPicker.IsOpen = false;
+        IsVisibleChanged += (_, _) =>
+        {
+            if (!IsVisible) ChatEmojiPicker.IsOpen = false;
+        };
     }
 
     private void ChatPanel_Loaded(object sender, RoutedEventArgs e)
@@ -55,6 +61,7 @@ public partial class ChatPanel : UserControl
     /// </summary>
     private void GroupChatItem_Click(object sender, MouseButtonEventArgs e)
     {
+        ChatEmojiPicker.IsOpen = false;
         _isGroupChat = true;
         UserListBox.SelectedItem = null;
         UpdateChatTarget();
@@ -68,6 +75,7 @@ public partial class ChatPanel : UserControl
     {
         if (UserListBox.SelectedItem != null)
         {
+            ChatEmojiPicker.IsOpen = false;
             _isGroupChat = false;
             UpdateChatTarget();
         }
@@ -102,17 +110,21 @@ public partial class ChatPanel : UserControl
     }
 
     /// <summary>
-    /// 表情按钮点击
+    /// 在光标位置插入表情，保留现有草稿及聊天对象。
     /// </summary>
-    private void EmojiButton_Click(object sender, RoutedEventArgs e)
+    private void InsertEmoji(string emoji)
     {
-        var picker = new EmojiPickerWindow { Owner = Window.GetWindow(this) };
-        if (picker.ShowDialog() == true && !string.IsNullOrEmpty(picker.SelectedEmoji))
+        var start = MessageInput.SelectionStart;
+        MessageInput.SelectedText = emoji;
+        MessageInput.Select(start + emoji.Length, 0);
+        MessageInput.Focus();
+    }
+
+    private void ChatEmojiPicker_Closed(object? sender, EventArgs e)
+    {
+        if (IsVisible && Window.GetWindow(this)?.IsActive == true)
         {
-            // 将表情添加到输入框
-            MessageInput.Text += picker.SelectedEmoji;
             MessageInput.Focus();
-            MessageInput.CaretIndex = MessageInput.Text.Length;
         }
     }
 

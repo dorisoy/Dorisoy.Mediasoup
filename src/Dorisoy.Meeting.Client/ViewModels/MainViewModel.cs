@@ -1,14 +1,14 @@
-using CommunityToolkit.Mvvm.ComponentModel;
-using CommunityToolkit.Mvvm.Input;
-using Microsoft.Extensions.Logging;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Media.Imaging;
+using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using Dorisoy.Meeting.Client.Models;
 using Dorisoy.Meeting.Client.Models.Notifications;
 using Dorisoy.Meeting.Client.Services;
+using Microsoft.Extensions.Logging;
 
 namespace Dorisoy.Meeting.Client.ViewModels;
 
@@ -54,7 +54,7 @@ public partial class MainViewModel : ObservableObject
     /// 服务器地址
     /// </summary>
     [ObservableProperty]
-    private string _serverUrl = "http://192.168.30.8:9000";
+    private string _serverUrl = "http://192.168.0.3:9000";
 
     /// <summary>
     /// 选中的 Peer 索引
@@ -242,12 +242,12 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private VideoQualitySettings _selectedVideoQuality = VideoQualitySettings.GetPreset(VideoQualityPreset.High);
-    
+
     /// <summary>
     /// 可用的视频编解码器列表
     /// </summary>
     public VideoCodecInfo[] VideoCodecs { get; } = VideoCodecInfo.AvailableCodecs;
-    
+
     /// <summary>
     /// 选中的视频编解码器
     /// </summary>
@@ -518,7 +518,7 @@ public partial class MainViewModel : ObservableObject
 
         // 订阅 recv transport DTLS 连接完成事件 - 在这之后才能 Resume Consumer
         _webRtcService.OnRecvTransportDtlsConnected += OnRecvTransportDtlsConnected;
-        
+
         // 订阅解码失败关键帧请求事件 - 当解码失败多次时请求关键帧
         _webRtcService.OnKeyFrameRequestNeeded += OnKeyFrameRequestNeeded;
 
@@ -532,7 +532,7 @@ public partial class MainViewModel : ObservableObject
         // 订阅重连事件
         _signalRService.OnReconnecting += OnSignalRReconnecting;
         _signalRService.OnReconnected += OnSignalRReconnected;
-        
+
         // 订阅分块消息重组完成事件
         _signalRService.OnChunkedMessageReceived += OnChunkedMessageReceived;
 
@@ -579,7 +579,7 @@ public partial class MainViewModel : ObservableObject
 
             _logger.LogInformation("Resources cleaned up successfully");
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "Error during cleanup");
         }
@@ -602,16 +602,16 @@ public partial class MainViewModel : ObservableObject
         });
 
         // 启动倒计时
-        while (IsReconnecting && ReconnectCountdown > 0)
+        while(IsReconnecting && ReconnectCountdown > 0)
         {
             await Task.Delay(1000);
-            
+
             // 如果已经重连成功，退出循环
-            if (_signalRService.IsConnected)
+            if(_signalRService.IsConnected)
             {
                 return;
             }
-            
+
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {
                 ReconnectCountdown--;
@@ -619,7 +619,7 @@ public partial class MainViewModel : ObservableObject
         }
 
         // 倒计时结束，检查连接状态
-        if (IsReconnecting && !_signalRService.IsConnected)
+        if(IsReconnecting && !_signalRService.IsConnected)
         {
             await Application.Current.Dispatcher.InvokeAsync(() =>
             {
@@ -651,7 +651,8 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ManualReconnectAsync()
     {
-        if (IsBusy) return;
+        if(IsBusy)
+            return;
 
         IsBusy = true;
         try
@@ -670,7 +671,7 @@ public partial class MainViewModel : ObservableObject
             ReconnectMessage = "";
             StatusMessage = "手动重连成功";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "手动重连失败");
             ReconnectMessage = $"重连失败: {ex.Message}";
@@ -690,12 +691,13 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ToggleConnectionAsync()
     {
-        if (IsBusy) return;
+        if(IsBusy)
+            return;
 
         IsBusy = true;
         try
         {
-            if (IsConnected)
+            if(IsConnected)
             {
                 await DisconnectAsync();
             }
@@ -716,14 +718,15 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ToggleRoomAsync()
     {
-        if (IsBusy) return;
+        if(IsBusy)
+            return;
 
         IsBusy = true;
         try
         {
             _logger.LogInformation("切换房间状态: 当前IsJoinedRoom={IsJoinedRoom}", IsJoinedRoom);
-            
-            if (IsJoinedRoom)
+
+            if(IsJoinedRoom)
             {
                 _logger.LogInformation("开始离开房间...");
                 await LeaveRoomAsync();
@@ -734,7 +737,7 @@ public partial class MainViewModel : ObservableObject
                 await JoinRoomAsync();
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "切换房间状态失败");
             StatusMessage = $"操作失败: {ex.Message}";
@@ -757,21 +760,21 @@ public partial class MainViewModel : ObservableObject
             // 获取摄像头列表
             var cameras = await _webRtcService.GetCamerasAsync();
             Cameras.Clear();
-            foreach (var camera in cameras)
+            foreach(var camera in cameras)
             {
                 Cameras.Add(camera);
             }
-            
+
             // 应用保存的摄像头设备 ID，如果设备仍然可用
-            if (Cameras.Count > 0)
+            if(Cameras.Count > 0)
             {
-                if (!string.IsNullOrEmpty(_pendingCameraDeviceId))
+                if(!string.IsNullOrEmpty(_pendingCameraDeviceId))
                 {
                     var savedCamera = Cameras.FirstOrDefault(c => c.DeviceId == _pendingCameraDeviceId);
                     SelectedCamera = savedCamera ?? Cameras[0];
                     _pendingCameraDeviceId = null;
                 }
-                else if (SelectedCamera == null)
+                else if(SelectedCamera == null)
                 {
                     SelectedCamera = Cameras[0];
                 }
@@ -780,21 +783,21 @@ public partial class MainViewModel : ObservableObject
             // 获取麦克风列表
             var microphones = await _webRtcService.GetMicrophonesAsync();
             Microphones.Clear();
-            foreach (var mic in microphones)
+            foreach(var mic in microphones)
             {
                 Microphones.Add(mic);
             }
-            
+
             // 应用保存的麦克风设备 ID，如果设备仍然可用
-            if (Microphones.Count > 0)
+            if(Microphones.Count > 0)
             {
-                if (!string.IsNullOrEmpty(_pendingMicrophoneDeviceId))
+                if(!string.IsNullOrEmpty(_pendingMicrophoneDeviceId))
                 {
                     var savedMic = Microphones.FirstOrDefault(m => m.DeviceId == _pendingMicrophoneDeviceId);
                     SelectedMicrophone = savedMic ?? Microphones[0];
                     _pendingMicrophoneDeviceId = null;
                 }
-                else if (SelectedMicrophone == null)
+                else if(SelectedMicrophone == null)
                 {
                     SelectedMicrophone = Microphones[0];
                 }
@@ -803,7 +806,7 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("Loaded {CameraCount} cameras, {MicCount} microphones",
                 Cameras.Count, Microphones.Count);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "Failed to load media devices");
         }
@@ -841,12 +844,12 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ShareRoom()
     {
-        if (!IsJoinedRoom)
+        if(!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
             return;
         }
-        
+
         _logger.LogInformation("打开分享教室窗口: Room={RoomId}", RoomId);
         OpenShareRoomWindowRequested?.Invoke();
     }
@@ -869,10 +872,10 @@ public partial class MainViewModel : ObservableObject
     {
         IsPipMode = !IsPipMode;
         IsSelfViewVisible = IsPipMode; // 画中画模式时显示右下角预览
-        
+
         // 同步更新视频网格中的本地视频显示
         UpdateLocalVideoInGrid();
-        
+
         StatusMessage = IsPipMode ? "已开启画中画模式" : "已关闭画中画模式";
     }
 
@@ -893,10 +896,10 @@ public partial class MainViewModel : ObservableObject
     {
         Application.Current?.Dispatcher.Invoke(() =>
         {
-            if (!IsPipMode && IsCameraEnabled)
+            if(!IsPipMode && IsCameraEnabled)
             {
                 // 非画中画模式且摄像头开启时，将本地视频添加到网格
-                if (_localVideoItem != null && !AllVideos.Contains(_localVideoItem))
+                if(_localVideoItem != null && !AllVideos.Contains(_localVideoItem))
                 {
                     AllVideos.Insert(0, _localVideoItem); // 本地视频始终在第一个位置
                 }
@@ -904,7 +907,7 @@ public partial class MainViewModel : ObservableObject
             else
             {
                 // 画中画模式或摄像头关闭时，移除本地视频
-                if (_localVideoItem != null && AllVideos.Contains(_localVideoItem))
+                if(_localVideoItem != null && AllVideos.Contains(_localVideoItem))
                 {
                     AllVideos.Remove(_localVideoItem);
                 }
@@ -919,12 +922,12 @@ public partial class MainViewModel : ObservableObject
     {
         Application.Current?.Dispatcher.Invoke(() =>
         {
-            switch (e.Action)
+            switch(e.Action)
             {
                 case System.Collections.Specialized.NotifyCollectionChangedAction.Add:
-                    if (e.NewItems != null)
+                    if(e.NewItems != null)
                     {
-                        foreach (RemoteVideoItem item in e.NewItems)
+                        foreach(RemoteVideoItem item in e.NewItems)
                         {
                             // 远端视频添加在本地视频之后
                             AllVideos.Add(item);
@@ -932,9 +935,9 @@ public partial class MainViewModel : ObservableObject
                     }
                     break;
                 case System.Collections.Specialized.NotifyCollectionChangedAction.Remove:
-                    if (e.OldItems != null)
+                    if(e.OldItems != null)
                     {
-                        foreach (RemoteVideoItem item in e.OldItems)
+                        foreach(RemoteVideoItem item in e.OldItems)
                         {
                             AllVideos.Remove(item);
                         }
@@ -944,13 +947,13 @@ public partial class MainViewModel : ObservableObject
                     // 清空时保留本地视频
                     var localItem = _localVideoItem;
                     AllVideos.Clear();
-                    if (localItem != null && !IsPipMode && IsCameraEnabled)
+                    if(localItem != null && !IsPipMode && IsCameraEnabled)
                     {
                         AllVideos.Add(localItem);
                     }
                     break;
             }
-            
+
             // 更新无远端视频状态
             HasNoRemoteVideos = RemoteVideos.Count == 0;
         });
@@ -961,7 +964,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void EnsureLocalVideoItem()
     {
-        if (_localVideoItem == null)
+        if(_localVideoItem == null)
         {
             _localVideoItem = new RemoteVideoItem
             {
@@ -978,82 +981,82 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private bool _isRecording;
-    
+
     /// <summary>
     /// 录制开始时间
     /// </summary>
     private DateTime _recordingStartTime;
-    
+
     /// <summary>
     /// 录制计时器
     /// </summary>
     private System.Timers.Timer? _recordingTimer;
-    
+
     /// <summary>
     /// 录制时长显示
     /// </summary>
     [ObservableProperty]
     private string _recordingDuration = "00:00:00";
-    
+
     /// <summary>
     /// 录制输出路径
     /// </summary>
     private string? _recordingOutputPath;
-    
+
     #region 录制设置属性
-    
+
     /// <summary>
     /// 录制存储目录
     /// </summary>
     [ObservableProperty]
     private string _recordingSavePath = Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
-    
+
     /// <summary>
     /// 录制格式列表
     /// </summary>
     public ObservableCollection<string> RecordingFormats { get; } = ["MP4", "WebM", "AVI"];
-    
+
     /// <summary>
     /// 选中的录制格式
     /// </summary>
     [ObservableProperty]
     private string _selectedRecordingFormat = "MP4";
-    
+
     /// <summary>
     /// 是否显示录制倒计时
     /// </summary>
     [ObservableProperty]
     private bool _recordingShowCountdown = true;
-    
+
     /// <summary>
     /// 是否显示录制边框高亮
     /// </summary>
     [ObservableProperty]
     private bool _recordingShowBorder = true;
-    
+
     /// <summary>
     /// 录制倒计时数字 (3, 2, 1)
     /// </summary>
     [ObservableProperty]
     private int _recordingCountdown;
-    
+
     /// <summary>
     /// 倒计时是否可见
     /// </summary>
     [ObservableProperty]
     private bool _isRecordingCountdownVisible;
-    
+
     /// <summary>
     /// REC 指示器闪烁状态
     /// </summary>
     [ObservableProperty]
     private bool _recIndicatorVisible = true;
-    
+
     /// <summary>
     /// 闪烁计时器
     /// </summary>
     private System.Timers.Timer? _blinkTimer;
-    
+
     #endregion
 
     /// <summary>
@@ -1062,19 +1065,19 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task RecordAsync()
     {
-        if (!IsJoinedRoom)
+        if(!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
             return;
         }
-        
-        if (!IsHost)
+
+        if(!IsHost)
         {
             ShowHostOnlyMessage("录制");
             return;
         }
-        
-        if (IsRecording)
+
+        if(IsRecording)
         {
             // 停止录制
             await StopRecordingAsync();
@@ -1085,7 +1088,7 @@ public partial class MainViewModel : ObservableObject
             await StartRecordingAsync();
         }
     }
-    
+
     /// <summary>
     /// 开始录制
     /// </summary>
@@ -1101,26 +1104,26 @@ public partial class MainViewModel : ObservableObject
                 "avi" => ".avi",
                 _ => ".mp4"
             };
-            
+
             // 使用配置的保存目录
             var fileName = $"会议录制_{RoomId}_{DateTime.Now:yyyyMMdd_HHmmss}{ext}";
             _recordingOutputPath = Path.Combine(RecordingSavePath, fileName);
-            
+
             // 确保目录存在
             Directory.CreateDirectory(RecordingSavePath);
-            
+
             // 如果启用倒计时，先显示倒计时
-            if (RecordingShowCountdown)
+            if(RecordingShowCountdown)
             {
                 await ShowRecordingCountdownAsync();
             }
-            
+
             // 通知 WebRTC 服务开始录制
             await _webRtcService.StartRecordingAsync(_recordingOutputPath);
-            
+
             IsRecording = true;
             _recordingStartTime = DateTime.Now;
-            
+
             // 启动计时器更新录制时长
             _recordingTimer = new System.Timers.Timer(1000);
             _recordingTimer.Elapsed += (s, e) =>
@@ -1132,37 +1135,37 @@ public partial class MainViewModel : ObservableObject
                 });
             };
             _recordingTimer.Start();
-            
+
             // 启动 REC 指示器闪烁
             StartRecIndicatorBlink();
-            
+
             _logger.LogInformation("开始录制: {Path}", _recordingOutputPath);
             StatusMessage = "正在录制...";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "开始录制失败");
             StatusMessage = $"录制失败: {ex.Message}";
             IsRecording = false;
         }
     }
-    
+
     /// <summary>
     /// 显示录制倒计时 (3, 2, 1)
     /// </summary>
     private async Task ShowRecordingCountdownAsync()
     {
         IsRecordingCountdownVisible = true;
-        
-        for (int i = 3; i >= 1; i--)
+
+        for(int i = 3; i >= 1; i--)
         {
             RecordingCountdown = i;
             await Task.Delay(1000);
         }
-        
+
         IsRecordingCountdownVisible = false;
     }
-    
+
     /// <summary>
     /// 启动 REC 指示器闪烁
     /// </summary>
@@ -1179,7 +1182,7 @@ public partial class MainViewModel : ObservableObject
         };
         _blinkTimer.Start();
     }
-    
+
     /// <summary>
     /// 停止 REC 指示器闪烁
     /// </summary>
@@ -1190,7 +1193,7 @@ public partial class MainViewModel : ObservableObject
         _blinkTimer = null;
         RecIndicatorVisible = true;
     }
-    
+
     /// <summary>
     /// 停止录制
     /// </summary>
@@ -1202,20 +1205,20 @@ public partial class MainViewModel : ObservableObject
             _recordingTimer?.Stop();
             _recordingTimer?.Dispose();
             _recordingTimer = null;
-            
+
             // 停止 REC 指示器闪烁
             StopRecIndicatorBlink();
-            
+
             // 通知 WebRTC 服务停止录制
             await _webRtcService.StopRecordingAsync();
-            
+
             IsRecording = false;
-            
+
             _logger.LogInformation("停止录制: {Path}, 时长: {Duration}", _recordingOutputPath, RecordingDuration);
             StatusMessage = $"录制已保存: {_recordingOutputPath}";
             RecordingDuration = "00:00:00";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "停止录制失败");
             StatusMessage = $"停止录制失败: {ex.Message}";
@@ -1227,7 +1230,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     [ObservableProperty]
     private bool _isFullScreen;
-    
+
     /// <summary>
     /// 请求切换全屏事件
     /// </summary>
@@ -1241,7 +1244,7 @@ public partial class MainViewModel : ObservableObject
     {
         IsFullScreen = !IsFullScreen;
         FullScreenRequested?.Invoke(IsFullScreen);
-        
+
         _logger.LogInformation("切换全屏: {IsFullScreen}", IsFullScreen);
         StatusMessage = IsFullScreen ? "已进入全屏模式，按 Esc 或点击全屏按钮退出" : "已退出全屏模式";
     }
@@ -1252,12 +1255,12 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Emoji()
     {
-        if (!IsJoinedRoom)
+        if(!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
             return;
         }
-        
+
         _logger.LogInformation("打开表情选择器");
         OpenEmojiPickerRequested?.Invoke();
     }
@@ -1282,8 +1285,8 @@ public partial class MainViewModel : ObservableObject
     private void Translate()
     {
         IsTranslateEnabled = !IsTranslateEnabled;
-        
-        if (IsTranslateEnabled)
+
+        if(IsTranslateEnabled)
         {
             _logger.LogInformation("启用同步转译，打开转译窗口");
             OpenTranslateWindowRequested?.Invoke();
@@ -1327,18 +1330,18 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void Poll()
     {
-        if (!IsJoinedRoom)
+        if(!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
             return;
         }
-        
-        if (!IsHost)
+
+        if(!IsHost)
         {
             ShowHostOnlyMessage("发起投票");
             return;
         }
-        
+
         _logger.LogInformation("打开投票窗口, IsHost={IsHost}", IsHost);
         OpenPollRequested?.Invoke();
         StatusMessage = "已打开投票窗口";
@@ -1349,7 +1352,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task CreateVoteAsync(Vote vote)
     {
-        if (!IsHost)
+        if(!IsHost)
         {
             _logger.LogWarning("只有主持人可以创建投票");
             return;
@@ -1393,7 +1396,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task DeleteVoteAsync(string voteId)
     {
-        if (!IsHost)
+        if(!IsHost)
         {
             _logger.LogWarning("只有主持人可以删除投票");
             return;
@@ -1409,7 +1412,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task CloseVoteAsync(CloseVoteRequest request)
     {
-        _logger.LogInformation("发送投票窗口关闭请求: VoteId={VoteId}, CloserId={CloserId}", 
+        _logger.LogInformation("发送投票窗口关闭请求: VoteId={VoteId}, CloserId={CloserId}",
             request.VoteId, request.CloserId);
         await _signalRService.InvokeAsync("CloseVote", request);
     }
@@ -1465,24 +1468,24 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task EditorAsync()
     {
-        if (!IsJoinedRoom)
+        if(!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
             return;
         }
 
-        if (!IsHost)
+        if(!IsHost)
         {
             ShowHostOnlyMessage("开启协同编辑器");
             return;
         }
-        
+
         _logger.LogInformation("主持人开启协同编辑器");
-        
+
         // 创建新会话
         var sessionId = Guid.NewGuid().ToString();
         _currentEditorSessionId = sessionId;
-        
+
         var request = new
         {
             SessionId = sessionId,
@@ -1490,7 +1493,7 @@ public partial class MainViewModel : ObservableObject
             InitiatorId = CurrentPeerId,
             InitiatorName = CurrentUserName
         };
-        
+
         await _signalRService.InvokeAsync("OpenEditor", request);
         StatusMessage = "已开启协同编辑器";
     }
@@ -1508,7 +1511,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task CloseEditorAsync(string sessionId)
     {
-        if (!IsHost)
+        if(!IsHost)
         {
             return;
         }
@@ -1529,7 +1532,7 @@ public partial class MainViewModel : ObservableObject
     public async Task CloseEditorAsync(CloseEditorRequest request)
     {
         // 注意：不再检查 IsHost，因为窗口内已经做了主持人检查
-        _logger.LogInformation("发送编辑器关闭请求: SessionId={SessionId}, CloserId={CloserId}", 
+        _logger.LogInformation("发送编辑器关闭请求: SessionId={SessionId}, CloserId={CloserId}",
             request.SessionId, request.CloserId);
         await _signalRService.InvokeAsync("CloseEditor", request);
         _currentEditorSessionId = null;
@@ -1551,24 +1554,24 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task WhiteboardAsync()
     {
-        if (!IsJoinedRoom)
+        if(!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
             return;
         }
 
-        if (!IsHost)
+        if(!IsHost)
         {
             ShowHostOnlyMessage("开启白板");
             return;
         }
-        
+
         _logger.LogInformation("主持人开启白板");
-        
+
         // 创建新会话
         var sessionId = Guid.NewGuid().ToString();
         _currentWhiteboardSessionId = sessionId;
-        
+
         var request = new
         {
             SessionId = sessionId,
@@ -1577,7 +1580,7 @@ public partial class MainViewModel : ObservableObject
             CanvasWidth = 1920.0,
             CanvasHeight = 1080.0
         };
-        
+
         await _signalRService.InvokeAsync("OpenWhiteboard", request);
         StatusMessage = "已开启白板";
     }
@@ -1596,7 +1599,7 @@ public partial class MainViewModel : ObservableObject
     public async Task CloseWhiteboardAsync(CloseWhiteboardRequest request)
     {
         // 注意：不再检查 IsHost，因为窗口内已经做了主持人检查
-        _logger.LogInformation("发送白板关闭请求: SessionId={SessionId}, CloserId={CloserId}", 
+        _logger.LogInformation("发送白板关闭请求: SessionId={SessionId}, CloserId={CloserId}",
             request.SessionId, request.CloserId);
         await _signalRService.InvokeAsync("CloseWhiteboard", request);
         _currentWhiteboardSessionId = null;
@@ -1622,17 +1625,17 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ShareScreenAsync()
     {
-        _logger.LogInformation("屏幕共享按钮点击, IsJoinedRoom={IsJoinedRoom}, IsScreenSharing={IsScreenSharing}", 
+        _logger.LogInformation("屏幕共享按钮点击, IsJoinedRoom={IsJoinedRoom}, IsScreenSharing={IsScreenSharing}",
             IsJoinedRoom, IsScreenSharing);
-        
-        if (!IsJoinedRoom)
+
+        if(!IsJoinedRoom)
         {
             StatusMessage = "请先加入房间";
             _logger.LogWarning("尝试共享屏幕但未加入房间");
             return;
         }
-        
-        if (!IsHost)
+
+        if(!IsHost)
         {
             ShowHostOnlyMessage("共享屏幕");
             return;
@@ -1640,13 +1643,13 @@ public partial class MainViewModel : ObservableObject
 
         try
         {
-            if (IsScreenSharing)
+            if(IsScreenSharing)
             {
                 // 停止共享
                 _logger.LogInformation("停止屏幕共享...");
                 await _webRtcService.StopScreenShareAsync();
                 IsScreenSharing = false;
-                
+
                 // 通知其他参与者屏幕共享已停止
                 await _signalRService.InvokeAsync("BroadcastMessage", new
                 {
@@ -1657,14 +1660,14 @@ public partial class MainViewModel : ObservableObject
                         userName = CurrentUserName
                     }
                 });
-                
+
                 // 恢复之前的摄像头状态
-                if (_cameraStateBeforeScreenShare && !IsCameraEnabled)
+                if(_cameraStateBeforeScreenShare && !IsCameraEnabled)
                 {
                     _logger.LogInformation("恢复屏幕共享前的摄像头状态...");
                     await ToggleCameraAsync();
                 }
-                
+
                 StatusMessage = "已停止屏幕共享";
                 _logger.LogInformation("屏幕共享已停止");
             }
@@ -1673,23 +1676,23 @@ public partial class MainViewModel : ObservableObject
                 // 保存当前摄像头状态
                 _cameraStateBeforeScreenShare = IsCameraEnabled;
                 _logger.LogInformation("保存摄像头状态: {State}, 准备开始屏幕共享...", _cameraStateBeforeScreenShare);
-                
+
                 // 如果摄像头开启中，先关闭
-                if (IsCameraEnabled)
+                if(IsCameraEnabled)
                 {
                     _logger.LogInformation("关闭摄像头以开始屏幕共享...");
                     await ToggleCameraAsync();
                 }
-                
+
                 // 开始共享 - 应用屏幕共享设置
                 _logger.LogInformation("开始屏幕共享, 设置: {Width}x{Height} @ {Fps}fps, 显示鼠标={ShowCursor}...",
                     SelectedScreenShareSettings.Width, SelectedScreenShareSettings.Height,
                     SelectedScreenShareSettings.FrameRate, ScreenShareShowCursor);
-                
+
                 // 应用屏幕共享设置到 WebRtc 服务
                 _webRtcService.ScreenShareSettings = SelectedScreenShareSettings;
                 _webRtcService.ScreenShareShowCursor = ScreenShareShowCursor;
-                
+
                 // 通知其他参与者屏幕共享已开始
                 await _signalRService.InvokeAsync("BroadcastMessage", new
                 {
@@ -1709,7 +1712,7 @@ public partial class MainViewModel : ObservableObject
                 _logger.LogInformation("屏幕共享已开始，视频流正在发送给所有参与者");
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "屏幕共享失败");
             StatusMessage = $"屏幕共享失败: {ex.Message}";
@@ -1723,7 +1726,8 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task AcceptScreenShareAsync()
     {
-        if (_pendingScreenShareRequest == null) return;
+        if(_pendingScreenShareRequest == null)
+            return;
 
         try
         {
@@ -1743,7 +1747,7 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = "已接受屏幕共享";
             _logger.LogInformation("接受屏幕共享请求");
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "接受屏幕共享失败");
         }
@@ -1755,7 +1759,8 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task RejectScreenShareAsync()
     {
-        if (_pendingScreenShareRequest == null) return;
+        if(_pendingScreenShareRequest == null)
+            return;
 
         try
         {
@@ -1775,7 +1780,7 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = "已拒绝屏幕共享";
             _logger.LogInformation("拒绝屏幕共享请求");
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "拒绝屏幕共享失败");
         }
@@ -1795,22 +1800,22 @@ public partial class MainViewModel : ObservableObject
         try
         {
             _logger.LogInformation("开始屏幕截图");
-            
+
             // 获取整个屏幕截图
             var screenWidth = (int)SystemParameters.PrimaryScreenWidth;
             var screenHeight = (int)SystemParameters.PrimaryScreenHeight;
-            
+
             using var bitmap = new System.Drawing.Bitmap(screenWidth, screenHeight);
             using var graphics = System.Drawing.Graphics.FromImage(bitmap);
             graphics.CopyFromScreen(0, 0, 0, 0, new System.Drawing.Size(screenWidth, screenHeight));
-            
+
             // 转换为 WPF 图像
             var bitmapSource = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
                 bitmap.GetHbitmap(),
                 IntPtr.Zero,
                 Int32Rect.Empty,
                 BitmapSizeOptions.FromEmptyOptions());
-            
+
             // 弹出保存对话框
             var saveDialog = new Microsoft.Win32.SaveFileDialog
             {
@@ -1818,8 +1823,8 @@ public partial class MainViewModel : ObservableObject
                 DefaultExt = ".png",
                 FileName = $"截图_{DateTime.Now:yyyyMMdd_HHmmss}"
             };
-            
-            if (saveDialog.ShowDialog() == true)
+
+            if(saveDialog.ShowDialog() == true)
             {
                 using var fileStream = new FileStream(saveDialog.FileName, FileMode.Create);
                 BitmapEncoder encoder = saveDialog.FileName.ToLower() switch
@@ -1830,21 +1835,21 @@ public partial class MainViewModel : ObservableObject
                 };
                 encoder.Frames.Add(BitmapFrame.Create(bitmapSource));
                 encoder.Save(fileStream);
-                
+
                 _logger.LogInformation("截图已保存: {Path}", saveDialog.FileName);
                 StatusMessage = $"截图已保存: {saveDialog.FileName}";
             }
-            
+
             // 释放 GDI 对象
             DeleteObject(bitmap.GetHbitmap());
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "屏幕截图失败");
             StatusMessage = $"截图失败: {ex.Message}";
         }
     }
-    
+
     [System.Runtime.InteropServices.DllImport("gdi32.dll")]
     private static extern bool DeleteObject(IntPtr hObject);
 
@@ -1863,7 +1868,7 @@ public partial class MainViewModel : ObservableObject
             };
             _ = messageBox.ShowDialogAsync();
         });
-        
+
         StatusMessage = $"{featureName}仅限主持人使用";
     }
 
@@ -1877,7 +1882,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task KickUser(ChatUser? user)
     {
-        if (user == null || !IsHost)
+        if(user == null || !IsHost)
         {
             _logger.LogWarning("踢出用户失败: 用户为空或非主持人");
             return;
@@ -1886,9 +1891,9 @@ public partial class MainViewModel : ObservableObject
         try
         {
             _logger.LogInformation("主持人踢出用户: {PeerId}, {DisplayName}", user.PeerId, user.DisplayName);
-            
+
             var result = await _signalRService.InvokeAsync("KickPeer", new { targetPeerId = user.PeerId });
-            if (result.IsSuccess)
+            if(result.IsSuccess)
             {
                 StatusMessage = $"已踢出用户 {user.DisplayName}";
             }
@@ -1898,7 +1903,7 @@ public partial class MainViewModel : ObservableObject
                 StatusMessage = $"踢出失败: {result.Message}";
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "踢出用户异常");
             StatusMessage = $"踢出失败: {ex.Message}";
@@ -1911,7 +1916,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task MuteUser(ChatUser? user)
     {
-        if (user == null || !IsHost)
+        if(user == null || !IsHost)
         {
             _logger.LogWarning("静音用户失败: 用户为空或非主持人");
             return;
@@ -1920,16 +1925,16 @@ public partial class MainViewModel : ObservableObject
         try
         {
             var shouldMute = !user.IsMutedByHost;
-            _logger.LogInformation("主持人{Action}用户: {PeerId}, {DisplayName}", 
+            _logger.LogInformation("主持人{Action}用户: {PeerId}, {DisplayName}",
                 shouldMute ? "静音" : "取消静音", user.PeerId, user.DisplayName);
-            
-            var result = await _signalRService.InvokeAsync("RemoteMutePeer", new 
-            { 
+
+            var result = await _signalRService.InvokeAsync("RemoteMutePeer", new
+            {
                 targetPeerId = user.PeerId,
                 isMuted = shouldMute
             });
-            
-            if (result.IsSuccess)
+
+            if(result.IsSuccess)
             {
                 user.IsMutedByHost = shouldMute;
                 StatusMessage = shouldMute ? $"已静音 {user.DisplayName}" : $"已取消静音 {user.DisplayName}";
@@ -1940,7 +1945,7 @@ public partial class MainViewModel : ObservableObject
                 StatusMessage = $"操作失败: {result.Message}";
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "静音用户异常");
             StatusMessage = $"操作失败: {ex.Message}";
@@ -1957,19 +1962,20 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void SelectRemoteVideo(RemoteVideoItem? video)
     {
-        if (video == null) return;
-        
+        if(video == null)
+            return;
+
         // 取消之前选中的视频
-        if (SelectedRemoteVideo != null && SelectedRemoteVideo != video)
+        if(SelectedRemoteVideo != null && SelectedRemoteVideo != video)
         {
             SelectedRemoteVideo.IsSelected = false;
         }
-        
+
         // 切换选中状态
         video.IsSelected = !video.IsSelected;
         SelectedRemoteVideo = video.IsSelected ? video : null;
-        
-        _logger.LogInformation("选中远程视频: {DisplayName}, IsSelected={IsSelected}", 
+
+        _logger.LogInformation("选中远程视频: {DisplayName}, IsSelected={IsSelected}",
             video.DisplayName, video.IsSelected);
     }
 
@@ -1979,9 +1985,10 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ToggleMaximizeRemoteVideo(RemoteVideoItem? video)
     {
-        if (video == null) return;
-        
-        if (MaximizedRemoteVideo == video)
+        if(video == null)
+            return;
+
+        if(MaximizedRemoteVideo == video)
         {
             // 还原
             video.IsMaximized = false;
@@ -1991,7 +1998,7 @@ public partial class MainViewModel : ObservableObject
         else
         {
             // 取消之前的最大化
-            if (MaximizedRemoteVideo != null)
+            if(MaximizedRemoteVideo != null)
             {
                 MaximizedRemoteVideo.IsMaximized = false;
             }
@@ -2008,9 +2015,10 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ToggleHorizontalMirror(RemoteVideoItem? video)
     {
-        if (video == null) return;
+        if(video == null)
+            return;
         video.IsHorizontallyMirrored = !video.IsHorizontallyMirrored;
-        _logger.LogInformation("切换远程视频水平镜像: {DisplayName}, IsMirrored={IsMirrored}", 
+        _logger.LogInformation("切换远程视频水平镜像: {DisplayName}, IsMirrored={IsMirrored}",
             video.DisplayName, video.IsHorizontallyMirrored);
     }
 
@@ -2020,9 +2028,10 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ToggleVerticalMirror(RemoteVideoItem? video)
     {
-        if (video == null) return;
+        if(video == null)
+            return;
         video.IsVerticallyMirrored = !video.IsVerticallyMirrored;
-        _logger.LogInformation("切换远程视频垂直镜像: {DisplayName}, IsMirrored={IsMirrored}", 
+        _logger.LogInformation("切换远程视频垂直镜像: {DisplayName}, IsMirrored={IsMirrored}",
             video.DisplayName, video.IsVerticallyMirrored);
     }
 
@@ -2032,7 +2041,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ScreenshotRemoteVideo(RemoteVideoItem? video)
     {
-        if (video?.VideoFrame == null)
+        if(video?.VideoFrame == null)
         {
             StatusMessage = "没有可截取的视频帧";
             return;
@@ -2047,7 +2056,7 @@ public partial class MainViewModel : ObservableObject
                 FileName = $"{video.DisplayName}_截图_{DateTime.Now:yyyyMMdd_HHmmss}"
             };
 
-            if (saveDialog.ShowDialog() == true)
+            if(saveDialog.ShowDialog() == true)
             {
                 await Application.Current.Dispatcher.InvokeAsync(() =>
                 {
@@ -2058,12 +2067,12 @@ public partial class MainViewModel : ObservableObject
                     encoder.Frames.Add(BitmapFrame.Create(video.VideoFrame));
                     encoder.Save(fileStream);
                 });
-                
+
                 StatusMessage = $"截图已保存: {saveDialog.FileName}";
                 _logger.LogInformation("远程视频截图已保存: {Path}", saveDialog.FileName);
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "截图保存失败");
             StatusMessage = $"截图失败: {ex.Message}";
@@ -2076,9 +2085,10 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void ToggleRemoteVideoMute(RemoteVideoItem? video)
     {
-        if (video == null) return;
+        if(video == null)
+            return;
         video.IsMuted = !video.IsMuted;
-        _logger.LogInformation("切换远程视频静音: {DisplayName}, IsMuted={IsMuted}", 
+        _logger.LogInformation("切换远程视频静音: {DisplayName}, IsMuted={IsMuted}",
             video.DisplayName, video.IsMuted);
         StatusMessage = video.IsMuted ? $"已静音 {video.DisplayName}" : $"已取消静音 {video.DisplayName}";
     }
@@ -2089,7 +2099,7 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void DeselectRemoteVideo()
     {
-        if (SelectedRemoteVideo != null)
+        if(SelectedRemoteVideo != null)
         {
             SelectedRemoteVideo.IsSelected = false;
             SelectedRemoteVideo = null;
@@ -2102,11 +2112,12 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private void StartPrivateChat(RemoteVideoItem? video)
     {
-        if (video == null || video.IsLocal) return;
-        
+        if(video == null || video.IsLocal)
+            return;
+
         // 根据视频项的 PeerId 查找对应的聊天用户
         var chatUser = ChatUsers.FirstOrDefault(u => u.PeerId == video.PeerId);
-        if (chatUser == null)
+        if(chatUser == null)
         {
             // 如果找不到，可能是用户刚加入还没同步到 ChatUsers，尝试创建一个
             chatUser = new ChatUser
@@ -2116,16 +2127,16 @@ public partial class MainViewModel : ObservableObject
                 IsOnline = true
             };
             ChatUsers.Add(chatUser);
-            _logger.LogInformation("动态添加聊天用户: PeerId={PeerId}, DisplayName={DisplayName}", 
+            _logger.LogInformation("动态添加聊天用户: PeerId={PeerId}, DisplayName={DisplayName}",
                 video.PeerId, video.DisplayName);
         }
-        
+
         // 打开聊天面板
         IsChatPanelVisible = true;
-        
+
         // 选中该用户（这会触发 OnSelectedChatUserChanged 切换到私聊模式）
         SelectedChatUser = chatUser;
-        
+
         _logger.LogInformation("开始与 {DisplayName} 私聊", video.DisplayName);
         StatusMessage = $"开始与 {video.DisplayName} 私聊";
     }
@@ -2143,9 +2154,9 @@ public partial class MainViewModel : ObservableObject
         IsChatPanelVisible = !IsChatPanelVisible;
         _logger.LogInformation("聊天面板: {Visible}", IsChatPanelVisible);
         StatusMessage = IsChatPanelVisible ? "打开聊天" : "关闭聊天";
-        
+
         // 切换到群聊
-        if (IsChatPanelVisible)
+        if(IsChatPanelVisible)
         {
             SwitchToGroupChat();
         }
@@ -2166,32 +2177,32 @@ public partial class MainViewModel : ObservableObject
             CloseButtonText = "取消",
             PrimaryButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Danger,
         };
-        
+
         var result = await messageBox.ShowDialogAsync();
-        if (result != Wpf.Ui.Controls.MessageBoxResult.Primary)
+        if(result != Wpf.Ui.Controls.MessageBoxResult.Primary)
         {
             return;
         }
-        
+
         // 清空当前显示的消息
         CurrentMessages.Clear();
-        
+
         // 清空对应的消息存储
-        if (IsGroupChatMode)
+        if(IsGroupChatMode)
         {
             _groupMessages.Clear();
             _logger.LogInformation("已清空群聊记录");
         }
-        else if (SelectedChatUser != null)
+        else if(SelectedChatUser != null)
         {
             var peerId = SelectedChatUser.PeerId;
-            if (_privateMessages.ContainsKey(peerId))
+            if(_privateMessages.ContainsKey(peerId))
             {
                 _privateMessages[peerId].Clear();
             }
             _logger.LogInformation("已清空与 {DisplayName} 的私聊记录", SelectedChatUser.DisplayName);
         }
-        
+
         StatusMessage = "聊天记录已清空";
     }
 
@@ -2201,12 +2212,12 @@ public partial class MainViewModel : ObservableObject
     [RelayCommand]
     private async Task ExportChatHistoryAsync()
     {
-        if (CurrentMessages.Count == 0)
+        if(CurrentMessages.Count == 0)
         {
             StatusMessage = "没有聊天记录可导出";
             return;
         }
-        
+
         try
         {
             var chatName = IsGroupChatMode ? "群聊" : SelectedChatUser?.DisplayName ?? "聊天";
@@ -2217,18 +2228,18 @@ public partial class MainViewModel : ObservableObject
                 FileName = $"聊天记录_{chatName}_{DateTime.Now:yyyyMMdd_HHmmss}"
             };
 
-            if (saveDialog.ShowDialog() == true)
+            if(saveDialog.ShowDialog() == true)
             {
                 var isHtml = saveDialog.FileName.EndsWith(".html", StringComparison.OrdinalIgnoreCase);
                 var content = isHtml ? BuildHtmlChatHistory(chatName) : BuildTextChatHistory(chatName);
-                
+
                 await File.WriteAllTextAsync(saveDialog.FileName, content);
-                
+
                 StatusMessage = $"聊天记录已导出: {saveDialog.FileName}";
                 _logger.LogInformation("聊天记录已导出: {Path}", saveDialog.FileName);
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "导出聊天记录失败");
             StatusMessage = $"导出失败: {ex.Message}";
@@ -2246,13 +2257,13 @@ public partial class MainViewModel : ObservableObject
         sb.AppendLine($"房间号: {RoomId}");
         sb.AppendLine(new string('=', 40));
         sb.AppendLine();
-        
-        foreach (var msg in CurrentMessages)
+
+        foreach(var msg in CurrentMessages)
         {
             var sender = msg.IsFromSelf ? $"{CurrentUserName}(我)" : msg.SenderName;
             var time = msg.Timestamp.ToString("HH:mm:ss");
-            
-            switch (msg.MessageType)
+
+            switch(msg.MessageType)
             {
                 case ChatMessageType.Text:
                     sb.AppendLine($"[{time}] {sender}:");
@@ -2269,7 +2280,7 @@ public partial class MainViewModel : ObservableObject
             }
             sb.AppendLine();
         }
-        
+
         return sb.ToString();
     }
 
@@ -2296,17 +2307,17 @@ public partial class MainViewModel : ObservableObject
         sb.AppendLine("</style></head><body>");
         sb.AppendLine($"<h1>{chatName} 聊天记录</h1>");
         sb.AppendLine($"<div class='info'>导出时间: {DateTime.Now:yyyy-MM-dd HH:mm:ss} | 房间号: {RoomId}</div>");
-        
-        foreach (var msg in CurrentMessages)
+
+        foreach(var msg in CurrentMessages)
         {
             var cssClass = msg.IsFromSelf ? "self" : "other";
             var sender = msg.IsFromSelf ? $"{CurrentUserName}(我)" : msg.SenderName;
             var time = msg.Timestamp.ToString("HH:mm:ss");
-            
+
             sb.AppendLine($"<div class='message {cssClass}'>");
             sb.AppendLine($"<div class='sender'>{sender} <span class='time'>{time}</span></div>");
-            
-            switch (msg.MessageType)
+
+            switch(msg.MessageType)
             {
                 case ChatMessageType.Text:
                     sb.AppendLine($"<div class='content'>{System.Web.HttpUtility.HtmlEncode(msg.Content)}</div>");
@@ -2320,7 +2331,7 @@ public partial class MainViewModel : ObservableObject
             }
             sb.AppendLine("</div>");
         }
-        
+
         sb.AppendLine("</body></html>");
         return sb.ToString();
     }
@@ -2373,7 +2384,8 @@ public partial class MainViewModel : ObservableObject
     /// <param name="joinInfo">加入信息</param>
     public async Task AutoJoinAsync(Models.JoinRoomInfo joinInfo)
     {
-        if (IsBusy) return;
+        if(IsBusy)
+            return;
 
         IsBusy = true;
         try
@@ -2382,25 +2394,25 @@ public partial class MainViewModel : ObservableObject
             ServerUrl = joinInfo.ServerUrl;
             CurrentUserName = joinInfo.UserName;
             _currentAccessToken = joinInfo.AccessToken;
-            
+
             // 设置 RoomId 并强制触发 UI 更新
             RoomId = joinInfo.RoomId;
             OnPropertyChanged(nameof(RoomId));
-            
+
             // 设置初始媒体状态（根据用户在 JoinRoomWindow 中的选择）
             // 注意：这里设置的是"previewState"，实际开启在后面处理
             var shouldEnableCamera = !joinInfo.MuteCameraOnJoin;
             var shouldEnableMic = !joinInfo.MuteMicrophoneOnJoin;
-            
-            _logger.LogInformation("自动加入开始: ServerUrl={ServerUrl}, UserName={UserName}, RoomId={RoomId}, EnableCamera={EnableCamera}, EnableMic={EnableMic}", 
+
+            _logger.LogInformation("自动加入开始: ServerUrl={ServerUrl}, UserName={UserName}, RoomId={RoomId}, EnableCamera={EnableCamera}, EnableMic={EnableMic}",
                 ServerUrl, CurrentUserName, RoomId, shouldEnableCamera, shouldEnableMic);
 
             // 2. 设置选中的设备
-            if (!string.IsNullOrEmpty(joinInfo.CameraDeviceId))
+            if(!string.IsNullOrEmpty(joinInfo.CameraDeviceId))
             {
                 SelectedCamera = Cameras.FirstOrDefault(c => c.DeviceId == joinInfo.CameraDeviceId) ?? Cameras.FirstOrDefault();
             }
-            if (!string.IsNullOrEmpty(joinInfo.MicrophoneDeviceId))
+            if(!string.IsNullOrEmpty(joinInfo.MicrophoneDeviceId))
             {
                 SelectedMicrophone = Microphones.FirstOrDefault(m => m.DeviceId == joinInfo.MicrophoneDeviceId) ?? Microphones.FirstOrDefault();
             }
@@ -2409,7 +2421,7 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = "正在连接服务器...";
             await ConnectAsync();
 
-            if (!IsConnected)
+            if(!IsConnected)
             {
                 StatusMessage = "连接服务器失败";
                 return;
@@ -2419,7 +2431,7 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = "正在加入房间...";
             await JoinRoomAsync();
 
-            if (!IsJoinedRoom)
+            if(!IsJoinedRoom)
             {
                 StatusMessage = "加入房间失败";
                 return;
@@ -2428,23 +2440,23 @@ public partial class MainViewModel : ObservableObject
             // 5. 根据设置控制摄像头和麦克风 - 在加入房间成功后处理
             // EnableMediaAsync 已经在 JoinRoomAsync -> CreateTransportsAsync 后调用
             // 这里根据用户设置决定是否需要关闭某个媒体
-            if (joinInfo.MuteCameraOnJoin && IsCameraEnabled)
+            if(joinInfo.MuteCameraOnJoin && IsCameraEnabled)
             {
                 await ToggleCameraAsync(); // 关闭摄像头
             }
-            if (joinInfo.MuteMicrophoneOnJoin && IsMicrophoneEnabled)
+            if(joinInfo.MuteMicrophoneOnJoin && IsMicrophoneEnabled)
             {
                 await ToggleMicrophoneAsync(); // 关闭麦克风
             }
 
             // 6. 最终状态同步
             SyncAllStates();
-            
+
             StatusMessage = $"已加入房间 {RoomId}";
-            _logger.LogInformation("自动加入成功: RoomId={RoomId}, IsJoinedRoom={IsJoinedRoom}, OnlinePeerCount={OnlinePeerCount}", 
+            _logger.LogInformation("自动加入成功: RoomId={RoomId}, IsJoinedRoom={IsJoinedRoom}, OnlinePeerCount={OnlinePeerCount}",
                 RoomId, IsJoinedRoom, OnlinePeerCount);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "自动加入失败");
             StatusMessage = $"加入失败: {ex.Message}";
@@ -2454,7 +2466,7 @@ public partial class MainViewModel : ObservableObject
             IsBusy = false;
         }
     }
-    
+
     /// <summary>
     /// 同步所有 UI 状态 - 强制触发所有相关属性的通知（强制在 UI 线程上执行）
     /// </summary>
@@ -2462,17 +2474,17 @@ public partial class MainViewModel : ObservableObject
     {
         _logger.LogInformation("SyncAllStates 开始: IsJoinedRoom={IsJoinedRoom}, IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}, RoomId={RoomId}",
             IsJoinedRoom, IsCameraEnabled, IsMicrophoneEnabled, RoomId);
-        
+
         var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher == null)
+        if(dispatcher == null)
         {
             _logger.LogWarning("SyncAllStates: Dispatcher 为 null");
             DoSyncAllStates();
             return;
         }
-        
+
         // 使用同步 Invoke，确保 UI 更新完成后再返回
-        if (!dispatcher.CheckAccess())
+        if(!dispatcher.CheckAccess())
         {
             dispatcher.Invoke(DoSyncAllStates);
         }
@@ -2481,14 +2493,14 @@ public partial class MainViewModel : ObservableObject
             DoSyncAllStates();
         }
     }
-    
+
     /// <summary>
     /// 实际执行所有状态同步
     /// </summary>
     private void DoSyncAllStates()
     {
         _logger.LogDebug("DoSyncAllStates 执行");
-        
+
         OnPropertyChanged(nameof(RoomId));
         OnPropertyChanged(nameof(IsJoinedRoom));
         OnPropertyChanged(nameof(IsConnected));
@@ -2497,7 +2509,7 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(OnlinePeerCount));
         OnPropertyChanged(nameof(CanJoinRoom));
         OnPropertyChanged(nameof(CanToggleMedia));
-        
+
         _logger.LogInformation("SyncAllStates 完成: IsJoinedRoom={IsJoinedRoom}, IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}, OnlinePeerCount={OnlinePeerCount}",
             IsJoinedRoom, IsCameraEnabled, IsMicrophoneEnabled, OnlinePeerCount);
     }
@@ -2511,7 +2523,8 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async Task SendEmojiReactionAsync(string emoji)
     {
-        if (!IsJoinedRoom) return;
+        if(!IsJoinedRoom)
+            return;
 
         try
         {
@@ -2531,7 +2544,7 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("发送表情反应: {Emoji}", emoji);
             StatusMessage = $"发送表情: {emoji}";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "发送表情失败");
         }
@@ -2563,12 +2576,12 @@ public partial class MainViewModel : ObservableObject
     {
         IsGroupChatMode = true;
         SelectedChatUser = null;
-        
+
         // 清除群聊未读计数
         GroupUnreadCount = 0;
-        
+
         CurrentMessages.Clear();
-        foreach (var msg in _groupMessages)
+        foreach(var msg in _groupMessages)
         {
             CurrentMessages.Add(msg);
         }
@@ -2579,19 +2592,20 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnSelectedChatUserChanged(ChatUser? value)
     {
-        if (value == null) return;
+        if(value == null)
+            return;
 
         IsGroupChatMode = false;
-        
+
         // 切换到私聊消息
-        if (!_privateMessages.TryGetValue(value.PeerId, out var messages))
+        if(!_privateMessages.TryGetValue(value.PeerId, out var messages))
         {
             messages = [];
             _privateMessages[value.PeerId] = messages;
         }
 
         CurrentMessages.Clear();
-        foreach (var msg in messages)
+        foreach(var msg in messages)
         {
             CurrentMessages.Add(msg);
         }
@@ -2605,7 +2619,8 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async void SendTextMessage(string content, string? receiverId)
     {
-        if (!IsJoinedRoom) return;
+        if(!IsJoinedRoom)
+            return;
 
         var message = new ChatMessage
         {
@@ -2636,7 +2651,7 @@ public partial class MainViewModel : ObservableObject
                 }
             });
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "发送消息失败");
         }
@@ -2648,15 +2663,16 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async void SendImageMessage(string filePath, string? receiverId)
     {
-        if (!IsJoinedRoom) return;
+        if(!IsJoinedRoom)
+            return;
 
         try
         {
             var fileInfo = new System.IO.FileInfo(filePath);
-            
+
             // 限制图片大小为 50MB
             const long maxImageSize = 50 * 1024 * 1024;
-            if (fileInfo.Length > maxImageSize)
+            if(fileInfo.Length > maxImageSize)
             {
                 StatusMessage = $"图片大小超过 50MB 限制，无法发送";
                 _logger.LogWarning("图片太大: {Size} bytes, 限制: {Limit} bytes", fileInfo.Length, maxImageSize);
@@ -2665,7 +2681,7 @@ public partial class MainViewModel : ObservableObject
 
             // 确保文件上传服务已初始化
             EnsureFileUploadServiceInitialized();
-            if (_fileUploadService == null)
+            if(_fileUploadService == null)
             {
                 StatusMessage = "文件上传服务未初始化";
                 return;
@@ -2683,7 +2699,7 @@ public partial class MainViewModel : ObservableObject
                 });
             });
 
-            if (!result.Success)
+            if(!result.Success)
             {
                 StatusMessage = $"图片上传失败: {result.Message}";
                 _logger.LogError("图片上传失败: {FileName}, 错误: {Error}", fileInfo.Name, result.Message);
@@ -2740,7 +2756,7 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = "图片已发送";
             _logger.LogInformation("图片发送成功: {FileName}, 大小: {Size} bytes, URL: {Url}", fileInfo.Name, fileInfo.Length, downloadUrl);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "发送图片失败");
             StatusMessage = $"发送图片失败: {ex.Message}";
@@ -2753,16 +2769,17 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public async void SendFileMessage(string filePath, string? receiverId)
     {
-        if (!IsJoinedRoom) return;
+        if(!IsJoinedRoom)
+            return;
 
         try
         {
             var fileInfo = new System.IO.FileInfo(filePath);
-            
+
             // 最大限制：500MB
             const long maxFileSize = 500L * 1024 * 1024;
 
-            if (fileInfo.Length > maxFileSize)
+            if(fileInfo.Length > maxFileSize)
             {
                 StatusMessage = $"文件大小超过 500MB 限制，无法发送";
                 _logger.LogWarning("文件太大: {Size} bytes, 限制: {Limit} bytes", fileInfo.Length, maxFileSize);
@@ -2772,7 +2789,7 @@ public partial class MainViewModel : ObservableObject
             // 统一使用文件上传服务（避免 SignalR 消息大小限制）
             await SendFileViaUploadServiceAsync(filePath, fileInfo, receiverId);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "发送文件失败");
             StatusMessage = $"发送文件失败: {ex.Message}";
@@ -2787,7 +2804,7 @@ public partial class MainViewModel : ObservableObject
         // 确保 FileUploadService 已初始化
         EnsureFileUploadServiceInitialized();
 
-        if (_fileUploadService == null)
+        if(_fileUploadService == null)
         {
             StatusMessage = "文件上传服务未初始化";
             return;
@@ -2805,7 +2822,7 @@ public partial class MainViewModel : ObservableObject
             });
         });
 
-        if (!result.Success)
+        if(!result.Success)
         {
             StatusMessage = $"文件上传失败: {result.Message}";
             _logger.LogError("文件上传失败: {FileName}, 错误: {Error}", fileInfo.Name, result.Message);
@@ -2860,7 +2877,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void EnsureFileUploadServiceInitialized()
     {
-        if (_fileUploadService == null && !string.IsNullOrEmpty(ServerUrl))
+        if(_fileUploadService == null && !string.IsNullOrEmpty(ServerUrl))
         {
             _fileUploadService = new FileUploadService(ServerUrl, _currentAccessToken);
             _logger.LogDebug("文件上传服务已初始化: {ServerUrl}", ServerUrl);
@@ -2874,11 +2891,11 @@ public partial class MainViewModel : ObservableObject
     {
         Application.Current?.Dispatcher.Invoke(() =>
         {
-            if (string.IsNullOrEmpty(message.ReceiverId))
+            if(string.IsNullOrEmpty(message.ReceiverId))
             {
                 // 群聊消息
                 _groupMessages.Add(message);
-                if (IsGroupChatMode)
+                if(IsGroupChatMode)
                 {
                     CurrentMessages.Add(message);
                 }
@@ -2891,7 +2908,7 @@ public partial class MainViewModel : ObservableObject
                     ? message.ReceiverId    // 自己发的，对方是接收者
                     : message.SenderId;      // 别人发的，对方是发送者
 
-                if (!_privateMessages.TryGetValue(peerId, out var messages))
+                if(!_privateMessages.TryGetValue(peerId, out var messages))
                 {
                     messages = [];
                     _privateMessages[peerId] = messages;
@@ -2899,7 +2916,7 @@ public partial class MainViewModel : ObservableObject
                 messages.Add(message);
 
                 // 更新当前显示
-                if (!IsGroupChatMode && SelectedChatUser?.PeerId == peerId)
+                if(!IsGroupChatMode && SelectedChatUser?.PeerId == peerId)
                 {
                     CurrentMessages.Add(message);
                 }
@@ -2931,7 +2948,7 @@ public partial class MainViewModel : ObservableObject
 
             _logger.LogDebug("已从 URL 加载图片: {FileName}, 大小: {Size} bytes", message.FileName, imageBytes.Length);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogWarning(ex, "从 URL 加载图片失败: {Url}", url);
         }
@@ -2942,19 +2959,22 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private async void HandleChatMessage(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var msgData = JsonSerializer.Deserialize<ChatMessageData>(json, JsonOptions);
-            if (msgData == null) return;
+            if(msgData == null)
+                return;
 
             // 忽略自己发送的消息
-            if (msgData.SenderId == CurrentUserName) return;
+            if(msgData.SenderId == CurrentUserName)
+                return;
 
             // 检查私聊消息：如果有 ReceiverId 且不是发给自己的，忽略
-            if (!string.IsNullOrEmpty(msgData.ReceiverId) && msgData.ReceiverId != CurrentUserName)
+            if(!string.IsNullOrEmpty(msgData.ReceiverId) && msgData.ReceiverId != CurrentUserName)
             {
                 return;
             }
@@ -2976,14 +2996,14 @@ public partial class MainViewModel : ObservableObject
             };
 
             // 如果是文件消息，记录日志
-            if (message.MessageType == ChatMessageType.File)
+            if(message.MessageType == ChatMessageType.File)
             {
-                if (!string.IsNullOrEmpty(msgData.DownloadUrl))
+                if(!string.IsNullOrEmpty(msgData.DownloadUrl))
                 {
                     _logger.LogDebug("接收到大文件消息: {FileName}, 大小: {Size}, URL: {Url}",
                         message.FileName, message.FileSize, msgData.DownloadUrl);
                 }
-                else if (!string.IsNullOrEmpty(msgData.FileData))
+                else if(!string.IsNullOrEmpty(msgData.FileData))
                 {
                     _logger.LogDebug("接收到小文件消息 (Base64): {FileName}, 大小: {Size}",
                         message.FileName, message.FileSize);
@@ -2991,23 +3011,23 @@ public partial class MainViewModel : ObservableObject
             }
 
             // 如果是图片消息，优先从 URL 下载，否则使用 Base64
-            if (message.MessageType == ChatMessageType.Image)
+            if(message.MessageType == ChatMessageType.Image)
             {
                 // 优先使用 DownloadUrl
-                if (!string.IsNullOrEmpty(msgData.DownloadUrl))
+                if(!string.IsNullOrEmpty(msgData.DownloadUrl))
                 {
                     try
                     {
                         _logger.LogDebug("从 URL 加载图片: {Url}", msgData.DownloadUrl);
                         await LoadImageFromUrlAsync(message, msgData.DownloadUrl);
                     }
-                    catch (Exception imgEx)
+                    catch(Exception imgEx)
                     {
                         _logger.LogWarning(imgEx, "从 URL 加载图片失败: {Url}", msgData.DownloadUrl);
                     }
                 }
                 // 宜后考虑 Base64（向后兼容）
-                else if (!string.IsNullOrEmpty(msgData.FileData))
+                else if(!string.IsNullOrEmpty(msgData.FileData))
                 {
                     try
                     {
@@ -3025,7 +3045,7 @@ public partial class MainViewModel : ObservableObject
                         });
                         _logger.LogDebug("已加载接收的图片 (Base64): {FileName}, 大小: {Size} bytes", message.FileName, imageBytes.Length);
                     }
-                    catch (Exception imgEx)
+                    catch(Exception imgEx)
                     {
                         _logger.LogWarning(imgEx, "加载接收图片失败: {FileName}", message.FileName);
                     }
@@ -3035,10 +3055,10 @@ public partial class MainViewModel : ObservableObject
             AddMessageToCollection(message);
 
             // 如果不在当前聊天，增加未读数
-            if (string.IsNullOrEmpty(message.ReceiverId))
+            if(string.IsNullOrEmpty(message.ReceiverId))
             {
                 // 群聊消息 - 如果不在群聊模式或聊天面板不可见，增加群聊未读计数
-                if (!IsChatPanelVisible || !IsGroupChatMode)
+                if(!IsChatPanelVisible || !IsGroupChatMode)
                 {
                     GroupUnreadCount++;
                 }
@@ -3047,19 +3067,19 @@ public partial class MainViewModel : ObservableObject
             {
                 // 私聊消息 - 始终更新 LastMessage，但只在不在当前聊天时增加未读数
                 var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
-                if (user != null)
+                if(user != null)
                 {
                     // 始终更新最后一条消息
                     user.LastMessage = message;
-                    
+
                     // 如果聊天面板不可见，或在群聊模式，或当前私聊对象不是发送者，增加未读数
-                    if (!IsChatPanelVisible || IsGroupChatMode || SelectedChatUser?.PeerId != message.SenderId)
+                    if(!IsChatPanelVisible || IsGroupChatMode || SelectedChatUser?.PeerId != message.SenderId)
                     {
                         user.UnreadCount++;
                     }
-                    
+
                     // 如果聊天面板不可见，触发聊天按钮闪烁3次
-                    if (!IsChatPanelVisible)
+                    if(!IsChatPanelVisible)
                     {
                         _logger.LogInformation("收到私聊消息，聊天面板未打开，触发按钮闪烁: Sender={Sender}", message.SenderName);
                         PrivateMessageFlashRequested?.Invoke();
@@ -3067,7 +3087,7 @@ public partial class MainViewModel : ObservableObject
                 }
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理消息失败");
         }
@@ -3078,16 +3098,19 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleEmojiReaction(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var reactionData = JsonSerializer.Deserialize<EmojiReactionData>(json, JsonOptions);
-            if (reactionData == null) return;
+            if(reactionData == null)
+                return;
 
             // 忽略自己发送的
-            if (reactionData.SenderId == SelectedPeerIndex.ToString()) return;
+            if(reactionData.SenderId == SelectedPeerIndex.ToString())
+                return;
 
             var reaction = new EmojiReaction
             {
@@ -3098,7 +3121,7 @@ public partial class MainViewModel : ObservableObject
 
             ShowEmojiReaction(reaction);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理表情反应失败");
         }
@@ -3111,13 +3134,14 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnSelectedCameraChanged(MediaDeviceInfo? value)
     {
-        if (value == null) return;
+        if(value == null)
+            return;
 
         // 保存设置
         SaveMediaSettings();
 
         // 如果摄像头正在运行，切换到新设备
-        if (IsCameraEnabled)
+        if(IsCameraEnabled)
         {
             _ = SwitchCameraAsync(value.DeviceId);
         }
@@ -3128,13 +3152,14 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnSelectedMicrophoneChanged(MediaDeviceInfo? value)
     {
-        if (value == null) return;
+        if(value == null)
+            return;
 
         // 保存设置
         SaveMediaSettings();
 
         // 如果麦克风正在运行，切换到新设备
-        if (IsMicrophoneEnabled)
+        if(IsMicrophoneEnabled)
         {
             _ = SwitchMicrophoneAsync(value.DeviceId);
         }
@@ -3162,14 +3187,14 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnIsJoinedRoomChanged(bool value)
     {
-        _logger.LogInformation("=== IsJoinedRoom 属性变化: OldValue -> NewValue={NewValue}, 当前线程={ThreadId} ===", 
+        _logger.LogInformation("=== IsJoinedRoom 属性变化: OldValue -> NewValue={NewValue}, 当前线程={ThreadId} ===",
             value, System.Threading.Thread.CurrentThread.ManagedThreadId);
-        
+
         // 通知相关计算属性
         OnPropertyChanged(nameof(CanToggleMedia));
-        
+
         // 输出堆栈追踪以便调试
-        _logger.LogDebug("IsJoinedRoom 变化调用栈: {StackTrace}", 
+        _logger.LogDebug("IsJoinedRoom 变化调用栈: {StackTrace}",
             new System.Diagnostics.StackTrace().ToString());
     }
 
@@ -3178,30 +3203,30 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnSelectedVideoQualityChanged(VideoQualitySettings value)
     {
-        if (value != null)
+        if(value != null)
         {
             _webRtcService.VideoQuality = value;
-            _logger.LogInformation("视频质量已更改: {Quality} - {Resolution} @ {Bitrate}", 
+            _logger.LogInformation("视频质量已更改: {Quality} - {Resolution} @ {Bitrate}",
                 value.DisplayName, value.Resolution, value.BitrateDescription);
             StatusMessage = $"视频质量: {value.DisplayName} ({value.Resolution})";
-            
+
             // 保存设置
             SaveMediaSettings();
         }
     }
-    
+
     /// <summary>
     /// 视频编解码器变化时应用到 WebRTC 服务
     /// </summary>
     partial void OnSelectedVideoCodecChanged(VideoCodecInfo value)
     {
-        if (value != null)
+        if(value != null)
         {
             _webRtcService.CurrentVideoCodec = value.CodecType;
-            _logger.LogInformation("视频编解码器已更改: {Codec} - {Description}", 
+            _logger.LogInformation("视频编解码器已更改: {Codec} - {Description}",
                 value.DisplayName, value.Description);
             StatusMessage = $"编解码器: {value.DisplayName}";
-            
+
             // 保存设置
             SaveMediaSettings();
         }
@@ -3212,7 +3237,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnSelectedScreenShareSettingsChanged(ScreenShareSettings value)
     {
-        if (value != null)
+        if(value != null)
         {
             SaveMediaSettings();
         }
@@ -3231,7 +3256,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnRecordingSavePathChanged(string value)
     {
-        if (!string.IsNullOrEmpty(value))
+        if(!string.IsNullOrEmpty(value))
         {
             SaveMediaSettings();
         }
@@ -3242,7 +3267,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     partial void OnSelectedRecordingFormatChanged(string value)
     {
-        if (!string.IsNullOrEmpty(value))
+        if(!string.IsNullOrEmpty(value))
         {
             SaveMediaSettings();
         }
@@ -3280,13 +3305,13 @@ public partial class MainViewModel : ObservableObject
 
             // 1. 先关闭服务器端的旧 Producer（如果存在）
             var oldProducerId = _videoProducerId;
-            if (!string.IsNullOrEmpty(oldProducerId))
+            if(!string.IsNullOrEmpty(oldProducerId))
             {
                 _logger.LogInformation("SwitchCameraAsync() | Closing old video producer: {ProducerId}", oldProducerId);
                 try
                 {
                     var closeResult = await _signalRService.InvokeAsync("CloseProducer", oldProducerId);
-                    if (closeResult.IsSuccess)
+                    if(closeResult.IsSuccess)
                     {
                         _logger.LogInformation("SwitchCameraAsync() | CloseProducer succeeded for {ProducerId}", oldProducerId);
                         // 等待服务端完成状态清理
@@ -3297,7 +3322,7 @@ public partial class MainViewModel : ObservableObject
                         _logger.LogWarning("SwitchCameraAsync() | CloseProducer returned failure: {Message}", closeResult.Message);
                     }
                 }
-                catch (Exception ex)
+                catch(Exception ex)
                 {
                     _logger.LogWarning(ex, "SwitchCameraAsync() | CloseProducer exception, will continue anyway");
                 }
@@ -3313,16 +3338,16 @@ public partial class MainViewModel : ObservableObject
             await _webRtcService.StartCameraAsync(deviceId);
 
             // 4. 如果已加入房间，重新创建 Producer（带重试机制）
-            if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
+            if(IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
             {
                 _logger.LogInformation("SwitchCameraAsync() | Re-creating video producer after camera switch");
-                
+
                 var success = false;
                 string? lastError = null;
-                
-                for (int retry = 0; retry < MaxRetries && !success; retry++)
+
+                for(int retry = 0; retry < MaxRetries && !success; retry++)
                 {
-                    if (retry > 0)
+                    if(retry > 0)
                     {
                         _logger.LogInformation("SwitchCameraAsync() | Retrying ProduceVideoAsync, attempt {Attempt}/{Max}", retry + 1, MaxRetries);
                         await Task.Delay(RetryDelayMs * retry); // 递增延迟
@@ -3331,7 +3356,7 @@ public partial class MainViewModel : ObservableObject
                     try
                     {
                         await ProduceVideoWithResultAsync();
-                        if (!string.IsNullOrEmpty(_videoProducerId))
+                        if(!string.IsNullOrEmpty(_videoProducerId))
                         {
                             success = true;
                             _logger.LogInformation("SwitchCameraAsync() | ProduceVideoAsync succeeded on attempt {Attempt}", retry + 1);
@@ -3341,14 +3366,14 @@ public partial class MainViewModel : ObservableObject
                             lastError = "ProducerId 为空";
                         }
                     }
-                    catch (Exception ex)
+                    catch(Exception ex)
                     {
                         lastError = ex.Message;
                         _logger.LogWarning(ex, "SwitchCameraAsync() | ProduceVideoAsync failed on attempt {Attempt}", retry + 1);
                     }
                 }
 
-                if (!success)
+                if(!success)
                 {
                     _logger.LogError("SwitchCameraAsync() | Failed to recreate video producer after {Max} retries. Last error: {Error}", MaxRetries, lastError);
                     StatusMessage = $"视频推送失败: {lastError}（已重试 {MaxRetries} 次）";
@@ -3359,7 +3384,7 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = "摄像头已切换";
             _logger.LogInformation("SwitchCameraAsync() | Camera switched to device: {DeviceId}", deviceId);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "SwitchCameraAsync() | Failed to switch camera to device: {DeviceId}", deviceId);
             StatusMessage = $"切换摄像头失败: {ex.Message}";
@@ -3375,11 +3400,11 @@ public partial class MainViewModel : ObservableObject
         var videoSsrc = _webRtcService.SendTransport?.VideoSsrc ?? 0;
         var currentCodec = _webRtcService.CurrentVideoCodec;
         var produceRequest = RtpParametersFactory.CreateVideoProduceRequest(videoSsrc, currentCodec);
-        _logger.LogInformation("ProduceVideoWithResultAsync() | 创建视频 Producer: SSRC={Ssrc}, Codec={Codec}, Source={Source}", 
+        _logger.LogInformation("ProduceVideoWithResultAsync() | 创建视频 Producer: SSRC={Ssrc}, Codec={Codec}, Source={Source}",
             videoSsrc, currentCodec, produceRequest.Source);
 
         var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
-        if (result.IsSuccess && result.Data != null)
+        if(result.IsSuccess && result.Data != null)
         {
             _videoProducerId = result.Data.Id;
             _logger.LogInformation("ProduceVideoWithResultAsync() | Video producer created: {ProducerId}, SSRC: {Ssrc}", _videoProducerId, videoSsrc);
@@ -3408,13 +3433,13 @@ public partial class MainViewModel : ObservableObject
 
             // 1. 先关闭服务器端的旧 Audio Producer（如果存在）
             var oldProducerId = _audioProducerId;
-            if (!string.IsNullOrEmpty(oldProducerId))
+            if(!string.IsNullOrEmpty(oldProducerId))
             {
                 _logger.LogInformation("SwitchMicrophoneAsync() | Closing old audio producer: {ProducerId}", oldProducerId);
                 try
                 {
                     var closeResult = await _signalRService.InvokeAsync("CloseProducer", oldProducerId);
-                    if (closeResult.IsSuccess)
+                    if(closeResult.IsSuccess)
                     {
                         _logger.LogInformation("SwitchMicrophoneAsync() | CloseProducer succeeded for {ProducerId}", oldProducerId);
                         // 等待服务端完成状态清理
@@ -3425,7 +3450,7 @@ public partial class MainViewModel : ObservableObject
                         _logger.LogWarning("SwitchMicrophoneAsync() | CloseProducer returned failure: {Message}", closeResult.Message);
                     }
                 }
-                catch (Exception ex)
+                catch(Exception ex)
                 {
                     _logger.LogWarning(ex, "SwitchMicrophoneAsync() | CloseProducer exception, will continue anyway");
                 }
@@ -3441,16 +3466,16 @@ public partial class MainViewModel : ObservableObject
             await _webRtcService.StartMicrophoneAsync(deviceId);
 
             // 4. 如果已加入房间，重新创建 Audio Producer（带重试机制）
-            if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
+            if(IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
             {
                 _logger.LogInformation("SwitchMicrophoneAsync() | Re-creating audio producer after microphone switch");
-                
+
                 var success = false;
                 string? lastError = null;
-                
-                for (int retry = 0; retry < MaxRetries && !success; retry++)
+
+                for(int retry = 0; retry < MaxRetries && !success; retry++)
                 {
-                    if (retry > 0)
+                    if(retry > 0)
                     {
                         _logger.LogInformation("SwitchMicrophoneAsync() | Retrying ProduceAudioAsync, attempt {Attempt}/{Max}", retry + 1, MaxRetries);
                         await Task.Delay(RetryDelayMs * retry); // 递增延迟
@@ -3459,7 +3484,7 @@ public partial class MainViewModel : ObservableObject
                     try
                     {
                         await ProduceAudioWithResultAsync();
-                        if (!string.IsNullOrEmpty(_audioProducerId))
+                        if(!string.IsNullOrEmpty(_audioProducerId))
                         {
                             success = true;
                             _logger.LogInformation("SwitchMicrophoneAsync() | ProduceAudioAsync succeeded on attempt {Attempt}", retry + 1);
@@ -3469,14 +3494,14 @@ public partial class MainViewModel : ObservableObject
                             lastError = "ProducerId 为空";
                         }
                     }
-                    catch (Exception ex)
+                    catch(Exception ex)
                     {
                         lastError = ex.Message;
                         _logger.LogWarning(ex, "SwitchMicrophoneAsync() | ProduceAudioAsync failed on attempt {Attempt}", retry + 1);
                     }
                 }
 
-                if (!success)
+                if(!success)
                 {
                     _logger.LogError("SwitchMicrophoneAsync() | Failed to recreate audio producer after {Max} retries. Last error: {Error}", MaxRetries, lastError);
                     StatusMessage = $"音频推送失败: {lastError}（已重试 {MaxRetries} 次）";
@@ -3487,7 +3512,7 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = "麦克风已切换";
             _logger.LogInformation("SwitchMicrophoneAsync() | Microphone switched to device: {DeviceId}", deviceId);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "SwitchMicrophoneAsync() | Failed to switch microphone to device: {DeviceId}", deviceId);
             StatusMessage = $"切换麦克风失败: {ex.Message}";
@@ -3502,11 +3527,11 @@ public partial class MainViewModel : ObservableObject
         // 从 SendTransport 获取实际使用的 SSRC，确保与 RTP 发送一致
         var audioSsrc = _webRtcService.SendTransport?.AudioSsrc ?? 0;
         var produceRequest = RtpParametersFactory.CreateAudioProduceRequest(audioSsrc);
-        _logger.LogInformation("ProduceAudioWithResultAsync() | 创建音频 Producer: SSRC={Ssrc}, Source={Source}", 
+        _logger.LogInformation("ProduceAudioWithResultAsync() | 创建音频 Producer: SSRC={Ssrc}, Source={Source}",
             audioSsrc, produceRequest.Source);
 
         var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
-        if (result.IsSuccess && result.Data != null)
+        if(result.IsSuccess && result.Data != null)
         {
             _audioProducerId = result.Data.Id;
             _logger.LogInformation("ProduceAudioWithResultAsync() | Audio producer created: {ProducerId}, SSRC: {Ssrc}", _audioProducerId, audioSsrc);
@@ -3526,13 +3551,13 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            if (IsCameraEnabled)
+            if(IsCameraEnabled)
             {
                 // 关闭摄像头
                 await _webRtcService.StopCameraAsync();
 
                 // 关闭 Producer
-                if (!string.IsNullOrEmpty(_videoProducerId))
+                if(!string.IsNullOrEmpty(_videoProducerId))
                 {
                     await _signalRService.InvokeAsync("CloseProducer", _videoProducerId);
                     _videoProducerId = null;
@@ -3553,13 +3578,13 @@ public partial class MainViewModel : ObservableObject
                 _logger.LogInformation("摄像头已开启");
 
                 // 如果已加入房间，调用 Produce 推送视频
-                if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
+                if(IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
                 {
                     await ProduceVideoAsync();
                 }
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "Failed to toggle camera");
             StatusMessage = $"摄像头操作失败: {ex.Message}";
@@ -3574,13 +3599,13 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            if (IsMicrophoneEnabled)
+            if(IsMicrophoneEnabled)
             {
                 // 关闭麦克风
                 await _webRtcService.StopMicrophoneAsync();
 
                 // 关闭 Producer
-                if (!string.IsNullOrEmpty(_audioProducerId))
+                if(!string.IsNullOrEmpty(_audioProducerId))
                 {
                     await _signalRService.InvokeAsync("CloseProducer", _audioProducerId);
                     _audioProducerId = null;
@@ -3600,13 +3625,13 @@ public partial class MainViewModel : ObservableObject
                 _logger.LogInformation("麦克风已开启");
 
                 // 如果已加入房间，调用 Produce 推送音频
-                if (IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
+                if(IsJoinedRoom && !string.IsNullOrEmpty(_sendTransportId))
                 {
                     await ProduceAudioAsync();
                 }
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "Failed to toggle microphone");
             StatusMessage = $"麦克风操作失败: {ex.Message}";
@@ -3625,20 +3650,20 @@ public partial class MainViewModel : ObservableObject
         try
         {
             StatusMessage = "正在连接...";
-            
+
             // 使用动态获取的 Token
-            if (string.IsNullOrEmpty(_currentAccessToken))
+            if(string.IsNullOrEmpty(_currentAccessToken))
             {
                 _logger.LogError("访问令牌为空，无法连接");
                 StatusMessage = "访问令牌无效";
                 return;
             }
-            
+
             await _signalRService.ConnectAsync(ServerUrl, _currentAccessToken);
             await StartMeetingAsync();
             StatusMessage = "已连接";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "Connection failed");
             StatusMessage = $"连接失败: {ex.Message}";
@@ -3672,7 +3697,7 @@ public partial class MainViewModel : ObservableObject
     {
         // 1. 获取服务模式
         var serveModeResult = await _signalRService.InvokeAsync<ServeModeResponse>("GetServeMode");
-        if (!serveModeResult.IsSuccess)
+        if(!serveModeResult.IsSuccess)
         {
             _logger.LogError("GetServeMode failed: {Message}", serveModeResult.Message);
             return;
@@ -3681,7 +3706,7 @@ public partial class MainViewModel : ObservableObject
 
         // 2. 获取 Router RTP Capabilities
         var rtpCapResult = await _signalRService.InvokeAsync<object>("GetRouterRtpCapabilities");
-        if (!rtpCapResult.IsSuccess)
+        if(!rtpCapResult.IsSuccess)
         {
             _logger.LogError("GetRouterRtpCapabilities failed: {Message}", rtpCapResult.Message);
             return;
@@ -3689,14 +3714,14 @@ public partial class MainViewModel : ObservableObject
         _routerRtpCapabilities = rtpCapResult.Data;
 
         // 3. 加载 Mediasoup 设备
-        if (_routerRtpCapabilities != null)
+        if(_routerRtpCapabilities != null)
         {
             try
             {
                 _webRtcService.LoadDevice(_routerRtpCapabilities);
                 _logger.LogInformation("Mediasoup device loaded");
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
                 _logger.LogWarning(ex, "Failed to load mediasoup device");
             }
@@ -3713,7 +3738,7 @@ public partial class MainViewModel : ObservableObject
         };
 
         var joinResult = await _signalRService.InvokeAsync("Join", joinRequest);
-        if (!joinResult.IsSuccess)
+        if(!joinResult.IsSuccess)
         {
             _logger.LogError("Join failed: {Message}", joinResult.Message);
             return;
@@ -3736,30 +3761,30 @@ public partial class MainViewModel : ObservableObject
         };
 
         StatusMessage = "正在加入房间...";
-        _logger.LogInformation("调用JoinRoom: RoomId={RoomId}, IsAdmin={IsAdmin}, CurrentUserName={CurrentUserName}", 
+        _logger.LogInformation("调用JoinRoom: RoomId={RoomId}, IsAdmin={IsAdmin}, CurrentUserName={CurrentUserName}",
             roomIdToJoin, isAdmin, CurrentUserName);
 
         var result = await _signalRService.InvokeAsync<JoinRoomResponse>("JoinRoom", joinRoomRequest);
-        
+
         // 详细日志：输出 JoinRoom 响应的完整信息
-        _logger.LogInformation("JoinRoom 响应: IsSuccess={IsSuccess}, Code={Code}, Message={Message}, Data={Data}, Peers={Peers}", 
-            result.IsSuccess, result.Code, result.Message, 
+        _logger.LogInformation("JoinRoom 响应: IsSuccess={IsSuccess}, Code={Code}, Message={Message}, Data={Data}, Peers={Peers}",
+            result.IsSuccess, result.Code, result.Message,
             result.Data != null ? "not null" : "null",
             result.Data?.Peers?.Length ?? 0);
-        
-        if (!result.IsSuccess)
+
+        if(!result.IsSuccess)
         {
             _logger.LogError("JoinRoom failed: {Message}", result.Message);
-            
+
             // 检查是否是"已在房间中"的错误
-            if (result.Message?.Contains("already") == true || result.Message?.Contains("已在") == true)
+            if(result.Message?.Contains("already") == true || result.Message?.Contains("已在") == true)
             {
                 _logger.LogWarning("检测到已在房间中，同步状态为已加入");
                 SyncRoomState(roomIdToJoin, true);
                 StatusMessage = $"已在房间 {roomIdToJoin} 中";
                 return;
             }
-            
+
             StatusMessage = $"加入房间失败: {result.Message}";
             return;
         }
@@ -3770,20 +3795,20 @@ public partial class MainViewModel : ObservableObject
         var selfPeerId = result.Data?.SelfPeerId;
         var peersCount = peersData?.Length ?? 0;
         _logger.LogInformation("处理房间内 Peers: Count={Count}, HostPeerId={HostPeerId}, SelfPeerId={SelfPeerId}", peersCount, hostPeerId, selfPeerId);
-        
+
         // 保存主持人信息和当前用户 PeerId
         HostPeerId = hostPeerId;
-        
+
         // 直接使用服务端返回的 SelfPeerId，避免通过 DisplayName 比较的不可靠性
-        if (!string.IsNullOrEmpty(selfPeerId))
+        if(!string.IsNullOrEmpty(selfPeerId))
         {
             CurrentPeerId = selfPeerId;
             _logger.LogInformation("使用服务端返回的 SelfPeerId: {SelfPeerId}", selfPeerId);
         }
-        
+
         // 使用 Dispatcher.Invoke 确保在 UI 线程上更新集合
         var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher != null && !dispatcher.CheckAccess())
+        if(dispatcher != null && !dispatcher.CheckAccess())
         {
             dispatcher.Invoke(() => UpdatePeersCollection(peersData, roomIdToJoin));
         }
@@ -3791,8 +3816,8 @@ public partial class MainViewModel : ObservableObject
         {
             UpdatePeersCollection(peersData, roomIdToJoin);
         }
-        
-        _logger.LogInformation("加入房间成功: RoomId={RoomId}, PeerCount={PeerCount}, ChatUserCount={ChatUserCount}, IsHost={IsHost}", 
+
+        _logger.LogInformation("加入房间成功: RoomId={RoomId}, PeerCount={PeerCount}, ChatUserCount={ChatUserCount}, IsHost={IsHost}",
             roomIdToJoin, Peers.Count, ChatUsers.Count, IsHost);
 
         // 创建 WebRTC Transport
@@ -3800,13 +3825,13 @@ public partial class MainViewModel : ObservableObject
 
         // 记录 ServeMode 状态
         _logger.LogInformation("当前 ServeMode={ServeMode}，准备启用媒体", ServeMode);
-        
+
         // 如果是 Open 模式，自动开始生产
-        if (ServeMode == "Open")
+        if(ServeMode == "Open")
         {
             _logger.LogInformation("开始调用 EnableMediaAsync...");
             await EnableMediaAsync();
-            _logger.LogInformation("EnableMediaAsync 完成: IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}", 
+            _logger.LogInformation("EnableMediaAsync 完成: IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}",
                 IsCameraEnabled, IsMicrophoneEnabled);
         }
         else
@@ -3815,17 +3840,17 @@ public partial class MainViewModel : ObservableObject
         }
 
         // 通知服务器准备就绪
-        if (ServeMode != "Pull")
+        if(ServeMode != "Pull")
         {
             await _signalRService.InvokeAsync("Ready");
-            
+
             // 延迟检查并刷新订阅关系，确保多用户场景下所有视频流都能正确订阅
             _ = DelayedRefreshSubscriptionsAsync();
         }
 
         StatusMessage = $"已加入房间 {roomIdToJoin}";
     }
-    
+
     /// <summary>
     /// 延迟刷新订阅关系 - 确保多用户场景下所有视频流都能正确订阅
     /// 在 Ready 之后延迟一段时间检查，如果远端视频数量不足则调用 RefreshSubscriptions
@@ -3836,45 +3861,45 @@ public partial class MainViewModel : ObservableObject
         const int maxRetries = 3;
         const int initialDelayMs = 2000;
         const int retryDelayMs = 3000;
-        
+
         try
         {
             _logger.LogInformation("DelayedRefreshSubscriptions: 开始订阅检查流程");
-            
-            for (int attempt = 1; attempt <= maxRetries; attempt++)
+
+            for(int attempt = 1; attempt <= maxRetries; attempt++)
             {
                 // 第一次延迟 2 秒，后续重试延迟 3 秒
                 var delayMs = attempt == 1 ? initialDelayMs : retryDelayMs;
                 await Task.Delay(delayMs);
-                
-                if (!IsJoinedRoom)
+
+                if(!IsJoinedRoom)
                 {
                     _logger.LogDebug("DelayedRefreshSubscriptions: 已离开房间，跳过刷新");
                     return;
                 }
-                
+
                 // 计算期望的远端视频数量
                 // 注意：并非所有用户都开启了摄像头，因此这只是上限
                 var expectedRemoteVideos = Math.Max(0, Peers.Count - 1); // 排除自己
                 var actualRemoteVideos = RemoteVideos.Count;
-                
+
                 _logger.LogInformation(
                     "DelayedRefreshSubscriptions: 第 {Attempt}/{MaxRetries} 次检查 - PeerCount={PeerCount}, ExpectedMax={Expected}, Actual={Actual}",
                     attempt, maxRetries, Peers.Count, expectedRemoteVideos, actualRemoteVideos
                 );
-                
+
                 // 如果远端视频数量为 0 且有其他用户，很可能是订阅问题
                 // 如果远端视频数量 > 0 且小于期望值，也可能需要刷新
                 var needsRefresh = (actualRemoteVideos == 0 && expectedRemoteVideos > 0) ||
                                    (actualRemoteVideos > 0 && actualRemoteVideos < expectedRemoteVideos && expectedRemoteVideos > 1);
-                
-                if (needsRefresh)
+
+                if(needsRefresh)
                 {
                     _logger.LogWarning(
                         "DelayedRefreshSubscriptions: 远端视频数量不足，调用 RefreshSubscriptions (Attempt={Attempt})",
                         attempt
                     );
-                    
+
                     try
                     {
                         var result = await _signalRService.InvokeAsync("RefreshSubscriptions");
@@ -3883,7 +3908,7 @@ public partial class MainViewModel : ObservableObject
                             result.Message
                         );
                     }
-                    catch (Exception ex)
+                    catch(Exception ex)
                     {
                         _logger.LogWarning(ex, "RefreshSubscriptions 调用失败");
                     }
@@ -3898,7 +3923,7 @@ public partial class MainViewModel : ObservableObject
                     return;
                 }
             }
-            
+
             // 所有重试完成后，记录最终状态
             var finalRemoteVideos = RemoteVideos.Count;
             _logger.LogInformation(
@@ -3906,51 +3931,51 @@ public partial class MainViewModel : ObservableObject
                 finalRemoteVideos
             );
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogWarning(ex, "DelayedRefreshSubscriptions 失败");
         }
     }
-    
+
     /// <summary>
     /// 更新 Peers 集合 - 必须在 UI 线程上调用
     /// </summary>
     private void UpdatePeersCollection(PeerInfo[]? peersData, string roomIdToJoin)
     {
         _logger.LogDebug("UpdatePeersCollection: 清空集合并添加新数据...");
-        
+
         Peers.Clear();
         ChatUsers.Clear();
-        
-        if (peersData != null)
+
+        if(peersData != null)
         {
             _logger.LogInformation("开始添加 Peers 到集合，返回的 Peers 数量: {Count}", peersData.Length);
-            
-            foreach (var peer in peersData)
+
+            foreach(var peer in peersData)
             {
-                _logger.LogInformation("处理 Peer: PeerId={PeerId}, DisplayName={DisplayName}", 
+                _logger.LogInformation("处理 Peer: PeerId={PeerId}, DisplayName={DisplayName}",
                     peer.PeerId, peer.DisplayName);
-                    
+
                 Peers.Add(peer);
-                
+
                 // 同步到聊天用户列表（排除自己）
                 // 优先使用 CurrentPeerId 比较，回退到 DisplayName 比较
-                bool isSelf = !string.IsNullOrEmpty(CurrentPeerId) 
+                bool isSelf = !string.IsNullOrEmpty(CurrentPeerId)
                     ? peer.PeerId == CurrentPeerId
                     : string.Equals(peer.DisplayName, CurrentUserName, StringComparison.OrdinalIgnoreCase);
-                
-                if (isSelf && string.IsNullOrEmpty(CurrentPeerId))
+
+                if(isSelf && string.IsNullOrEmpty(CurrentPeerId))
                 {
                     // 如果 CurrentPeerId 未设置（服务端未返回 SelfPeerId），通过 DisplayName 查找并设置
                     CurrentPeerId = peer.PeerId;
                     _logger.LogInformation("通过 DisplayName 设置 CurrentPeerId: {PeerId}", peer.PeerId);
                 }
-                
-                if (!isSelf && !string.IsNullOrEmpty(peer.PeerId))
+
+                if(!isSelf && !string.IsNullOrEmpty(peer.PeerId))
                 {
-                    _logger.LogDebug("添加聊天用户: PeerId={PeerId}, DisplayName={DisplayName}", 
+                    _logger.LogDebug("添加聊天用户: PeerId={PeerId}, DisplayName={DisplayName}",
                         peer.PeerId, peer.DisplayName);
-                        
+
                     ChatUsers.Add(new ChatUser
                     {
                         PeerId = peer.PeerId,
@@ -3961,19 +3986,19 @@ public partial class MainViewModel : ObservableObject
                 }
                 else
                 {
-                    _logger.LogDebug("跳过自己: PeerId={PeerId}, DisplayName={DisplayName}, IsSelf={IsSelf}", 
+                    _logger.LogDebug("跳过自己: PeerId={PeerId}, DisplayName={DisplayName}, IsSelf={IsSelf}",
                         peer.PeerId, peer.DisplayName, isSelf);
                 }
             }
         }
-        
+
         // 立即同步房间状态到 UI（已在 UI 线程上）
         DoSyncRoomState(roomIdToJoin, true);
-        
-        _logger.LogInformation("UpdatePeersCollection 完成: PeerCount={PeerCount}, ChatUserCount={ChatUserCount}, IsJoinedRoom={IsJoinedRoom}", 
+
+        _logger.LogInformation("UpdatePeersCollection 完成: PeerCount={PeerCount}, ChatUserCount={ChatUserCount}, IsJoinedRoom={IsJoinedRoom}",
             Peers.Count, ChatUsers.Count, IsJoinedRoom);
     }
-    
+
     /// <summary>
     /// 同步房间状态到 UI - 确保所有相关属性都被正确通知（强制在 UI 线程上执行）
     /// </summary>
@@ -3981,20 +4006,20 @@ public partial class MainViewModel : ObservableObject
     /// <param name="isJoined">是否已加入</param>
     private void SyncRoomState(string roomId, bool isJoined)
     {
-        _logger.LogInformation("同步房间状态: RoomId={RoomId}, IsJoined={IsJoined}, CurrentIsJoinedRoom={CurrentIsJoinedRoom}", 
+        _logger.LogInformation("同步房间状态: RoomId={RoomId}, IsJoined={IsJoined}, CurrentIsJoinedRoom={CurrentIsJoinedRoom}",
             roomId, isJoined, IsJoinedRoom);
-        
+
         // 强制通过 Dispatcher 执行 UI 更新
         var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher == null)
+        if(dispatcher == null)
         {
             _logger.LogWarning("Dispatcher 为 null，直接更新状态");
             DoSyncRoomState(roomId, isJoined);
             return;
         }
-        
+
         // 使用同步 Invoke，确保状态更新完成后再继续执行
-        if (!dispatcher.CheckAccess())
+        if(!dispatcher.CheckAccess())
         {
             dispatcher.Invoke(() => DoSyncRoomState(roomId, isJoined));
         }
@@ -4003,34 +4028,34 @@ public partial class MainViewModel : ObservableObject
             DoSyncRoomState(roomId, isJoined);
         }
     }
-    
+
     /// <summary>
     /// 实际执行房间状态同步
     /// </summary>
     private void DoSyncRoomState(string roomId, bool isJoined)
     {
         _logger.LogDebug("DoSyncRoomState 执行: RoomId={RoomId}, IsJoined={IsJoined}", roomId, isJoined);
-        
+
         // 确保 RoomId 被更新（即使值相同也触发通知）
         var oldRoomId = RoomId;
         RoomId = roomId;
-        if (oldRoomId == roomId)
+        if(oldRoomId == roomId)
         {
             OnPropertyChanged(nameof(RoomId));
         }
-        
+
         // 更新加入状态
         IsJoinedRoom = isJoined;
         IsInLobby = !isJoined;
-        
+
         // 手动触发所有相关属性的通知，确保 UI 更新
         OnPropertyChanged(nameof(IsJoinedRoom));
         OnPropertyChanged(nameof(OnlinePeerCount));
         OnPropertyChanged(nameof(CanJoinRoom));
         OnPropertyChanged(nameof(CanToggleMedia));
         OnPropertyChanged(nameof(IsHost));
-        
-        _logger.LogInformation("房间状态同步完成: IsJoinedRoom={IsJoinedRoom}, OnlinePeerCount={OnlinePeerCount}", 
+
+        _logger.LogInformation("房间状态同步完成: IsJoinedRoom={IsJoinedRoom}, OnlinePeerCount={OnlinePeerCount}",
             IsJoinedRoom, OnlinePeerCount);
     }
 
@@ -4040,20 +4065,20 @@ public partial class MainViewModel : ObservableObject
     private async Task LeaveRoomAsync()
     {
         _logger.LogInformation("开始离开房间...");
-        
+
         try
         {
             // 调用服务器 LeaveRoom，但保持 SignalR 连接
             await _signalRService.InvokeAsync("LeaveRoom");
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogWarning(ex, "调用 LeaveRoom 失败");
         }
-        
+
         // 关闭 WebRTC 媒体，但保持 SignalR 连接
         await _webRtcService.CloseAsync();
-        
+
         // 重置房间相关状态，但保持连接状态
         IsJoinedRoom = false;
         IsInLobby = true;  // 回到大厅状态
@@ -4064,37 +4089,37 @@ public partial class MainViewModel : ObservableObject
         ChatUsers.Clear();
         HasNoRemoteVideos = true;
         LocalVideoFrame = null;
-        
+
         // 清理主持人和当前用户 ID
         HostPeerId = null;
         CurrentPeerId = null;
-        
+
         // 清理 Transport ID
         _sendTransportId = null;
         _recvTransportId = null;
         _videoProducerId = null;
         _audioProducerId = null;
-        
+
         // 清理待恢复的 Consumer 列表
-        lock (_pendingResumeConsumers)
+        lock(_pendingResumeConsumers)
         {
             _pendingResumeConsumers.Clear();
         }
-        
+
         // 关键修复：清理 per-peer transport 资源，避免重新加入时残留
-        lock (_peerRecvTransportIds)
+        lock(_peerRecvTransportIds)
         {
             _peerRecvTransportIds.Clear();
             _peerTransportCreatingSet.Clear();
         }
-        lock (_peerPendingResumeConsumers)
+        lock(_peerPendingResumeConsumers)
         {
             _peerPendingResumeConsumers.Clear();
         }
-        
+
         StatusMessage = "已回到大厅";
         _logger.LogInformation("离开房间完成，回到大厅");
-        
+
         // 通知窗口返回加入房间界面（但保持 SignalR 连接）
         ReturnToJoinRoomRequested?.Invoke();
     }
@@ -4106,55 +4131,55 @@ public partial class MainViewModel : ObservableObject
     private async Task ForceLeaveRoomLocalAsync()
     {
         _logger.LogInformation("被踢出房间，开始强制清理本地状态...");
-        
+
         // 完全关闭 WebRTC 服务
         await _webRtcService.CloseAsync();
-        
+
         // 断开 SignalR 连接（被踢用户不应保持连接）
         await _signalRService.DisconnectAsync();
-        
+
         // 重置所有状态
         IsJoinedRoom = false;
         IsInLobby = false;
         IsConnected = false;
         IsCameraEnabled = false;
         IsMicrophoneEnabled = false;
-        
+
         // 清空所有集合
         Peers.Clear();
         RemoteVideos.Clear();
         ChatUsers.Clear();
         HasNoRemoteVideos = true;
         LocalVideoFrame = null;
-        
+
         // 清理主持人和当前用户 ID
         HostPeerId = null;
         CurrentPeerId = null;
-        
+
         // 清理 Transport ID
         _sendTransportId = null;
         _recvTransportId = null;
         _videoProducerId = null;
         _audioProducerId = null;
         _currentAccessToken = string.Empty;
-        
+
         // 清理待恢复的 Consumer 列表
-        lock (_pendingResumeConsumers)
+        lock(_pendingResumeConsumers)
         {
             _pendingResumeConsumers.Clear();
         }
-        
+
         // 清理 per-peer transport 资源
-        lock (_peerRecvTransportIds)
+        lock(_peerRecvTransportIds)
         {
             _peerRecvTransportIds.Clear();
             _peerTransportCreatingSet.Clear();
         }
-        lock (_peerPendingResumeConsumers)
+        lock(_peerPendingResumeConsumers)
         {
             _peerPendingResumeConsumers.Clear();
         }
-        
+
         StatusMessage = "已被踢出房间";
         _logger.LogInformation("被踢出房间，本地状态清理完成，已断开连接");
     }
@@ -4166,26 +4191,26 @@ public partial class MainViewModel : ObservableObject
     private async Task ExitToJoinWindowAsync()
     {
         _logger.LogInformation("完全退出会议...");
-        
+
         try
         {
             // 如果在房间中，先离开房间
-            if (IsJoinedRoom)
+            if(IsJoinedRoom)
             {
                 await _signalRService.InvokeAsync("LeaveRoom");
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogWarning(ex, "退出时调用 LeaveRoom 失败");
         }
-        
+
         // 断开 SignalR 连接
         await _signalRService.DisconnectAsync();
-        
+
         // 完全关闭 WebRTC 服务
         await _webRtcService.CloseAsync();
-        
+
         // 重置所有状态
         IsJoinedRoom = false;
         IsInLobby = false;
@@ -4197,38 +4222,38 @@ public partial class MainViewModel : ObservableObject
         ChatUsers.Clear();
         HasNoRemoteVideos = true;
         LocalVideoFrame = null;
-        
+
         // 清理主持人和当前用户 ID
         HostPeerId = null;
         CurrentPeerId = null;
-        
+
         // 清理 Transport ID
         _sendTransportId = null;
         _recvTransportId = null;
         _videoProducerId = null;
         _audioProducerId = null;
         _currentAccessToken = string.Empty;
-        
+
         // 清理待恢复的 Consumer 列表
-        lock (_pendingResumeConsumers)
+        lock(_pendingResumeConsumers)
         {
             _pendingResumeConsumers.Clear();
         }
-        
+
         // 清理 per-peer transport 资源
-        lock (_peerRecvTransportIds)
+        lock(_peerRecvTransportIds)
         {
             _peerRecvTransportIds.Clear();
             _peerTransportCreatingSet.Clear();
         }
-        lock (_peerPendingResumeConsumers)
+        lock(_peerPendingResumeConsumers)
         {
             _peerPendingResumeConsumers.Clear();
         }
-        
+
         StatusMessage = "已断开连接";
         _logger.LogInformation("完全退出会议，返回加入窗口");
-        
+
         // 通知窗口返回加入房间界面
         ReturnToJoinRoomRequested?.Invoke();
     }
@@ -4243,14 +4268,14 @@ public partial class MainViewModel : ObservableObject
             "CreateSendWebRtcTransport",
             new { forceTcp = false, sctpCapabilities = (object?)null });
 
-        if (sendTransportResult.IsSuccess && sendTransportResult.Data != null)
+        if(sendTransportResult.IsSuccess && sendTransportResult.Data != null)
         {
             var data = sendTransportResult.Data;
             _sendTransportId = data.TransportId;
             _logger.LogInformation("Created send transport: {TransportId}", _sendTransportId);
 
             // 创建 WebRTC Send Transport
-            if (data.IceParameters != null && data.IceCandidates != null && data.DtlsParameters != null)
+            if(data.IceParameters != null && data.IceCandidates != null && data.DtlsParameters != null)
             {
                 try
                 {
@@ -4267,14 +4292,14 @@ public partial class MainViewModel : ObservableObject
                         var connectResult = await _signalRService.InvokeAsync(
                             "ConnectWebRtcTransport",
                             new { transportId, dtlsParameters = dtlsParams });
-                        if (!connectResult.IsSuccess)
+                        if(!connectResult.IsSuccess)
                         {
                             _logger.LogWarning("Failed to connect send transport: {Message}", connectResult.Message);
                         }
                     });
                     _logger.LogInformation("Send transport connected");
                 }
-                catch (Exception ex)
+                catch(Exception ex)
                 {
                     _logger.LogWarning(ex, "Failed to create/connect WebRTC send transport");
                 }
@@ -4286,14 +4311,14 @@ public partial class MainViewModel : ObservableObject
             "CreateRecvWebRtcTransport",
             new { forceTcp = false, sctpCapabilities = (object?)null });
 
-        if (recvTransportResult.IsSuccess && recvTransportResult.Data != null)
+        if(recvTransportResult.IsSuccess && recvTransportResult.Data != null)
         {
             var data = recvTransportResult.Data;
             _recvTransportId = data.TransportId;
             _logger.LogInformation("Created recv transport: {TransportId}", _recvTransportId);
 
             // 创建 WebRTC Recv Transport
-            if (data.IceParameters != null && data.IceCandidates != null && data.DtlsParameters != null)
+            if(data.IceParameters != null && data.IceCandidates != null && data.DtlsParameters != null)
             {
                 try
                 {
@@ -4312,14 +4337,14 @@ public partial class MainViewModel : ObservableObject
                         var connectResult = await _signalRService.InvokeAsync(
                             "ConnectWebRtcTransport",
                             new { transportId, dtlsParameters = dtlsParams });
-                        if (!connectResult.IsSuccess)
+                        if(!connectResult.IsSuccess)
                         {
                             _logger.LogWarning("Failed to connect recv transport: {Message}", connectResult.Message);
                         }
                     });
                     _logger.LogInformation("Recv transport negotiation callback setup, will connect after SDP negotiation");
                 }
-                catch (Exception ex)
+                catch(Exception ex)
                 {
                     _logger.LogWarning(ex, "Failed to create recv transport");
                 }
@@ -4339,37 +4364,37 @@ public partial class MainViewModel : ObservableObject
             var micDeviceId = SelectedMicrophone?.DeviceId;
 
             await _webRtcService.StartCameraAsync(cameraDeviceId);
-            
+
             // 确保在 UI 线程上更新状态
             UpdateMediaStateOnUiThread(camera: true, mic: null);
             StatusMessage = "摄像头采集中...";
 
             // 调用 Produce 推送视频
-            if (!string.IsNullOrEmpty(_sendTransportId))
+            if(!string.IsNullOrEmpty(_sendTransportId))
             {
                 await ProduceVideoAsync();
             }
 
             await _webRtcService.StartMicrophoneAsync(micDeviceId);
-            
+
             // 确保在 UI 线程上更新状态
             UpdateMediaStateOnUiThread(camera: null, mic: true);
 
             // 调用 Produce 推送音频
-            if (!string.IsNullOrEmpty(_sendTransportId))
+            if(!string.IsNullOrEmpty(_sendTransportId))
             {
                 await ProduceAudioAsync();
             }
 
-            _logger.LogInformation("Media enabled: IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}", 
+            _logger.LogInformation("Media enabled: IsCameraEnabled={IsCameraEnabled}, IsMicrophoneEnabled={IsMicrophoneEnabled}",
                 IsCameraEnabled, IsMicrophoneEnabled);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "Failed to enable media");
         }
     }
-    
+
     /// <summary>
     /// 在 UI 线程上更新媒体状态
     /// </summary>
@@ -4378,19 +4403,19 @@ public partial class MainViewModel : ObservableObject
     private void UpdateMediaStateOnUiThread(bool? camera, bool? mic)
     {
         _logger.LogDebug("UpdateMediaStateOnUiThread: camera={Camera}, mic={Mic}", camera, mic);
-        
+
         void DoUpdate()
         {
-            if (camera.HasValue)
+            if(camera.HasValue)
             {
                 IsCameraEnabled = camera.Value;
                 OnPropertyChanged(nameof(IsCameraEnabled));
                 OnPropertyChanged(nameof(CanToggleMedia));
                 OnPropertyChanged(nameof(ShowLocalVideoInGrid));
                 _logger.LogDebug("IsCameraEnabled 已更新为 {Value}", camera.Value);
-                
+
                 // 摄像头状态改变时，更新视频网格中的本地视频
-                if (camera.Value)
+                if(camera.Value)
                 {
                     // 开启摄像头时，初始化本地视频项
                     EnsureLocalVideoItem();
@@ -4398,7 +4423,7 @@ public partial class MainViewModel : ObservableObject
                 // 更新视频网格中的本地视频显示
                 UpdateLocalVideoInGrid();
             }
-            if (mic.HasValue)
+            if(mic.HasValue)
             {
                 IsMicrophoneEnabled = mic.Value;
                 OnPropertyChanged(nameof(IsMicrophoneEnabled));
@@ -4406,15 +4431,15 @@ public partial class MainViewModel : ObservableObject
                 _logger.LogDebug("IsMicrophoneEnabled 已更新为 {Value}", mic.Value);
             }
         }
-        
+
         var dispatcher = Application.Current?.Dispatcher;
-        if (dispatcher == null)
+        if(dispatcher == null)
         {
             _logger.LogWarning("UpdateMediaStateOnUiThread: Dispatcher 为 null");
             DoUpdate();
             return;
         }
-        
+
         // 使用 BeginInvoke 异步执行，确保 UI 更新
         dispatcher.BeginInvoke(new Action(DoUpdate), System.Windows.Threading.DispatcherPriority.Send);
     }
@@ -4433,7 +4458,7 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("创建视频 Producer: SSRC={Ssrc}, Codec={Codec}", videoSsrc, currentCodec);
 
             var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
-            if (result.IsSuccess && result.Data != null)
+            if(result.IsSuccess && result.Data != null)
             {
                 _videoProducerId = result.Data.Id;
                 _logger.LogInformation("Video producer created: {ProducerId}, SSRC: {Ssrc}", _videoProducerId, videoSsrc);
@@ -4445,7 +4470,7 @@ public partial class MainViewModel : ObservableObject
                 StatusMessage = $"视频推送失败: {result.Message}";
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "Failed to produce video");
             StatusMessage = $"视频推送异常: {ex.Message}";
@@ -4464,7 +4489,7 @@ public partial class MainViewModel : ObservableObject
             var produceRequest = RtpParametersFactory.CreateAudioProduceRequest(audioSsrc);
 
             var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
-            if (result.IsSuccess && result.Data != null)
+            if(result.IsSuccess && result.Data != null)
             {
                 _audioProducerId = result.Data.Id;
                 _logger.LogInformation("Audio producer created: {ProducerId}, SSRC: {Ssrc}", _audioProducerId, audioSsrc);
@@ -4474,7 +4499,7 @@ public partial class MainViewModel : ObservableObject
                 _logger.LogWarning("Failed to produce audio: {Message}", result.Message);
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "Failed to produce audio");
         }
@@ -4501,9 +4526,9 @@ public partial class MainViewModel : ObservableObject
     private void OnLocalVideoFrameReceived(WriteableBitmap frame)
     {
         LocalVideoFrame = frame;
-        
+
         // 同时更新本地视频项的帧数据（用于视频网格显示）
-        if (_localVideoItem != null)
+        if(_localVideoItem != null)
         {
             _localVideoItem.VideoFrame = frame;
         }
@@ -4518,10 +4543,10 @@ public partial class MainViewModel : ObservableObject
         {
             _logger.LogDebug("收到远端视频帧: ConsumerId={ConsumerId}, Frame={Width}x{Height}",
                 consumerId, frame?.PixelWidth ?? 0, frame?.PixelHeight ?? 0);
-            
+
             // 查找或创建对应的远端视频项
             var existingVideo = RemoteVideos.FirstOrDefault(v => v.ConsumerId == consumerId);
-            if (existingVideo != null)
+            if(existingVideo != null)
             {
                 existingVideo.VideoFrame = frame;
             }
@@ -4540,7 +4565,7 @@ public partial class MainViewModel : ObservableObject
                 _logger.LogInformation("添加远端视频: {ConsumerId}", consumerId);
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理远端视频帧失败");
         }
@@ -4560,19 +4585,19 @@ public partial class MainViewModel : ObservableObject
 
         // 复制列表并清空，避免并发问题
         List<string> consumersToResume;
-        lock (_pendingResumeConsumers)
+        lock(_pendingResumeConsumers)
         {
             consumersToResume = new List<string>(_pendingResumeConsumers);
             _pendingResumeConsumers.Clear();
         }
 
-        foreach (var consumerId in consumersToResume)
+        foreach(var consumerId in consumersToResume)
         {
             try
             {
                 _logger.LogDebug("Resuming consumer after DTLS: {ConsumerId}", consumerId);
                 await _signalRService.InvokeAsync("ResumeConsumer", consumerId);
-                
+
                 // 请求关键帧以消除初始马赛克
                 // 对于所有 Consumer 都请求关键帧，服务端对音频会忽略此请求
                 _ = Task.Run(async () =>
@@ -4583,13 +4608,13 @@ public partial class MainViewModel : ObservableObject
                         _logger.LogInformation("请求关键帧(DTLS后): ConsumerId={ConsumerId}", consumerId);
                         await _signalRService.InvokeAsync("RequestConsumerKeyFrame", consumerId);
                     }
-                    catch (Exception ex)
+                    catch(Exception ex)
                     {
                         _logger.LogWarning(ex, "请求关键帧失败(DTLS后): {ConsumerId}", consumerId);
                     }
                 });
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
                 _logger.LogError(ex, "Failed to resume consumer {ConsumerId}", consumerId);
             }
@@ -4607,7 +4632,7 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("解码失败触发关键帧请求: ConsumerId={ConsumerId}", consumerId);
             await _signalRService.InvokeAsync("RequestConsumerKeyFrame", consumerId);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogWarning(ex, "解码失败后请求关键帧失败: {ConsumerId}", consumerId);
         }
@@ -4620,13 +4645,13 @@ public partial class MainViewModel : ObservableObject
     private void OnChunkedMessageReceived(string type, string json)
     {
         _logger.LogDebug("分块消息重组完成: Type={Type}", type);
-        
+
         System.Windows.Application.Current?.Dispatcher.Invoke(() =>
         {
             try
             {
                 // 根据类型处理重组后的消息
-                switch (type)
+                switch(type)
                 {
                     case "chatMessage":
                         // 解析聊天消息并处理
@@ -4643,7 +4668,7 @@ public partial class MainViewModel : ObservableObject
                         break;
                 }
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
                 _logger.LogError(ex, "处理分块消息失败: Type={Type}", type);
             }
@@ -4661,7 +4686,7 @@ public partial class MainViewModel : ObservableObject
         {
             try
             {
-                switch (notification.Type)
+                switch(notification.Type)
                 {
                     case "peerJoinRoom":
                         HandlePeerJoinRoom(notification.Data);
@@ -4749,7 +4774,7 @@ public partial class MainViewModel : ObservableObject
                         break;
                 }
             }
-            catch (Exception ex)
+            catch(Exception ex)
             {
                 _logger.LogError(ex, "Error handling notification: {Type}", notification.Type);
             }
@@ -4758,27 +4783,28 @@ public partial class MainViewModel : ObservableObject
 
     private void HandlePeerJoinRoom(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         var json = JsonSerializer.Serialize(data);
         var notification = JsonSerializer.Deserialize<PeerJoinRoomData>(json, JsonOptions);
-        if (notification?.Peer != null)
+        if(notification?.Peer != null)
         {
             // 检查是否已存在，避免重复添加
             var existingPeer = Peers.FirstOrDefault(p => p.PeerId == notification.Peer.PeerId);
-            if (existingPeer == null)
+            if(existingPeer == null)
             {
                 Peers.Add(notification.Peer);
             }
-            
-            _logger.LogInformation("Peer joined: PeerId={PeerId}, DisplayName={DisplayName}", 
+
+            _logger.LogInformation("Peer joined: PeerId={PeerId}, DisplayName={DisplayName}",
                 notification.Peer.PeerId, notification.Peer.DisplayName);
             StatusMessage = $"用户 {notification.Peer.DisplayName} 加入房间";
 
             // 同步到聊天用户列表 - 使用 DisplayName 比较来排除自己
             bool isSelf = string.Equals(notification.Peer.DisplayName, CurrentUserName, StringComparison.OrdinalIgnoreCase);
-            
-            if (!isSelf && !ChatUsers.Any(u => u.PeerId == notification.Peer.PeerId))
+
+            if(!isSelf && !ChatUsers.Any(u => u.PeerId == notification.Peer.PeerId))
             {
                 ChatUsers.Add(new ChatUser
                 {
@@ -4787,10 +4813,10 @@ public partial class MainViewModel : ObservableObject
                     IsOnline = true,
                     IsHost = notification.Peer.PeerId == HostPeerId
                 });
-                _logger.LogDebug("添加新聊天用户: {DisplayName}, IsHost={IsHost}", 
+                _logger.LogDebug("添加新聊天用户: {DisplayName}, IsHost={IsHost}",
                     notification.Peer.DisplayName, notification.Peer.PeerId == HostPeerId);
             }
-            
+
             // 手动触发在线人数更新
             OnPropertyChanged(nameof(OnlinePeerCount));
         }
@@ -4798,28 +4824,29 @@ public partial class MainViewModel : ObservableObject
 
     private void HandlePeerLeaveRoom(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         var json = JsonSerializer.Serialize(data);
         var notification = JsonSerializer.Deserialize<PeerLeaveRoomData>(json, JsonOptions);
-        if (notification?.PeerId != null)
+        if(notification?.PeerId != null)
         {
-            _logger.LogInformation("处理用户离开通知: PeerId={PeerId}, ChatUsers数量={Count}", 
+            _logger.LogInformation("处理用户离开通知: PeerId={PeerId}, ChatUsers数量={Count}",
                 notification.PeerId, ChatUsers.Count);
-            
+
             var peer = Peers.FirstOrDefault(p => p.PeerId == notification.PeerId);
             var displayName = peer?.DisplayName ?? notification.PeerId;
-            
-            if (peer != null)
+
+            if(peer != null)
             {
                 Peers.Remove(peer);
-                _logger.LogInformation("移除 Peer: PeerId={PeerId}, DisplayName={DisplayName}", 
+                _logger.LogInformation("移除 Peer: PeerId={PeerId}, DisplayName={DisplayName}",
                     notification.PeerId, peer.DisplayName);
             }
 
             // 移除该 peer 对应的所有远端视频
             var videosToRemove = RemoteVideos.Where(v => v.PeerId == notification.PeerId).ToList();
-            foreach (var video in videosToRemove)
+            foreach(var video in videosToRemove)
             {
                 RemoteVideos.Remove(video);
                 _logger.LogInformation("移除远端视频: ConsumerId={ConsumerId}, PeerId={PeerId}", video.ConsumerId, notification.PeerId);
@@ -4829,24 +4856,24 @@ public partial class MainViewModel : ObservableObject
             HasNoRemoteVideos = RemoteVideos.Count == 0;
 
             // 从聊天用户列表移除
-            _logger.LogDebug("当前 ChatUsers 列表: {Users}", 
+            _logger.LogDebug("当前 ChatUsers 列表: {Users}",
                 string.Join(", ", ChatUsers.Select(u => $"{u.DisplayName}({u.PeerId})")));
-            
+
             var chatUser = ChatUsers.FirstOrDefault(u => u.PeerId == notification.PeerId);
-            if (chatUser != null)
+            if(chatUser != null)
             {
                 var removed = ChatUsers.Remove(chatUser);
-                _logger.LogInformation("移除聊天用户: DisplayName={DisplayName}, PeerId={PeerId}, 移除结果={Result}", 
+                _logger.LogInformation("移除聊天用户: DisplayName={DisplayName}, PeerId={PeerId}, 移除结果={Result}",
                     chatUser.DisplayName, chatUser.PeerId, removed);
             }
             else
             {
                 _logger.LogWarning("未找到要移除的聊天用户: PeerId={PeerId}", notification.PeerId);
             }
-            
+
             // 更新状态消息
             StatusMessage = $"用户 {displayName} 离开房间";
-            
+
             // 手动触发在线人数更新
             OnPropertyChanged(nameof(OnlinePeerCount));
         }
@@ -4857,24 +4884,25 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private async void HandlePeerKicked(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var notification = JsonSerializer.Deserialize<PeerKickedData>(json, JsonOptions);
-            
-            _logger.LogInformation("收到踢人通知: PeerId={PeerId}, DisplayName={DisplayName}, CurrentPeerId={CurrentPeerId}", 
+
+            _logger.LogInformation("收到踢人通知: PeerId={PeerId}, DisplayName={DisplayName}, CurrentPeerId={CurrentPeerId}",
                 notification?.PeerId, notification?.DisplayName, CurrentPeerId);
-            
+
             // 如果是自己被踢出（注意：这个通知只发给被踢的用户）
-            if (notification?.PeerId == CurrentPeerId)
+            if(notification?.PeerId == CurrentPeerId)
             {
                 _logger.LogWarning("你已被主持人踢出房间，开始强制退出流程...");
-                
+
                 // 显示提示
                 StatusMessage = "你已被主持人踢出房间";
-                
+
                 // 使用 WPF UI 风格的消息框
                 var messageBox = new Wpf.Ui.Controls.MessageBox
                 {
@@ -4883,24 +4911,24 @@ public partial class MainViewModel : ObservableObject
                     CloseButtonText = "确定",
                     CloseButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Primary,
                 };
-                
+
                 await messageBox.ShowDialogAsync();
-                
+
                 // 使用 ForceLeaveRoomLocalAsync 只清理本地状态，不调用服务端
                 // 因为服务端已经通过 KickPeerAsync 移除了用户
                 _logger.LogInformation("调用 ForceLeaveRoomLocalAsync 强制清理本地状态...");
                 await ForceLeaveRoomLocalAsync();
-                
+
                 _logger.LogInformation("触发 ReturnToJoinRoomRequested 事件...");
                 ReturnToJoinRoomRequested?.Invoke();
             }
             else
             {
-                _logger.LogWarning("收到踢人通知但 PeerId 不匹配: notification.PeerId={NotifyPeerId}, CurrentPeerId={CurrentPeerId}", 
+                _logger.LogWarning("收到踢人通知但 PeerId 不匹配: notification.PeerId={NotifyPeerId}, CurrentPeerId={CurrentPeerId}",
                     notification?.PeerId, CurrentPeerId);
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理被踢出通知失败");
         }
@@ -4911,27 +4939,29 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private async void HandlePeerMuted(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var notification = JsonSerializer.Deserialize<PeerMutedData>(json, JsonOptions);
-            if (notification == null) return;
-            
-            _logger.LogInformation("收到静音通知: PeerId={PeerId}, IsMuted={IsMuted}, CurrentPeerId={CurrentPeerId}", 
+            if(notification == null)
+                return;
+
+            _logger.LogInformation("收到静音通知: PeerId={PeerId}, IsMuted={IsMuted}, CurrentPeerId={CurrentPeerId}",
                 notification.PeerId, notification.IsMuted, CurrentPeerId);
-            
+
             // 如果是自己被静音
-            if (notification.PeerId == CurrentPeerId)
+            if(notification.PeerId == CurrentPeerId)
             {
-                if (notification.IsMuted)
+                if(notification.IsMuted)
                 {
                     _logger.LogWarning("你已被主持人静音");
                     StatusMessage = "你已被主持人静音";
-                    
+
                     // 关闭麦克风
-                    if (IsMicrophoneEnabled)
+                    if(IsMicrophoneEnabled)
                     {
                         await ToggleMicrophoneAsync();
                     }
@@ -4946,15 +4976,15 @@ public partial class MainViewModel : ObservableObject
             {
                 // 其他用户被静音，更新 ChatUser 状态
                 var mutedUser = ChatUsers.FirstOrDefault(u => u.PeerId == notification.PeerId);
-                if (mutedUser != null)
+                if(mutedUser != null)
                 {
                     mutedUser.IsMutedByHost = notification.IsMuted;
-                    _logger.LogInformation("用户 {DisplayName} {Action}", 
+                    _logger.LogInformation("用户 {DisplayName} {Action}",
                         mutedUser.DisplayName, notification.IsMuted ? "被静音" : "取消静音");
                 }
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理静音通知失败");
         }
@@ -4965,26 +4995,27 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private async void HandleRoomDismissed(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data, JsonOptions);
             var notification = JsonSerializer.Deserialize<RoomDismissedData>(json, JsonOptions);
-            
-            _logger.LogWarning("收到房间解散通知: RoomId={RoomId}, HostPeerId={HostPeerId}, Reason={Reason}", 
+
+            _logger.LogWarning("收到房间解散通知: RoomId={RoomId}, HostPeerId={HostPeerId}, Reason={Reason}",
                 notification?.RoomId, notification?.HostPeerId, notification?.Reason);
-            
+
             // 显示提示
             StatusMessage = "主持人已离开，房间已解散";
-            
+
             // 重要：先关闭所有子窗口（编辑器、白板、投票等）
             _logger.LogInformation("触发 CloseAllChildWindowsRequested 事件...");
             CloseAllChildWindowsRequested?.Invoke();
-            
+
             // 等待一小段时间，确保子窗口关闭完成
             await Task.Delay(200);
-            
+
             // 使用 WPF UI 风格的消息框
             var messageBox = new Wpf.Ui.Controls.MessageBox
             {
@@ -4993,18 +5024,18 @@ public partial class MainViewModel : ObservableObject
                 CloseButtonText = "确定",
                 CloseButtonAppearance = Wpf.Ui.Controls.ControlAppearance.Primary,
             };
-            
+
             await messageBox.ShowDialogAsync();
-            
+
             // 使用 ForceLeaveRoomLocalAsync 只清理本地状态，不调用服务端
             // 因为主持人离开后，房间已经被服务端清理
             _logger.LogInformation("调用 ForceLeaveRoomLocalAsync 强制清理本地状态...");
             await ForceLeaveRoomLocalAsync();
-            
+
             _logger.LogInformation("触发 ReturnToJoinRoomRequested 事件...");
             ReturnToJoinRoomRequested?.Invoke();
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理房间解散通知失败");
         }
@@ -5012,24 +5043,26 @@ public partial class MainViewModel : ObservableObject
 
     private async void HandleNewConsumer(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         var json = JsonSerializer.Serialize(data);
         var notification = JsonSerializer.Deserialize<NewConsumerData>(json, JsonOptions);
-        if (notification == null) return;
+        if(notification == null)
+            return;
 
         var peerId = notification.ProducerPeerId ?? "unknown";
         _logger.LogInformation("New consumer: ConsumerId={ConsumerId}, Kind={Kind}, ProducerPeerId={ProducerPeerId}",
             notification.ConsumerId, notification.Kind, peerId);
 
         // 如果是视频 Consumer，立即在 UI 中添加占位符
-        if (notification.Kind == "video")
+        if(notification.Kind == "video")
         {
             Application.Current?.Dispatcher.Invoke(() =>
             {
                 // 检查是否已存在
                 var existing = RemoteVideos.FirstOrDefault(v => v.ConsumerId == notification.ConsumerId);
-                if (existing == null)
+                if(existing == null)
                 {
                     var remoteVideo = new RemoteVideoItem
                     {
@@ -5053,21 +5086,21 @@ public partial class MainViewModel : ObservableObject
             notification.Kind,
             notification.RtpParameters);
 
-        _logger.LogInformation("Consumer {ConsumerId} (Kind={Kind}) 已添加到 recv transport", 
+        _logger.LogInformation("Consumer {ConsumerId} (Kind={Kind}) 已添加到 recv transport",
             notification.ConsumerId, notification.Kind);
 
         // 检查 recv transport 是否已连接
         var isRecvTransportConnected = _webRtcService.IsRecvTransportDtlsConnected;
         _logger.LogInformation("Recv transport DTLS 状态: IsConnected={IsConnected}", isRecvTransportConnected);
 
-        if (isRecvTransportConnected)
+        if(isRecvTransportConnected)
         {
             // Transport 已连接，立即 Resume consumer
             _logger.LogInformation("立即 Resume consumer: {ConsumerId}", notification.ConsumerId);
             await _signalRService.InvokeAsync("ResumeConsumer", notification.ConsumerId);
-            
+
             // 请求关键帧以消除初始马赛克 - 对于视频 Consumer
-            if (notification.Kind == "video")
+            if(notification.Kind == "video")
             {
                 // 稍微延迟后请求关键帧，确保 Resume 已完成
                 _ = Task.Run(async () =>
@@ -5078,7 +5111,7 @@ public partial class MainViewModel : ObservableObject
                         _logger.LogInformation("请求初始关键帧: ConsumerId={ConsumerId}", notification.ConsumerId);
                         await _signalRService.InvokeAsync("RequestConsumerKeyFrame", notification.ConsumerId);
                     }
-                    catch (Exception ex)
+                    catch(Exception ex)
                     {
                         _logger.LogWarning(ex, "请求关键帧失败: {ConsumerId}", notification.ConsumerId);
                     }
@@ -5089,7 +5122,7 @@ public partial class MainViewModel : ObservableObject
         {
             // Transport 未连接，加入待恢复列表，等 DTLS 连接后统一 Resume
             _logger.LogInformation("Transport 未连接，将 consumer {ConsumerId} 加入待恢复列表", notification.ConsumerId);
-            lock (_pendingResumeConsumers)
+            lock(_pendingResumeConsumers)
             {
                 _pendingResumeConsumers.Add(notification.ConsumerId);
             }
@@ -5098,48 +5131,50 @@ public partial class MainViewModel : ObservableObject
 
     private async void HandleConsumerClosed(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         var json = JsonSerializer.Serialize(data);
         var notification = JsonSerializer.Deserialize<ConsumerClosedData>(json, JsonOptions);
-        if (notification != null)
+        if(notification != null)
         {
             _logger.LogInformation("Consumer closed: {ConsumerId}", notification.ConsumerId);
-            
+
             // 从 RemoteVideos 集合中移除对应的视频项
             var videoToRemove = RemoteVideos.FirstOrDefault(v => v.ConsumerId == notification.ConsumerId);
-            if (videoToRemove != null)
+            if(videoToRemove != null)
             {
                 RemoteVideos.Remove(videoToRemove);
                 _logger.LogInformation("移除远端视频: {ConsumerId}", notification.ConsumerId);
-                
+
                 // 更新无远端视频状态
                 HasNoRemoteVideos = RemoteVideos.Count == 0;
             }
-            
+
             await _webRtcService.RemoveConsumerAsync(notification.ConsumerId);
         }
     }
 
     private async void HandleProduceSources(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         var json = JsonSerializer.Serialize(data);
         var notification = JsonSerializer.Deserialize<ProduceSourcesData>(json, JsonOptions);
-        if (notification?.Sources != null)
+        if(notification?.Sources != null)
         {
             _logger.LogInformation("Produce sources requested: {Sources}",
                 string.Join(", ", notification.Sources));
 
-            foreach (var source in notification.Sources)
+            foreach(var source in notification.Sources)
             {
-                if (source == "audio:mic" && !IsMicrophoneEnabled)
+                if(source == "audio:mic" && !IsMicrophoneEnabled)
                 {
                     await _webRtcService.StartMicrophoneAsync();
                     IsMicrophoneEnabled = true;
                 }
-                else if (source == "video:cam" && !IsCameraEnabled)
+                else if(source == "video:cam" && !IsCameraEnabled)
                 {
                     await _webRtcService.StartCameraAsync();
                     IsCameraEnabled = true;
@@ -5150,11 +5185,12 @@ public partial class MainViewModel : ObservableObject
 
     private void HandleProducerClosed(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         var json = JsonSerializer.Serialize(data);
         var notification = JsonSerializer.Deserialize<ProducerClosedData>(json, JsonOptions);
-        if (notification != null)
+        if(notification != null)
         {
             _logger.LogInformation("Producer closed: {ProducerId}", notification.ProducerId);
         }
@@ -5165,16 +5201,19 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleScreenShareRequest(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var requestData = JsonSerializer.Deserialize<ScreenShareRequestData>(json, JsonOptions);
-            if (requestData == null) return;
+            if(requestData == null)
+                return;
 
             // 忽略自己的请求
-            if (requestData.RequesterId == SelectedPeerIndex.ToString()) return;
+            if(requestData.RequesterId == SelectedPeerIndex.ToString())
+                return;
 
             _logger.LogInformation("收到屏幕共享请求: {RequesterName}", requestData.RequesterName);
 
@@ -5185,7 +5224,7 @@ public partial class MainViewModel : ObservableObject
 
             StatusMessage = $"{requestData.RequesterName} 请求共享屏幕";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理屏幕共享请求失败");
         }
@@ -5196,18 +5235,21 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleScreenShareResponse(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var responseData = JsonSerializer.Deserialize<ScreenShareResponseData>(json, JsonOptions);
-            if (responseData == null) return;
+            if(responseData == null)
+                return;
 
             // 忽略自己的响应
-            if (responseData.ResponderId == SelectedPeerIndex.ToString()) return;
+            if(responseData.ResponderId == SelectedPeerIndex.ToString())
+                return;
 
-            if (responseData.Accepted)
+            if(responseData.Accepted)
             {
                 _logger.LogInformation("屏幕共享被接受");
                 StatusMessage = "对方接受了屏幕共享";
@@ -5219,64 +5261,70 @@ public partial class MainViewModel : ObservableObject
                 IsScreenSharing = false;
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理屏幕共享响应失败");
         }
     }
-    
+
     /// <summary>
     /// 处理屏幕共享已开始通知 - 主持人开始共享屏幕时通知其他参与者
     /// </summary>
     private void HandleScreenShareStarted(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var shareData = JsonSerializer.Deserialize<ScreenShareNotificationData>(json, JsonOptions);
-            if (shareData == null) return;
+            if(shareData == null)
+                return;
 
             // 忽略自己的通知
-            if (shareData.HostPeerId == CurrentPeerId) return;
+            if(shareData.HostPeerId == CurrentPeerId)
+                return;
 
-            _logger.LogInformation("主持人开始屏幕共享: HostPeerId={HostPeerId}, HostName={HostName}", 
+            _logger.LogInformation("主持人开始屏幕共享: HostPeerId={HostPeerId}, HostName={HostName}",
                 shareData.HostPeerId, shareData.HostName);
-            
+
             StatusMessage = $"主持人 {shareData.HostName} 正在共享屏幕";
-            
+
             // 这里可以添加其他 UI 反馈，例如显示屏幕共享指示器
             // 视频流将通过 WebRTC Consumer 自动接收
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理屏幕共享开始通知失败");
         }
     }
-    
+
     /// <summary>
     /// 处理屏幕共享已停止通知 - 主持人停止共享屏幕时通知其他参与者
     /// </summary>
     private void HandleScreenShareStopped(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var shareData = JsonSerializer.Deserialize<ScreenShareNotificationData>(json, JsonOptions);
-            if (shareData == null) return;
+            if(shareData == null)
+                return;
 
             // 忽略自己的通知
-            if (shareData.HostPeerId == CurrentPeerId) return;
+            if(shareData.HostPeerId == CurrentPeerId)
+                return;
 
-            _logger.LogInformation("主持人停止屏幕共享: HostPeerId={HostPeerId}, HostName={HostName}", 
+            _logger.LogInformation("主持人停止屏幕共享: HostPeerId={HostPeerId}, HostName={HostName}",
                 shareData.HostPeerId, shareData.HostName);
-            
+
             StatusMessage = $"主持人 {shareData.HostName} 已停止屏幕共享";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理屏幕共享停止通知失败");
         }
@@ -5287,21 +5335,23 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleBroadcastMessage(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             _logger.LogDebug("收到广播消息: {Json}", json);
-            
+
             var broadcastData = JsonSerializer.Deserialize<BroadcastMessageData>(json, JsonOptions);
-            if (broadcastData == null) return;
+            if(broadcastData == null)
+                return;
 
             // 忽略自己发送的消息（SenderId 是服务器端的 UserId/PeerId）
             // 注意：检查逻辑需要与实际的 Peer ID 匹配
 
             // 根据消息类型分发处理
-            switch (broadcastData.Type)
+            switch(broadcastData.Type)
             {
                 case "chatMessage":
                     HandleBroadcastChatMessage(broadcastData);
@@ -5320,7 +5370,7 @@ public partial class MainViewModel : ObservableObject
                     break;
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理广播消息失败");
         }
@@ -5331,18 +5381,20 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private async void HandleBroadcastChatMessage(BroadcastMessageData broadcastData)
     {
-        if (broadcastData.Data == null) return;
+        if(broadcastData.Data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(broadcastData.Data);
             _logger.LogInformation("广播聊天消息原始数据: {Json}", json);
-            
+
             var msgData = JsonSerializer.Deserialize<ChatMessageData>(json, JsonOptions);
-            if (msgData == null) return;
+            if(msgData == null)
+                return;
 
             // 检查私聊消息：如果有 ReceiverId 且不是发给自己的，忽略
-            if (!string.IsNullOrEmpty(msgData.ReceiverId) && msgData.ReceiverId != CurrentUserName)
+            if(!string.IsNullOrEmpty(msgData.ReceiverId) && msgData.ReceiverId != CurrentUserName)
             {
                 return;
             }
@@ -5364,24 +5416,24 @@ public partial class MainViewModel : ObservableObject
             };
 
             // 如果是图片消息，从 URL 下载图片
-            if (message.MessageType == ChatMessageType.Image)
+            if(message.MessageType == ChatMessageType.Image)
             {
                 _logger.LogInformation("图片消息解析: FileName={FileName}, DownloadUrl={DownloadUrl}, FileData长度={FileDataLen}",
                     msgData.FileName, msgData.DownloadUrl, msgData.FileData?.Length ?? 0);
-                
-                if (!string.IsNullOrEmpty(msgData.DownloadUrl))
+
+                if(!string.IsNullOrEmpty(msgData.DownloadUrl))
                 {
                     try
                     {
                         _logger.LogDebug("广播消息: 从 URL 加载图片: {Url}", msgData.DownloadUrl);
                         await LoadImageFromUrlAsync(message, msgData.DownloadUrl);
                     }
-                    catch (Exception imgEx)
+                    catch(Exception imgEx)
                     {
                         _logger.LogWarning(imgEx, "广播消息: 从 URL 加载图片失败: {Url}", msgData.DownloadUrl);
                     }
                 }
-                else if (!string.IsNullOrEmpty(msgData.FileData))
+                else if(!string.IsNullOrEmpty(msgData.FileData))
                 {
                     // Base64 向后兼容
                     try
@@ -5399,7 +5451,7 @@ public partial class MainViewModel : ObservableObject
                             message.ImageSource = bitmap;
                         });
                     }
-                    catch (Exception imgEx)
+                    catch(Exception imgEx)
                     {
                         _logger.LogWarning(imgEx, "广播消息: 加载 Base64 图片失败");
                     }
@@ -5407,24 +5459,24 @@ public partial class MainViewModel : ObservableObject
             }
 
             // 如果是文件消息，记录日志
-            if (message.MessageType == ChatMessageType.File)
+            if(message.MessageType == ChatMessageType.File)
             {
                 _logger.LogDebug("广播消息: 接收到文件: {FileName}, 大小: {Size}, URL: {Url}",
                     message.FileName, message.FileSize, msgData.DownloadUrl);
             }
 
             AddMessageToCollection(message);
-            _logger.LogInformation("收到广播聊天消息: From={From}, Type={Type}, Content={Content}", 
+            _logger.LogInformation("收到广播聊天消息: From={From}, Type={Type}, Content={Content}",
                 message.SenderName, message.MessageType, message.Content);
 
             // 播放新消息提示音
             _soundService.PlaySound(SoundService.SoundType.Message);
 
             // 如果不在当前聊天，增加未读数
-            if (string.IsNullOrEmpty(message.ReceiverId))
+            if(string.IsNullOrEmpty(message.ReceiverId))
             {
                 // 群聊消息 - 如果不在群聊模式或聊天面板不可见，增加群聊未读计数
-                if (!IsChatPanelVisible || !IsGroupChatMode)
+                if(!IsChatPanelVisible || !IsGroupChatMode)
                 {
                     GroupUnreadCount++;
                 }
@@ -5433,20 +5485,20 @@ public partial class MainViewModel : ObservableObject
             {
                 // 私聊消息 - 始终更新 LastMessage，但只在不在当前聊天时增加未读数
                 var user = ChatUsers.FirstOrDefault(u => u.PeerId == message.SenderId);
-                if (user != null)
+                if(user != null)
                 {
                     // 始终更新最后一条消息
                     user.LastMessage = message;
-                    
+
                     // 如果聊天面板不可见，或在群聊模式，或当前私聊对象不是发送者，增加未读数
-                    if (!IsChatPanelVisible || IsGroupChatMode || SelectedChatUser?.PeerId != message.SenderId)
+                    if(!IsChatPanelVisible || IsGroupChatMode || SelectedChatUser?.PeerId != message.SenderId)
                     {
                         user.UnreadCount++;
                         _logger.LogInformation("私聊未读数增加: User={User}, Count={Count}", user.DisplayName, user.UnreadCount);
                     }
-                    
+
                     // 如果聊天面板不可见，触发聊天按钮闪烁3次
-                    if (!IsChatPanelVisible)
+                    if(!IsChatPanelVisible)
                     {
                         _logger.LogInformation("收到私聊消息，聊天面板未打开，触发按钮闪烁: Sender={Sender}", message.SenderName);
                         PrivateMessageFlashRequested?.Invoke();
@@ -5454,7 +5506,7 @@ public partial class MainViewModel : ObservableObject
                 }
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理广播聊天消息失败");
         }
@@ -5465,13 +5517,15 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleBroadcastEmojiReaction(BroadcastMessageData broadcastData)
     {
-        if (broadcastData.Data == null) return;
+        if(broadcastData.Data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(broadcastData.Data);
             var reactionData = JsonSerializer.Deserialize<EmojiReactionData>(json, JsonOptions);
-            if (reactionData == null) return;
+            if(reactionData == null)
+                return;
 
             var reaction = new EmojiReaction
             {
@@ -5483,7 +5537,7 @@ public partial class MainViewModel : ObservableObject
             ShowEmojiReaction(reaction);
             _logger.LogInformation("收到表情反应: From={From}, Emoji={Emoji}", reaction.SenderName, reaction.Emoji);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理广播表情反应失败");
         }
@@ -5494,13 +5548,15 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleBroadcastScreenShareRequest(BroadcastMessageData broadcastData)
     {
-        if (broadcastData.Data == null) return;
+        if(broadcastData.Data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(broadcastData.Data);
             var requestData = JsonSerializer.Deserialize<ScreenShareRequestData>(json, JsonOptions);
-            if (requestData == null) return;
+            if(requestData == null)
+                return;
 
             // 使用 broadcastData 中的发送者信息
             requestData.RequesterId ??= broadcastData.SenderId;
@@ -5514,7 +5570,7 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = $"{requestData.RequesterName} 请求共享屏幕";
             _logger.LogInformation("收到屏幕共享请求: {RequesterName}", requestData.RequesterName);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理广播屏幕共享请求失败");
         }
@@ -5525,15 +5581,17 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleBroadcastScreenShareResponse(BroadcastMessageData broadcastData)
     {
-        if (broadcastData.Data == null) return;
+        if(broadcastData.Data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(broadcastData.Data);
             var responseData = JsonSerializer.Deserialize<ScreenShareResponseData>(json, JsonOptions);
-            if (responseData == null) return;
+            if(responseData == null)
+                return;
 
-            if (responseData.Accepted)
+            if(responseData.Accepted)
             {
                 _logger.LogInformation("屏幕共享被接受");
                 StatusMessage = "对方接受了屏幕共享";
@@ -5545,7 +5603,7 @@ public partial class MainViewModel : ObservableObject
                 IsScreenSharing = false;
             }
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理广播屏幕共享响应失败");
         }
@@ -5558,7 +5616,8 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleVoteCreated(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
@@ -5566,22 +5625,22 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("收到投票创建通知: {Json}", json);
 
             var voteData = JsonSerializer.Deserialize<JsonElement>(json);
-            
+
             var vote = new Vote
             {
                 Id = voteData.GetProperty("id").GetString() ?? Guid.NewGuid().ToString(),
                 Question = voteData.GetProperty("question").GetString() ?? "",
                 CreatorId = voteData.GetProperty("creatorId").GetString() ?? "",
                 CreatorName = voteData.GetProperty("creatorName").GetString() ?? "",
-                CreatedTime = voteData.TryGetProperty("createdTime", out var ct) 
+                CreatedTime = voteData.TryGetProperty("createdTime", out var ct)
                     ? ct.GetDateTime() : DateTime.Now
             };
 
             // 解析选项
-            if (voteData.TryGetProperty("options", out var options))
+            if(voteData.TryGetProperty("options", out var options))
             {
                 int index = 0;
-                foreach (var opt in options.EnumerateArray())
+                foreach(var opt in options.EnumerateArray())
                 {
                     vote.Options.Add(new VoteOption
                     {
@@ -5595,11 +5654,11 @@ public partial class MainViewModel : ObservableObject
 
             _currentVote = vote;
             StatusMessage = $"主持人 {vote.CreatorName} 发起了投票";
-            
+
             // 触发事件通知 UI 打开投票窗口
             VoteCreatedReceived?.Invoke(vote);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理投票创建通知失败");
         }
@@ -5610,7 +5669,8 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleVoteSubmitted(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
@@ -5618,13 +5678,14 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("收到投票提交通知: {Json}", json);
 
             var submitData = JsonSerializer.Deserialize<VoteSubmitRequest>(json, JsonOptions);
-            if (submitData == null) return;
+            if(submitData == null)
+                return;
 
             // 更新本地投票状态
-            if (_currentVote != null && _currentVote.Id == submitData.VoteId)
+            if(_currentVote != null && _currentVote.Id == submitData.VoteId)
             {
                 var option = _currentVote.Options.FirstOrDefault(o => o.Index == submitData.OptionIndex);
-                if (option != null)
+                if(option != null)
                 {
                     option.VoteCount++;
                     option.Voters.Add(new VoteVoter
@@ -5636,7 +5697,7 @@ public partial class MainViewModel : ObservableObject
 
                     // 重新计算百分比
                     var totalVotes = _currentVote.Options.Sum(o => o.VoteCount);
-                    foreach (var opt in _currentVote.Options)
+                    foreach(var opt in _currentVote.Options)
                     {
                         opt.Percentage = totalVotes > 0 ? (double)opt.VoteCount / totalVotes * 100 : 0;
                     }
@@ -5645,11 +5706,11 @@ public partial class MainViewModel : ObservableObject
 
             // 触发事件通知 UI 更新
             VoteResultUpdated?.Invoke(submitData);
-            
-            _logger.LogInformation("用户 {VoterName} 投票了选项 {OptionIndex}", 
+
+            _logger.LogInformation("用户 {VoterName} 投票了选项 {OptionIndex}",
                 submitData.VoterName, submitData.OptionIndex);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理投票提交通知失败");
         }
@@ -5660,7 +5721,8 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleVoteDeleted(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
@@ -5669,8 +5731,8 @@ public partial class MainViewModel : ObservableObject
 
             var deleteData = JsonSerializer.Deserialize<JsonElement>(json);
             var voteId = deleteData.GetProperty("voteId").GetString();
-            
-            if (voteId != null && _currentVote?.Id == voteId)
+
+            if(voteId != null && _currentVote?.Id == voteId)
             {
                 _currentVote = null;
             }
@@ -5678,7 +5740,7 @@ public partial class MainViewModel : ObservableObject
             StatusMessage = "投票已被主持人删除";
             VoteDeletedReceived?.Invoke(voteId ?? "");
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理投票删除通知失败");
         }
@@ -5689,17 +5751,18 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleVoteUpdated(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             _logger.LogInformation("收到投票更新通知: {Json}", json);
-            
+
             // 投票更新逻辑（如果需要）
             StatusMessage = "投票已更新";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理投票更新通知失败");
         }
@@ -5710,13 +5773,15 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleEditorOpened(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var notification = JsonSerializer.Deserialize<EditorOpenedData>(json, JsonOptions);
-            if (notification == null) return;
+            if(notification == null)
+                return;
 
             _logger.LogInformation("收到编辑器打开通知: SessionId={SessionId}, Initiator={Initiator}",
                 notification.SessionId, notification.InitiatorName);
@@ -5725,7 +5790,7 @@ public partial class MainViewModel : ObservableObject
             EditorOpenedReceived?.Invoke(notification);
             StatusMessage = $"{notification.InitiatorName} 开启了协同编辑器";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理编辑器打开通知失败");
         }
@@ -5736,18 +5801,20 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleEditorContentUpdated(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var update = JsonSerializer.Deserialize<EditorContentUpdate>(json, JsonOptions);
-            if (update == null) return;
+            if(update == null)
+                return;
 
             // 触发事件，由窗口处理更新
             EditorContentUpdated?.Invoke(update);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理编辑器内容更新通知失败");
         }
@@ -5758,13 +5825,15 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleEditorClosed(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var notification = JsonSerializer.Deserialize<CloseEditorRequest>(json, JsonOptions);
-            if (notification == null) return;
+            if(notification == null)
+                return;
 
             _logger.LogInformation("收到编辑器关闭通知: SessionId={SessionId}, Closer={Closer}",
                 notification.SessionId, notification.CloserName);
@@ -5773,7 +5842,7 @@ public partial class MainViewModel : ObservableObject
             EditorClosedReceived?.Invoke(notification.SessionId);
             StatusMessage = $"{notification.CloserName} 关闭了协同编辑器";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理编辑器关闭通知失败");
         }
@@ -5784,13 +5853,15 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleWhiteboardOpened(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var notification = JsonSerializer.Deserialize<WhiteboardOpenedData>(json, JsonOptions);
-            if (notification == null) return;
+            if(notification == null)
+                return;
 
             _logger.LogInformation("收到白板打开通知: SessionId={SessionId}, Host={Host}",
                 notification.SessionId, notification.HostName);
@@ -5799,7 +5870,7 @@ public partial class MainViewModel : ObservableObject
             WhiteboardOpenedReceived?.Invoke(notification);
             StatusMessage = $"{notification.HostName} 开启了白板";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理白板打开通知失败");
         }
@@ -5810,7 +5881,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleWhiteboardStrokeUpdated(object? data)
     {
-        if (data == null)
+        if(data == null)
         {
             _logger.LogWarning("白板笔触更新通知数据为空");
             return;
@@ -5823,7 +5894,7 @@ public partial class MainViewModel : ObservableObject
             _logger.LogDebug("收到白板笔触更新: {Json}", json);
 
             var update = JsonSerializer.Deserialize<WhiteboardStrokeUpdate>(json, JsonOptions);
-            if (update == null)
+            if(update == null)
             {
                 _logger.LogWarning("白板笔触更新反序列化失败");
                 return;
@@ -5835,7 +5906,7 @@ public partial class MainViewModel : ObservableObject
             // 触发事件，由窗口处理更新
             WhiteboardStrokeUpdated?.Invoke(update);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理白板笔触更新通知失败");
         }
@@ -5846,7 +5917,7 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleWhiteboardClosed(object? data)
     {
-        if (data == null)
+        if(data == null)
         {
             _logger.LogWarning("收到白板关闭通知但 data 为 null");
             return;
@@ -5856,9 +5927,9 @@ public partial class MainViewModel : ObservableObject
         {
             var json = JsonSerializer.Serialize(data);
             _logger.LogDebug("白板关闭通知原始数据: {Json}", json);
-            
+
             var notification = JsonSerializer.Deserialize<CloseWhiteboardRequest>(json, JsonOptions);
-            if (notification == null)
+            if(notification == null)
             {
                 _logger.LogWarning("白板关闭通知反序列化失败");
                 return;
@@ -5868,15 +5939,15 @@ public partial class MainViewModel : ObservableObject
                 notification.SessionId, notification.CloserId, notification.CloserName);
 
             _currentWhiteboardSessionId = null;
-            
+
             // 检查事件订阅者数量
             var hasSubscribers = WhiteboardClosedReceived != null;
             _logger.LogInformation("触发 WhiteboardClosedReceived 事件, 有订阅者={HasSubscribers}", hasSubscribers);
-            
+
             WhiteboardClosedReceived?.Invoke(notification.SessionId);
             StatusMessage = $"{notification.CloserName} 关闭了白板";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理白板关闭通知失败");
         }
@@ -5887,13 +5958,15 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private void HandleVoteClosed(object? data)
     {
-        if (data == null) return;
+        if(data == null)
+            return;
 
         try
         {
             var json = JsonSerializer.Serialize(data);
             var notification = JsonSerializer.Deserialize<CloseVoteRequest>(json, JsonOptions);
-            if (notification == null) return;
+            if(notification == null)
+                return;
 
             _logger.LogInformation("收到投票窗口关闭通知: VoteId={VoteId}, Closer={Closer}",
                 notification.VoteId, notification.CloserName);
@@ -5902,7 +5975,7 @@ public partial class MainViewModel : ObservableObject
             VoteClosedReceived?.Invoke(notification.VoteId);
             StatusMessage = $"{notification.CloserName} 关闭了投票";
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogError(ex, "处理投票窗口关闭通知失败");
         }
@@ -5935,27 +6008,27 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public void SendClipboardImage()
     {
-        if (Clipboard.ContainsImage())
+        if(Clipboard.ContainsImage())
         {
             var image = Clipboard.GetImage();
-            if (image != null)
+            if(image != null)
             {
                 try
                 {
                     // 将 BitmapSource 保存到临时文件
                     var tempPath = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"screenshot_{DateTime.Now:yyyyMMddHHmmss}.png");
-                    using (var stream = new FileStream(tempPath, FileMode.Create))
+                    using(var stream = new FileStream(tempPath, FileMode.Create))
                     {
                         var encoder = new PngBitmapEncoder();
                         encoder.Frames.Add(BitmapFrame.Create(image));
                         encoder.Save(stream);
                     }
-                    
+
                     // 发送图片消息
                     SendImageMessage(tempPath, null);
                     StatusMessage = "截图已发送";
                 }
-                catch (Exception ex)
+                catch(Exception ex)
                 {
                     _logger.LogError(ex, "发送剪贴板图片失败");
                     StatusMessage = $"发送截图失败: {ex.Message}";
@@ -5979,7 +6052,7 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            if (!File.Exists(MediaSettingsPath))
+            if(!File.Exists(MediaSettingsPath))
             {
                 _logger.LogDebug("媒体设置文件不存在，使用默认设置");
                 return;
@@ -5987,18 +6060,24 @@ public partial class MainViewModel : ObservableObject
 
             var json = File.ReadAllText(MediaSettingsPath);
             var settings = JsonSerializer.Deserialize<MediaSettings>(json);
-            if (settings == null)
+            if(settings == null)
             {
                 _logger.LogWarning("媒体设置反序列化失败");
                 return;
             }
 
-            // 加载视频质量设置
-            if (!string.IsNullOrEmpty(settings.VideoQualityPreset))
+            // 加载连接设置
+            if(!string.IsNullOrWhiteSpace(settings.ServerUrl))
             {
-                var quality = VideoQualityPresets.FirstOrDefault(q => 
+                ServerUrl = settings.ServerUrl;
+            }
+
+            // 加载视频质量设置
+            if(!string.IsNullOrEmpty(settings.VideoQualityPreset))
+            {
+                var quality = VideoQualityPresets.FirstOrDefault(q =>
                     q.DisplayName == settings.VideoQualityPreset);
-                if (quality != null)
+                if(quality != null)
                 {
                     _selectedVideoQuality = quality;
                     _webRtcService.VideoQuality = quality;
@@ -6006,11 +6085,11 @@ public partial class MainViewModel : ObservableObject
             }
 
             // 加载视频编解码器
-            if (!string.IsNullOrEmpty(settings.VideoCodec) && 
+            if(!string.IsNullOrEmpty(settings.VideoCodec) &&
                 Enum.TryParse<VideoCodecType>(settings.VideoCodec, out var codecType))
             {
                 var codec = VideoCodecInfo.GetByType(codecType);
-                if (codec != null)
+                if(codec != null)
                 {
                     _selectedVideoCodec = codec;
                     _webRtcService.CurrentVideoCodec = codecType;
@@ -6018,11 +6097,11 @@ public partial class MainViewModel : ObservableObject
             }
 
             // 加载屏幕共享设置
-            if (!string.IsNullOrEmpty(settings.ScreenSharePreset))
+            if(!string.IsNullOrEmpty(settings.ScreenSharePreset))
             {
-                var preset = ScreenSharePresets.FirstOrDefault(p => 
+                var preset = ScreenSharePresets.FirstOrDefault(p =>
                     p.DisplayName == settings.ScreenSharePreset);
-                if (preset != null)
+                if(preset != null)
                 {
                     _selectedScreenShareSettings = preset;
                 }
@@ -6030,11 +6109,11 @@ public partial class MainViewModel : ObservableObject
             _screenShareShowCursor = settings.ScreenShareShowCursor;
 
             // 加载录制设置
-            if (!string.IsNullOrEmpty(settings.RecordingSavePath))
+            if(!string.IsNullOrEmpty(settings.RecordingSavePath))
             {
                 _recordingSavePath = settings.RecordingSavePath;
             }
-            if (!string.IsNullOrEmpty(settings.RecordingFormat))
+            if(!string.IsNullOrEmpty(settings.RecordingFormat))
             {
                 _selectedRecordingFormat = settings.RecordingFormat;
             }
@@ -6045,31 +6124,44 @@ public partial class MainViewModel : ObservableObject
             _pendingCameraDeviceId = settings.CameraDeviceId;
             _pendingMicrophoneDeviceId = settings.MicrophoneDeviceId;
 
-            _logger.LogInformation("媒体设置加载成功: Quality={Quality}, Codec={Codec}", 
+            _logger.LogInformation("媒体设置加载成功: Quality={Quality}, Codec={Codec}",
                 settings.VideoQualityPreset, settings.VideoCodec);
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogWarning(ex, "加载媒体设置失败");
         }
     }
 
     /// <summary>
+    /// 保存设置页的当前配置
+    /// </summary>
+    public bool SaveSettings()
+    {
+        var saved = SaveMediaSettings();
+        StatusMessage = saved ? "系统设置已保存" : "系统设置保存失败，请检查日志后重试";
+        return saved;
+    }
+
+    /// <summary>
     /// 保存媒体设置
     /// </summary>
-    private void SaveMediaSettings()
+    private bool SaveMediaSettings()
     {
         try
         {
             // 确保目录存在
             var dir = Path.GetDirectoryName(MediaSettingsPath);
-            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+            if(!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
             {
                 Directory.CreateDirectory(dir);
             }
 
             var settings = new MediaSettings
             {
+                // 连接设置
+                ServerUrl = ServerUrl,
+
                 // 设备设置
                 CameraDeviceId = SelectedCamera?.DeviceId,
                 MicrophoneDeviceId = SelectedMicrophone?.DeviceId,
@@ -6093,10 +6185,12 @@ public partial class MainViewModel : ObservableObject
             File.WriteAllText(MediaSettingsPath, json);
 
             _logger.LogDebug("媒体设置已保存");
+            return true;
         }
-        catch (Exception ex)
+        catch(Exception ex)
         {
             _logger.LogWarning(ex, "保存媒体设置失败");
+            return false;
         }
     }
 
@@ -6180,7 +6274,7 @@ public class RemoteVideoItem : ObservableObject
         get => _isHorizontallyMirrored;
         set
         {
-            if (SetProperty(ref _isHorizontallyMirrored, value))
+            if(SetProperty(ref _isHorizontallyMirrored, value))
             {
                 OnPropertyChanged(nameof(HorizontalScale));
             }
@@ -6195,7 +6289,7 @@ public class RemoteVideoItem : ObservableObject
         get => _isVerticallyMirrored;
         set
         {
-            if (SetProperty(ref _isVerticallyMirrored, value))
+            if(SetProperty(ref _isVerticallyMirrored, value))
             {
                 OnPropertyChanged(nameof(VerticalScale));
             }

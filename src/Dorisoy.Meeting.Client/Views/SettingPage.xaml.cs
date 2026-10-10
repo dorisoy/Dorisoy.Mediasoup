@@ -18,6 +18,17 @@ public partial class SettingPage
     }
 
     /// <summary>
+    /// 保存按钮点击
+    /// </summary>
+    private void SaveButton_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (_viewModel.SaveSettings())
+        {
+            Close();
+        }
+    }
+
+    /// <summary>
     /// 关闭按钮点击
     /// </summary>
     private void CloseButton_Click(object sender, System.Windows.RoutedEventArgs e)

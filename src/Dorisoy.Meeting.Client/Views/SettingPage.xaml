@@ -50,8 +50,7 @@
                         
                         <TextBlock Text="服务器地址" Margin="0,0,0,6" Opacity="0.7" />
                         <ui:TextBox Text="{Binding ServerUrl, UpdateSourceTrigger=PropertyChanged}"
-                                    PlaceholderText="输入服务器地址..."
-                                    IsReadOnly="True" />
+                                    PlaceholderText="输入服务器地址..."/>
                     </StackPanel>
                 </ui:Card>
 
@@ -347,10 +346,17 @@
         <Border Grid.Row="2" 
                 Padding="16"
                 Background="{DynamicResource ControlFillColorDefaultBrush}">
-            <ui:Button Content="关闭"
-                       HorizontalAlignment="Right"
-                       Width="100"
-                       Click="CloseButton_Click"/>
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right">
+                <ui:Button Content="保存"
+                           Icon="{ui:SymbolIcon Save24}"
+                           Width="100"
+                           Margin="0,0,8,0"
+                           Click="SaveButton_Click"/>
+                <ui:Button Content="关闭"
+                           Width="100"
+                           Click="CloseButton_Click"/>
+            </StackPanel>
         </Border>
     </Grid>
 </ui:FluentWindow>

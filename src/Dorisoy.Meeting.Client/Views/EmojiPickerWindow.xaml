@@ -1,25 +1,22 @@
-<ui:FluentWindow x:Class="Dorisoy.Meeting.Client.Views.EmojiPickerWindow"
-                 xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                 xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                 xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
-                 Title="选择表情"
-                 Width="480"
-                 Height="420"
-                 WindowStartupLocation="CenterOwner"
-                 ExtendsContentIntoTitleBar="True"
-                 WindowBackdropType="Mica"
-                 WindowCornerPreference="Round"
-                 ResizeMode="NoResize">
+<Popup x:Class="Dorisoy.Meeting.Client.Views.EmojiPickerWindow"
+       xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+       xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+       xmlns:ui="http://schemas.lepo.co/wpfui/2022/xaml"
+       xmlns:emoji="clr-namespace:Emoji.Wpf;assembly=Emoji.Wpf"
+       AllowsTransparency="True" StaysOpen="False" Placement="Top"
+       PopupAnimation="Fade" Opened="Picker_Opened" Closed="Picker_Closed">
 
     <!-- 自定义样式 - 必须在引用之前定义 -->
-    <ui:FluentWindow.Resources>
+    <Popup.Resources>
         <!-- 类别切换按钮样式 -->
         <Style x:Key="EmojiCategoryButtonStyle" TargetType="RadioButton">
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="Foreground" Value="{DynamicResource TextFillColorSecondaryBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="Margin" Value="2"/>
+            <Setter Property="Padding" Value="10"/>
+            <Setter Property="Margin" Value="3"/>
+            <Setter Property="Height" Value="42"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
@@ -36,6 +33,10 @@
                                 <Setter TargetName="border" Property="Background" 
                                         Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
                             </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="border" Property="Background"
+                                        Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+                            </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="border" Property="Background" 
                                         Value="{DynamicResource AccentFillColorDefaultBrush}"/>
@@ -47,163 +48,138 @@
                 </Setter.Value>
             </Setter>
         </Style>
-    </ui:FluentWindow.Resources>
+        <Style x:Key="EmojiTileStyle" TargetType="Button">
+            <Setter Property="Width" Value="48"/>
+            <Setter Property="Height" Value="48"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Tile" Background="{TemplateBinding Background}" CornerRadius="8">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Tile" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="Tile" Property="Background" Value="{DynamicResource ControlFillColorSecondaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Tile" Property="Background" Value="{DynamicResource AccentFillColorDefaultBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <DataTemplate x:Key="EmojiTemplate">
+            <Button Style="{StaticResource EmojiTileStyle}" ToolTip="{Binding Name}"
+                    AutomationProperties.Name="{Binding Name}"
+                    Click="EmojiButton_Click" PreviewMouseRightButtonUp="EmojiButton_RightClick">
+                <emoji:TextBlock Text="{Binding Text}" FontSize="28" Focusable="False"/>
+            </Button>
+        </DataTemplate>
+        <Style x:Key="EmojiGridStyle" TargetType="ItemsControl">
+            <Setter Property="ItemTemplate" Value="{StaticResource EmojiTemplate}"/>
+            <Setter Property="ItemsPanel">
+                <Setter.Value>
+                    <ItemsPanelTemplate><WrapPanel/></ItemsPanelTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Popup.Resources>
 
-    <Grid>
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
-        </Grid.RowDefinitions>
-
-        <!-- 标题栏 -->
-        <ui:TitleBar Grid.Row="0"
-                     Title="选择表情"
-                     ShowMaximize="False"
-                     ShowMinimize="False">
-            <ui:TitleBar.Icon>
-                <ui:SymbolIcon Symbol="Emoji24" FontSize="16"/>
-            </ui:TitleBar.Icon>
-        </ui:TitleBar>
-
-        <!-- 类别切换按钮组 -->
-        <Border Grid.Row="1" 
-                Margin="12,8,12,4" 
-                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                CornerRadius="8"
-                Padding="4">
-            <Grid>
+    <Border x:Name="PickerSurface" Width="536" Height="548" Margin="8"
+            Background="{DynamicResource ApplicationBackgroundBrush}"
+            BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}" BorderThickness="1"
+            TextElement.Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+            CornerRadius="12" PreviewKeyDown="Picker_KeyDown"
+            KeyboardNavigation.TabNavigation="Cycle">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="12" ShadowDepth="2" Opacity="0.22"/>
+        </Border.Effect>
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid x:Name="SearchArea" Margin="20,16,20,0" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-
-                <!-- 举手按钮 -->
-                <RadioButton x:Name="BtnHand" 
-                             Grid.Column="0"
-                             GroupName="EmojiCategory"
-                             IsChecked="True"
-                             Checked="CategoryButton_Checked"
-                             Style="{StaticResource EmojiCategoryButtonStyle}">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock Text="✋" FontSize="20" VerticalAlignment="Center"/>
-                        <TextBlock Text="举手" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </RadioButton>
-
-                <!-- 表情按钮 -->
-                <RadioButton x:Name="BtnFace" 
-                             Grid.Column="1"
-                             GroupName="EmojiCategory"
-                             Checked="CategoryButton_Checked"
-                             Style="{StaticResource EmojiCategoryButtonStyle}">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock Text="😀" FontSize="20" VerticalAlignment="Center"/>
-                        <TextBlock Text="表情" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </RadioButton>
-
-                <!-- 手势按钮 -->
-                <RadioButton x:Name="BtnGesture" 
-                             Grid.Column="2"
-                             GroupName="EmojiCategory"
-                             Checked="CategoryButton_Checked"
-                             Style="{StaticResource EmojiCategoryButtonStyle}">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock Text="👍" FontSize="20" VerticalAlignment="Center"/>
-                        <TextBlock Text="手势" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </RadioButton>
-
-                <!-- 心形按钮 -->
-                <RadioButton x:Name="BtnHeart" 
-                             Grid.Column="3"
-                             GroupName="EmojiCategory"
-                             Checked="CategoryButton_Checked"
-                             Style="{StaticResource EmojiCategoryButtonStyle}">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock Text="❤️" FontSize="20" VerticalAlignment="Center"/>
-                        <TextBlock Text="心形" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </RadioButton>
-
-                <!-- 声音按钮 -->
-                <RadioButton x:Name="BtnSound" 
-                             Grid.Column="4"
-                             GroupName="EmojiCategory"
-                             Checked="CategoryButton_Checked"
-                             Style="{StaticResource EmojiCategoryButtonStyle}">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock Text="🔊" FontSize="20" VerticalAlignment="Center"/>
-                        <TextBlock Text="声音" FontSize="12" Margin="4,0,0,0" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </RadioButton>
+                <ui:TextBox x:Name="EmojiSearchBox" PlaceholderText="搜索表情，如：微笑、握手、coffee"
+                            AutomationProperties.Name="搜索表情" TextChanged="Search_TextChanged"/>
+                <ui:Button Grid.Column="1" Appearance="Transparent" Margin="6,0,0,0"
+                           ToolTip="清除搜索" AutomationProperties.Name="清除搜索" Click="ClearSearch_Click">
+                    <ui:SymbolIcon Symbol="Dismiss24" FontSize="16"/>
+                </ui:Button>
             </Grid>
-        </Border>
-
-        <!-- 表情内容区域 -->
-        <ScrollViewer Grid.Row="2" 
-                      Margin="8,4,8,8"
-                      VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-            <ItemsControl x:Name="EmojisControl">
-                <ItemsControl.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <WrapPanel HorizontalAlignment="Center"/>
-                    </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                    <DataTemplate>
-                        <Button Content="{Binding}"
-                                FontSize="28"
-                                Width="52" Height="52"
-                                Margin="4"
-                                Cursor="Hand"
-                                Click="EmojiButton_Click">
-                            <Button.Style>
-                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                    <Setter Property="Background" Value="Transparent"/>
-                                    <Setter Property="BorderThickness" Value="0"/>
-                                    <Setter Property="Padding" Value="0"/>
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="Button">
-                                                <Border x:Name="border"
-                                                        Background="{TemplateBinding Background}"
-                                                        CornerRadius="8"
-                                                        Padding="{TemplateBinding Padding}">
-                                                    <ContentPresenter HorizontalAlignment="Center" 
-                                                                      VerticalAlignment="Center"/>
-                                                </Border>
-                                                <ControlTemplate.Triggers>
-                                                    <Trigger Property="IsMouseOver" Value="True">
-                                                        <Setter Property="RenderTransform">
-                                                            <Setter.Value>
-                                                                <ScaleTransform ScaleX="1.8" ScaleY="1.8"/>
-                                                            </Setter.Value>
-                                                        </Setter>
-                                                        <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
-                                                    </Trigger>
-                                                    <Trigger Property="IsPressed" Value="True">
-                                                        <Setter Property="RenderTransform">
-                                                            <Setter.Value>
-                                                                <ScaleTransform ScaleX="0.9" ScaleY="0.9"/>
-                                                            </Setter.Value>
-                                                        </Setter>
-                                                    </Trigger>
-                                                </ControlTemplate.Triggers>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </Button.Style>
-                        </Button>
-                    </DataTemplate>
-                </ItemsControl.ItemTemplate>
-            </ItemsControl>
-        </ScrollViewer>
-    </Grid>
-</ui:FluentWindow>
+            <ScrollViewer Grid.Row="1" x:Name="EmojiScrollViewer" Margin="20,18,12,0"
+                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel>
+                    <StackPanel x:Name="RecentSection" Margin="0,0,0,14">
+                        <TextBlock Text="最近使用" Foreground="{DynamicResource TextFillColorSecondaryBrush}" Margin="4,0,0,8"/>
+                        <ItemsControl x:Name="RecentEmojisControl" Style="{StaticResource EmojiGridStyle}"/>
+                        <TextBlock x:Name="RecentEmptyText" Text="选择的表情会出现在这里" FontSize="12"
+                                   Foreground="{DynamicResource TextFillColorTertiaryBrush}" Margin="4,6,0,10"/>
+                    </StackPanel>
+                    <TextBlock x:Name="SectionTitle" Text="所有表情" Margin="4,0,0,8"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                    <ItemsControl x:Name="EmojisControl" Style="{StaticResource EmojiGridStyle}"/>
+                    <TextBlock x:Name="EmptyMessage" Margin="4,32,12,32" TextWrapping="Wrap"
+                               TextAlignment="Center" Visibility="Collapsed"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"/>
+                </StackPanel>
+            </ScrollViewer>
+            <TextBlock Grid.Row="2" x:Name="HintText" Margin="24,8,16,10" FontSize="11"
+                       Text="点击插入表情 · 右键收藏 / 取消收藏 · Esc 关闭"
+                       Foreground="{DynamicResource TextFillColorTertiaryBrush}" TextTrimming="CharacterEllipsis"/>
+            <Border Grid.Row="3" BorderBrush="{DynamicResource ControlStrokeColorDefaultBrush}"
+                    BorderThickness="0,1,0,0" Padding="12,6" CornerRadius="0,0,12,12"
+                    Background="{DynamicResource ControlFillColorDefaultBrush}">
+                <UniformGrid Columns="8">
+                    <ui:Button Appearance="Transparent" ToolTip="搜索表情" AutomationProperties.Name="搜索表情"
+                               Margin="3" Padding="10" Click="SearchButton_Click">
+                        <ui:SymbolIcon Symbol="Search24" FontSize="22"/>
+                    </ui:Button>
+                    <RadioButton x:Name="AllCategoryButton" GroupName="EmojiCategory" Tag="全部" IsChecked="True"
+                                 ToolTip="所有表情" AutomationProperties.Name="所有表情"
+                                 Checked="CategoryButton_Checked" Style="{StaticResource EmojiCategoryButtonStyle}">
+                        <ui:SymbolIcon Symbol="Emoji24" FontSize="24"/>
+                    </RadioButton>
+                    <RadioButton GroupName="EmojiCategory" Tag="收藏" ToolTip="我的收藏" AutomationProperties.Name="我的收藏"
+                                 Checked="CategoryButton_Checked" Style="{StaticResource EmojiCategoryButtonStyle}">
+                        <ui:SymbolIcon Symbol="Heart24" FontSize="24"/>
+                    </RadioButton>
+                    <RadioButton GroupName="EmojiCategory" Tag="手势" ToolTip="手势互动" AutomationProperties.Name="手势互动"
+                                 Checked="CategoryButton_Checked" Style="{StaticResource EmojiCategoryButtonStyle}">
+                        <emoji:TextBlock Text="👋" FontSize="24"/>
+                    </RadioButton>
+                    <RadioButton GroupName="EmojiCategory" Tag="心形" ToolTip="心形" AutomationProperties.Name="心形"
+                                 Checked="CategoryButton_Checked" Style="{StaticResource EmojiCategoryButtonStyle}">
+                        <emoji:TextBlock Text="💖" FontSize="24"/>
+                    </RadioButton>
+                    <RadioButton GroupName="EmojiCategory" Tag="动物" ToolTip="动物" AutomationProperties.Name="动物"
+                                 Checked="CategoryButton_Checked" Style="{StaticResource EmojiCategoryButtonStyle}">
+                        <emoji:TextBlock Text="🐼" FontSize="24"/>
+                    </RadioButton>
+                    <RadioButton GroupName="EmojiCategory" Tag="美食" ToolTip="美食饮品" AutomationProperties.Name="美食饮品"
+                                 Checked="CategoryButton_Checked" Style="{StaticResource EmojiCategoryButtonStyle}">
+                        <emoji:TextBlock Text="☕" FontSize="24"/>
+                    </RadioButton>
+                    <RadioButton GroupName="EmojiCategory" Tag="庆祝" ToolTip="庆祝与物品" AutomationProperties.Name="庆祝与物品"
+                                 Checked="CategoryButton_Checked" Style="{StaticResource EmojiCategoryButtonStyle}">
+                        <emoji:TextBlock Text="🎉" FontSize="24"/>
+                    </RadioButton>
+                </UniformGrid>
+            </Border>
+        </Grid>
+    </Border>
+</Popup>

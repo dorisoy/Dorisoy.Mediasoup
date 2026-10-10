@@ -5,26 +5,27 @@
   <ItemGroup>
     <!-- UI 相关 -->
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
+    <PackageVersion Include="Emoji.Wpf" Version="0.3.4" />
     <PackageVersion Include="Lepo.i18n" Version="2.0.0" />
-    <PackageVersion Include="Lepo.i18n.DependencyInjection" Version="2.0.0" />
-    <PackageVersion Include="Lepo.i18n.Wpf" Version="2.0.0" />
+    <PackageVersion Include="Lepo.i18n.DependencyInjection" Version="2.1.0" />
+    <PackageVersion Include="Lepo.i18n.Wpf" Version="2.1.0" />
     <PackageVersion Include="LiveChartsCore.SkiaSharpView.WPF" Version="2.0.0-rc6.1" />
     <PackageVersion Include="Microsoft.IdentityModel.Tokens" Version="8.15.0" />
-    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.2957.106" />
+    <PackageVersion Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
     <!-- 测试 -->
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageVersion Include="NSubstitute" Version="5.3.0" />
     <!-- 代码分析 -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
-    <PackageVersion Include="PolySharp" Version="1.15.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
+    <PackageVersion Include="PolySharp" Version="1.16.0" />
     <PackageVersion Include="StyleCop.Analyzers" Version="1.2.0-beta.556" />
     <PackageVersion Include="WpfAnalyzers" Version="4.1.1" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
     <!-- Microsoft Extensions -->
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.12" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.1" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.1" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.12" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.12" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.12" />
@@ -74,8 +75,8 @@
     <PackageVersion Include="SkiaSharp" Version="4.152.1" />
     <PackageVersion Include="QRCoder" Version="1.8.0" />
     <!-- 系统/工具 -->
-    <PackageVersion Include="System.Drawing.Common" Version="9.0.1" />
-    <PackageVersion Include="System.ValueTuple" Version="4.5.0" />
+    <PackageVersion Include="System.Drawing.Common" Version="10.0.12" />
+    <PackageVersion Include="System.ValueTuple" Version="4.6.2" />
     <PackageVersion Include="System.Management" Version="10.0.12" />
     <PackageVersion Include="System.Speech" Version="10.0.12" />
     <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.23.0" />
@@ -87,8 +88,8 @@
     <PackageVersion Include="libuv-shared" Version="1.52.1.15" />
     <PackageVersion Include="Dorisoy.Mediasoup.Runtimes" Version="3.15.7" />
     <!-- 反射/事件 -->
-    <PackageVersion Include="ReflectionEventing" Version="3.1.0" />
-    <PackageVersion Include="ReflectionEventing.DependencyInjection" Version="3.1.0" />
+    <PackageVersion Include="ReflectionEventing" Version="5.0.0" />
+    <PackageVersion Include="ReflectionEventing.DependencyInjection" Version="5.0.0" />
     <!-- Swagger -->
     <PackageVersion Include="Swashbuckle.AspNetCore" Version="10.2.3" />
   </ItemGroup>

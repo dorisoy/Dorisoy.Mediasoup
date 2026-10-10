@@ -39,6 +39,7 @@
 
         <!-- MVVM 工具包 -->
         <PackageReference Include="CommunityToolkit.Mvvm" />
+        <PackageReference Include="Emoji.Wpf" />
 
         <!-- 依赖注入 -->
         <PackageReference Include="Microsoft.Extensions.DependencyInjection" />

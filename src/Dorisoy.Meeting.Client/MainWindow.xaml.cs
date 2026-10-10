@@ -139,14 +139,15 @@ public partial class MainWindow : FluentWindow
     /// <summary>
     /// 打开表情选择窗口
     /// </summary>
-    private async void OnOpenEmojiPickerRequested()
+    private void OnOpenEmojiPickerRequested()
     {
-        var picker = new EmojiPickerWindow { Owner = this };
-        if(picker.ShowDialog() == true && !string.IsNullOrEmpty(picker.SelectedEmoji))
+        var picker = new EmojiPickerWindow();
+        picker.EmojiSelected += async emoji =>
         {
             // 发送表情广播
-            await _viewModel.SendEmojiReactionAsync(picker.SelectedEmoji);
-        }
+            await _viewModel.SendEmojiReactionAsync(emoji);
+        };
+        picker.ShowFor(this, System.Windows.Controls.Primitives.PlacementMode.Center);
     }
 
     /// <summary>
@@ -670,6 +671,7 @@ public partial class MainWindow : FluentWindow
             var joinRoomViewModel = App.ServiceProvider?.GetRequiredService<JoinRoomViewModel>();
             if(joinRoomViewModel != null)
             {
+                joinRoomViewModel.ServerUrl = _viewModel.ServerUrl;
                 var joinRoomWindow = new JoinRoomWindow(joinRoomViewModel);
                 joinRoomWindow.ShowDialog();
 

@@ -439,4 +439,211 @@ public static class CommonEmojis
     /// 所有常用表情
     /// </summary>
     public static string[] All => [.. HandEmojis, .. FaceEmojis, .. GestureEmojis, .. HeartEmojis, .. SoundEmojis];
+
+    /// <summary>
+    /// 聊天表情目录：显示名称用于提示，关键词用于搜索。
+    /// </summary>
+    public static IReadOnlyList<EmojiOption> Catalog { get; } =
+    [
+        .. CreateCategory("表情", """
+            😀|开心|happy smile
+            😃|大笑|laugh happy
+            😄|笑脸|smile happy
+            😁|露齿笑|grin
+            😆|眯眼笑|laugh
+            😅|苦笑|sweat
+            🤣|笑翻了|rofl
+            😂|笑哭|joy laugh
+            🙂|微笑|smile
+            😊|害羞|blush smile
+            😇|天使|angel
+            🥰|喜欢|love
+            😍|爱慕|love heart eyes
+            🤩|崇拜|star eyes
+            😘|飞吻|kiss
+            😗|亲亲|kiss
+            😋|美味|yummy
+            😛|吐舌|tongue
+            😜|调皮|wink tongue
+            🤪|搞怪|crazy
+            😝|鬼脸|tongue
+            🤑|发财|money
+            🤗|拥抱|hug
+            🤭|偷笑|giggle
+            🤫|嘘|quiet shush
+            🤔|思考|think
+            🤐|闭嘴|zipper
+            🤨|怀疑|doubt
+            😐|无语|neutral
+            😑|无奈|expressionless
+            😶|沉默|silent
+            😏|得意|smirk
+            😒|不高兴|unamused
+            🙄|白眼|eye roll
+            😬|尴尬|grimace
+            🤥|说谎|lie
+            😌|安心|relieved
+            😔|难过|sad
+            😪|困了|sleepy
+            🤤|流口水|drool
+            😴|睡觉|sleep
+            😷|口罩|mask
+            🤒|生病|sick
+            🤕|受伤|hurt
+            🤢|恶心|nausea
+            🤮|呕吐|vomit
+            🤧|感冒|sneeze
+            🥵|好热|hot
+            🥶|好冷|cold
+            😵|晕了|dizzy
+            🤯|震惊|mind blown
+            🤠|牛仔|cowboy
+            🥳|庆祝|party
+            😎|酷|cool sunglasses
+            🤓|学霸|nerd
+            🧐|观察|monocle
+            😕|困惑|confused
+            😟|担心|worried
+            🙁|不开心|sad
+            😮|惊讶|surprise
+            😲|吃惊|astonished
+            😳|脸红|flushed
+            🥺|可怜|please
+            😢|流泪|cry
+            😭|大哭|sob
+            😤|哼|huff
+            😠|生气|angry
+            😡|愤怒|rage
+            😱|惊恐|scream
+            😰|紧张|anxious
+            😓|冷汗|sweat
+            🤡|小丑|clown
+            💀|骷髅|skull
+            👻|幽灵|ghost
+            🤖|机器人|robot
+            """),
+        .. CreateCategory("手势", """
+            🤝|握手|handshake
+            👍|赞|thumbs up like
+            👎|踩|thumbs down
+            👌|好的|ok
+            ✌️|胜利|victory peace
+            🤞|好运|luck
+            🤟|爱你|love
+            🤘|摇滚|rock
+            🤙|打电话|call
+            👈|向左|left
+            👉|向右|right
+            👆|向上|up
+            👇|向下|down
+            ☝️|注意|point
+            👋|挥手|wave hello bye
+            🤚|停一下|stop
+            🖐️|五指|hand
+            ✋|举手|raise hand
+            🖖|敬礼|salute
+            👏|鼓掌|clap applause
+            🙌|欢呼|hooray
+            🤲|捧手|palms
+            🙏|感谢|thanks pray
+            💪|加油|strong muscle
+            ✍️|写字|write
+            """),
+        .. CreateCategory("心形", """
+            ❤️|红心|red love heart
+            🧡|橙心|orange
+            💛|黄心|yellow
+            💚|绿心|green
+            💙|蓝心|blue
+            💜|紫心|purple
+            🖤|黑心|black
+            🤍|白心|white
+            💔|心碎|broken
+            ❣️|心意|heart
+            💕|两颗心|love
+            💞|心心相印|love
+            💓|心动|beat
+            💗|爱心|growing
+            💖|闪亮的心|sparkle
+            💘|一见钟情|cupid
+            """),
+        .. CreateCategory("动物", """
+            🐶|小狗|dog
+            🐱|小猫|cat
+            🐭|老鼠|mouse
+            🐹|仓鼠|hamster
+            🐰|兔子|rabbit
+            🦊|狐狸|fox
+            🐻|小熊|bear
+            🐼|熊猫|panda
+            🐨|考拉|koala
+            🐯|老虎|tiger
+            🦁|狮子|lion
+            🐮|奶牛|cow
+            🐷|小猪|pig
+            🐸|青蛙|frog
+            🐵|猴子|monkey
+            🐧|企鹅|penguin
+            🐥|小鸡|chick
+            🦋|蝴蝶|butterfly
+            🐬|海豚|dolphin
+            🐲|龙|dragon
+            """),
+        .. CreateCategory("美食", """
+            ☕|咖啡|coffee
+            🍵|茶|tea
+            🍺|啤酒|beer
+            🍻|干杯|cheers
+            🍎|苹果|apple
+            🍊|橘子|orange
+            🍉|西瓜|watermelon
+            🍓|草莓|strawberry
+            🍒|樱桃|cherry
+            🍑|桃子|peach
+            🍔|汉堡|burger
+            🍟|薯条|fries
+            🍕|披萨|pizza
+            🍜|面条|noodles
+            🍚|米饭|rice
+            🍰|蛋糕|cake
+            🍦|冰淇淋|ice cream
+            🍫|巧克力|chocolate
+            """),
+        .. CreateCategory("庆祝", """
+            🎉|礼花|party tada
+            🎊|庆贺|confetti
+            🎁|礼物|gift
+            🎂|生日|birthday
+            🎈|气球|balloon
+            🎺|喇叭|trumpet
+            🎵|音乐|music
+            ✨|闪亮|sparkle
+            ⭐|星星|star
+            🌟|闪耀|glowing star
+            💫|光环|dizzy
+            🚀|火箭|rocket
+            🔥|火热|fire
+            💯|满分|hundred
+            🏆|奖杯|trophy
+            🥇|金牌|medal
+            🌹|玫瑰|rose
+            🌻|向日葵|sunflower
+            🌈|彩虹|rainbow
+            ☀️|太阳|sun
+            """)
+    ];
+
+    private static IEnumerable<EmojiOption> CreateCategory(string category, string entries)
+    {
+        foreach (var line in entries.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            var parts = line.Split('|');
+            yield return new EmojiOption(parts[0], parts[1], category, parts[2]);
+        }
+    }
 }
+
+/// <summary>
+/// 可搜索的表情项，发送时只使用 Unicode 文本。
+/// </summary>
+public sealed record EmojiOption(string Text, string Name, string Category, string Keywords);

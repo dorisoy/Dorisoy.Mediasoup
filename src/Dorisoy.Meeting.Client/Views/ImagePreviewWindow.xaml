@@ -12,49 +12,33 @@
     <Grid Background="{DynamicResource ApplicationBackgroundBrush}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
-        
-        <!-- 标题栏 -->
+
+        <!-- 标题栏：文件名、预览工具与系统窗口按钮位于同一行 -->
         <ui:TitleBar Grid.Row="0"
-                     Title="图片预览"
+                     Padding="12,0"
                      ShowMinimize="True"
                      ShowMaximize="True"
-                     ShowClose="True"/>
-        
-        <!-- 顶部工具栏 -->
-        <Border Grid.Row="1" 
-                Background="{DynamicResource ControlFillColorDefaultBrush}"
-                Padding="12,8">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-                
-                <!-- 文件名 -->
+                     ShowClose="True">
+            <ui:TitleBar.Header>
                 <TextBlock x:Name="FileNameText"
-                           Grid.Column="0"
                            Text="图片预览"
                            FontSize="14"
                            FontWeight="SemiBold"
                            VerticalAlignment="Center"/>
-                
-                <!-- 操作按钮 -->
-                <StackPanel Grid.Column="1" 
-                            Orientation="Horizontal"
+            </ui:TitleBar.Header>
+            <ui:TitleBar.TrailingContent>
+                <StackPanel Orientation="Horizontal"
+                            Margin="0,0,8,0"
                             VerticalAlignment="Center">
-                    <!-- 缩小 -->
                     <ui:Button Appearance="Transparent"
-                               ToolTip="缩小 (鼠标滚轮下)"
-                               Padding="8"
+                               ToolTip="缩小 (Ctrl + 鼠标滚轮下)"
+                               Padding="8,4"
                                Click="ZoomOut_Click">
                         <ui:SymbolIcon Symbol="ZoomOut24" FontSize="18"/>
                     </ui:Button>
-                    
-                    <!-- 缩放比例 -->
                     <TextBlock x:Name="ZoomText"
                                Text="100%"
                                Width="50"
@@ -62,64 +46,50 @@
                                VerticalAlignment="Center"
                                FontSize="12"
                                Opacity="0.7"/>
-                    
-                    <!-- 放大 -->
                     <ui:Button Appearance="Transparent"
-                               ToolTip="放大 (鼠标滚轮上)"
-                               Padding="8"
+                               ToolTip="放大 (Ctrl + 鼠标滚轮上)"
+                               Padding="8,4"
                                Click="ZoomIn_Click">
                         <ui:SymbolIcon Symbol="ZoomIn24" FontSize="18"/>
                     </ui:Button>
-                    
-                    <!-- 分隔符 -->
-                    <Border Width="1" 
-                            Height="20" 
+                    <Border Width="1"
+                            Height="20"
                             Background="{DynamicResource ControlStrokeColorDefaultBrush}"
                             Margin="8,0"/>
-                    
-                    <!-- 适应窗口 -->
                     <ui:Button Appearance="Transparent"
                                ToolTip="适应窗口"
-                               Padding="8"
+                               Padding="8,4"
                                Click="FitToWindow_Click">
                         <ui:SymbolIcon Symbol="FullScreenMaximize24" FontSize="18"/>
                     </ui:Button>
-                    
-                    <!-- 原始大小 -->
                     <ui:Button Appearance="Transparent"
                                ToolTip="原始大小 (1:1)"
-                               Padding="8"
+                               Padding="8,4"
                                Click="ActualSize_Click">
                         <ui:SymbolIcon Symbol="Resize24" FontSize="18"/>
                     </ui:Button>
-                    
-                    <!-- 分隔符 -->
-                    <Border Width="1" 
-                            Height="20" 
+                    <Border Width="1"
+                            Height="20"
                             Background="{DynamicResource ControlStrokeColorDefaultBrush}"
                             Margin="8,0"/>
-                    
-                    <!-- 保存 -->
                     <ui:Button Appearance="Transparent"
                                ToolTip="保存图片"
-                               Padding="8"
+                               Padding="8,4"
                                Click="Save_Click">
                         <ui:SymbolIcon Symbol="Save24" FontSize="18"/>
                     </ui:Button>
-                    
-                    <!-- 复制 -->
                     <ui:Button Appearance="Transparent"
                                ToolTip="复制到剪贴板"
-                               Padding="8"
+                               Padding="8,4"
                                Click="Copy_Click">
                         <ui:SymbolIcon Symbol="Copy24" FontSize="18"/>
                     </ui:Button>
                 </StackPanel>
-            </Grid>
-        </Border>
-        
+            </ui:TitleBar.TrailingContent>
+        </ui:TitleBar>
+
         <!-- 图片显示区域 -->
-        <ScrollViewer Grid.Row="2"
+        <ScrollViewer Grid.Row="1"
                       x:Name="ImageScrollViewer"
                       HorizontalScrollBarVisibility="Auto"
                       VerticalScrollBarVisibility="Auto"
@@ -142,7 +112,7 @@
         </ScrollViewer>
         
         <!-- 底部状态栏 -->
-        <Border Grid.Row="3"
+        <Border Grid.Row="2"
                 Background="{DynamicResource ControlFillColorDefaultBrush}"
                 Padding="12,6">
             <StackPanel Orientation="Horizontal">
