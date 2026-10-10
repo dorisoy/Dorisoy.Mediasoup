@@ -126,7 +126,7 @@ public unsafe class H264Encoder : IVideoEncoder
             _codecContext->max_b_frames = 0; // 实时流不使用 B 帧
             _codecContext->thread_count = Environment.ProcessorCount;
             _codecContext->qmin = 10;  // 最小量化参数 (质量上限)
-            _codecContext->qmax = 40;  // 最大量化参数 (质量下限)
+            _codecContext->qmax = Bitrate >= 8_000_000 ? 32 : 40;  // 高画质档减少量化以保留细节
             
             _isFirstFrame = true;
 
@@ -135,8 +135,13 @@ public unsafe class H264Encoder : IVideoEncoder
             ffmpeg.av_opt_set(_codecContext->priv_data, "tune", Tune, 0);
             ffmpeg.av_opt_set(_codecContext->priv_data, "profile", Profile, 0);
             
-            // WebRTC 兼容性设置 - Level 4.0 支持 1080p @ 30fps
-            ffmpeg.av_opt_set(_codecContext->priv_data, "level", "4.0", 0);
+            // WebRTC 兼容性设置：根据分辨率选择 H.264 Level。
+            var h264Level = _width >= 3840 || _height >= 2160
+                ? "5.1"
+                : _width >= 1920 || _height >= 1080
+                    ? "4.2"
+                    : "4.0";
+            ffmpeg.av_opt_set(_codecContext->priv_data, "level", h264Level, 0);
             
             // 使用 ABR (Average Bitrate) 模式而不是 CRF
             // CRF 模式会忽略 bitrate 设置，不适合需要码率控制的场景

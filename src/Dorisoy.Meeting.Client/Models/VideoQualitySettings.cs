@@ -6,6 +6,11 @@ namespace Dorisoy.Meeting.Client.Models;
 public enum VideoQualityPreset
 {
     /// <summary>
+    /// 自动最高画质 - 根据摄像头能力逐级回退
+    /// </summary>
+    AutoHighest,
+
+    /// <summary>
     /// 低画质 - 适合低带宽环境
     /// </summary>
     Low,
@@ -97,6 +102,20 @@ public class VideoQualitySettings
     /// </summary>
     public static readonly VideoQualitySettings[] Presets = 
     [
+        // 自动最高 - 优先尝试 4K，设备不支持时在采集层自动逐级回退
+        new VideoQualitySettings
+        {
+            Preset = VideoQualityPreset.AutoHighest,
+            DisplayName = "自动最高",
+            Description = "按摄像头能力自动选择最高画质（最高 4K / 20 Mbps）",
+            Width = 3840,
+            Height = 2160,
+            Bitrate = 20_000_000,
+            FrameRate = 30,
+            KeyFrameInterval = 2,
+            CpuUsed = 2
+        },
+
         // 低画质 - 480x360, 500Kbps (提高分辨率和码率)
         new VideoQualitySettings
         {
@@ -159,6 +178,62 @@ public class VideoQualitySettings
     /// </summary>
     public static VideoQualitySettings GetPreset(VideoQualityPreset preset)
     {
-        return Presets.FirstOrDefault(p => p.Preset == preset) ?? Presets[1]; // 默认标准画质
+        return Presets.FirstOrDefault(p => p.Preset == preset)
+            ?? Presets.First(p => p.Preset == VideoQualityPreset.Standard);
+    }
+
+    /// <summary>
+    /// 获取摄像头采集候选档位。自动最高会从 4K 依次回退，显式档位也会在设备不支持时降级。
+    /// </summary>
+    public static IEnumerable<VideoQualitySettings> GetCaptureCandidates(VideoQualitySettings requested)
+    {
+        if (requested.Preset == VideoQualityPreset.AutoHighest)
+        {
+            yield return requested;
+            yield return new VideoQualitySettings
+            {
+                Preset = VideoQualityPreset.AutoHighest,
+                DisplayName = "自动最高（2K 回退）",
+                Description = requested.Description,
+                Width = 2560,
+                Height = 1440,
+                Bitrate = 14_000_000,
+                FrameRate = 30,
+                KeyFrameInterval = 2,
+                CpuUsed = 2
+            };
+        }
+
+        foreach (var candidate in Presets
+                     .Where(p => p.Preset != VideoQualityPreset.AutoHighest
+                         && p.Width <= requested.Width
+                         && p.Height <= requested.Height)
+                     .OrderByDescending(p => p.Width * p.Height))
+        {
+            yield return candidate;
+        }
+    }
+
+    /// <summary>
+    /// 按摄像头实际协商结果生成编码与传输使用的有效质量配置。
+    /// </summary>
+    public static VideoQualitySettings CreateEffective(
+        VideoQualitySettings source,
+        int width,
+        int height,
+        double framesPerSecond)
+    {
+        return new VideoQualitySettings
+        {
+            Preset = source.Preset,
+            DisplayName = source.DisplayName,
+            Description = source.Description,
+            Width = width,
+            Height = height,
+            Bitrate = source.Bitrate,
+            FrameRate = Math.Max(1, (int)Math.Round(framesPerSecond)),
+            KeyFrameInterval = source.KeyFrameInterval,
+            CpuUsed = source.CpuUsed
+        };
     }
 }

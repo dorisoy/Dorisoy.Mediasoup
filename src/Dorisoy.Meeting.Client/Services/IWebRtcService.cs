@@ -49,6 +49,11 @@ public interface IWebRtcService : IDisposable
     /// 当前视频质量配置
     /// </summary>
     VideoQualitySettings? VideoQuality { get; set; }
+
+    /// <summary>
+    /// 应用视频质量；摄像头正在采集时会安全重启采集与编码器。
+    /// </summary>
+    Task ApplyVideoQualityAsync(VideoQualitySettings quality);
     
     /// <summary>
     /// 当前视频编解码器类型

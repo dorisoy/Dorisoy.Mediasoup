@@ -111,8 +111,8 @@ public unsafe class Vp9Encoder : IVideoEncoder
             _codecContext->gop_size = FrameRate * KeyFrameInterval; // 关键帧间隔
             _codecContext->max_b_frames = 0;  // 禁用 B 帧，减少延迟
             _codecContext->thread_count = Math.Min(4, Environment.ProcessorCount); // 限制线程数避免过度竞争
-            _codecContext->qmin = 10;  // 提高最小量化参数 (减少关键帧大小)
-            _codecContext->qmax = 50;  // 提高最大量化参数 (允许更高压缩)
+            _codecContext->qmin = 8;  // 降低最小量化参数以保留高画质细节
+            _codecContext->qmax = Bitrate >= 8_000_000 ? 32 : 48;  // 高画质档减少量化压缩
             
             _isFirstFrame = true;
 
@@ -121,7 +121,7 @@ public unsafe class Vp9Encoder : IVideoEncoder
             
             // cpu-used: 0-8, 越高编码越快
             // 5-6 为实时视频推荐值，平衡质量和性能，避免编码器过载导致蓝屏
-            var effectiveCpuUsed = Math.Clamp(CpuUsed, 4, 7);
+            var effectiveCpuUsed = Math.Clamp(CpuUsed, 2, 7);
             ffmpeg.av_opt_set(_codecContext->priv_data, "cpu-used", effectiveCpuUsed.ToString(), 0);
             
             ffmpeg.av_opt_set(_codecContext->priv_data, "auto-alt-ref", "0", 0);  // 禁用自动参考帧，减少延迟

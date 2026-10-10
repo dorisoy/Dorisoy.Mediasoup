@@ -47,6 +47,9 @@ public class WebRtcService : IWebRtcService
     private Thread? _videoCaptureThread;
     private volatile bool _isVideoCaptureRunning;
     private readonly object _videoCaptureLock = new();
+    private string? _activeCameraDeviceId;
+    private VideoQualitySettings? _videoQuality;
+    private VideoQualitySettings? _effectiveVideoQuality;
     
     // 屏幕共享
     private ScreenCapture? _screenCapture;
@@ -162,7 +165,32 @@ public class WebRtcService : IWebRtcService
     /// <summary>
     /// 当前视频质量配置
     /// </summary>
-    public VideoQualitySettings? VideoQuality { get; set; }
+    public VideoQualitySettings? VideoQuality
+    {
+        get => _videoQuality;
+        set
+        {
+            _videoQuality = value;
+            if (value != null)
+            {
+                _sendTransport?.VideoBitrate = value.Bitrate;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 应用视频质量；正在采集时会重启摄像头与编码器，使新分辨率、帧率和码率立即生效。
+    /// </summary>
+    public async Task ApplyVideoQualityAsync(VideoQualitySettings quality)
+    {
+        VideoQuality = quality;
+        if (!_isVideoCaptureRunning) return;
+
+        var deviceId = _activeCameraDeviceId;
+        await StopCameraAsync();
+        DisposeVideoEncoder();
+        await StartCameraAsync(deviceId);
+    }
     
     /// <summary>
     /// 当前视频编解码器类型
@@ -381,6 +409,7 @@ public class WebRtcService : IWebRtcService
                 cameraIndex = index;
             }
 
+            _activeCameraDeviceId = deviceId;
             _logger.LogInformation("Starting camera with index {CameraIndex}", cameraIndex);
 
             // 在后台线程初始化摄像头，避免阻塞 UI
@@ -416,14 +445,49 @@ public class WebRtcService : IWebRtcService
 
                             if (_videoCapture.IsOpened())
                             {
-                                // 设置视频参数
-                                _videoCapture.Set(VideoCaptureProperties.FrameWidth, 640);
-                                _videoCapture.Set(VideoCaptureProperties.FrameHeight, 480);
-                                _videoCapture.Set(VideoCaptureProperties.Fps, 30);
+                                var requestedQuality = VideoQuality
+                                    ?? VideoQualitySettings.GetPreset(VideoQualityPreset.AutoHighest);
 
-                                _isVideoCaptureRunning = true;
-                                _logger.LogInformation("Camera {Index} opened successfully", cameraIndex);
-                                return; // 成功，退出循环
+                                foreach (var candidate in VideoQualitySettings.GetCaptureCandidates(requestedQuality))
+                                {
+                                    _videoCapture.Set(VideoCaptureProperties.FrameWidth, candidate.Width);
+                                    _videoCapture.Set(VideoCaptureProperties.FrameHeight, candidate.Height);
+                                    _videoCapture.Set(VideoCaptureProperties.Fps, candidate.FrameRate);
+                                    Thread.Sleep(150);
+
+                                    var actualWidth = (int)Math.Round(_videoCapture.Get(VideoCaptureProperties.FrameWidth));
+                                    var actualHeight = (int)Math.Round(_videoCapture.Get(VideoCaptureProperties.FrameHeight));
+                                    var actualFps = _videoCapture.Get(VideoCaptureProperties.Fps);
+
+                                    if (!MeetsCaptureQuality(candidate, actualWidth, actualHeight))
+                                    {
+                                        _logger.LogInformation(
+                                            "摄像头不支持目标质量 {Requested}: 实际 {Width}x{Height}@{Fps:F1}",
+                                            candidate.Resolution, actualWidth, actualHeight, actualFps);
+                                        continue;
+                                    }
+
+                                    ApplyEffectiveVideoQuality(VideoQualitySettings.CreateEffective(
+                                        candidate,
+                                        actualWidth,
+                                        actualHeight,
+                                        actualFps > 0 ? actualFps : candidate.FrameRate));
+                                    _isVideoCaptureRunning = true;
+                                    _logger.LogInformation(
+                                        "Camera {Index} opened with {Quality}: {Width}x{Height}@{Fps:F1}, {Bitrate}bps",
+                                        cameraIndex,
+                                        _effectiveVideoQuality!.DisplayName,
+                                        actualWidth,
+                                        actualHeight,
+                                        actualFps,
+                                        _effectiveVideoQuality.Bitrate);
+                                    return;
+                                }
+
+                                _videoCapture.Release();
+                                _videoCapture.Dispose();
+                                _videoCapture = null;
+                                lastException = new Exception("摄像头不支持所选视频质量档位");
                             }
                             else
                             {
@@ -475,13 +539,46 @@ public class WebRtcService : IWebRtcService
         }
     }
 
+    private static bool MeetsCaptureQuality(
+        VideoQualitySettings requested,
+        int actualWidth,
+        int actualHeight)
+    {
+        return actualWidth >= requested.Width * 0.9
+            && actualHeight >= requested.Height * 0.9;
+    }
+
+    private void ApplyEffectiveVideoQuality(VideoQualitySettings quality)
+    {
+        var requiresEncoderReset = _effectiveVideoQuality == null
+            || _effectiveVideoQuality.Width != quality.Width
+            || _effectiveVideoQuality.Height != quality.Height
+            || _effectiveVideoQuality.FrameRate != quality.FrameRate
+            || _effectiveVideoQuality.Bitrate != quality.Bitrate;
+
+        _effectiveVideoQuality = quality;
+        _sendTransport?.VideoBitrate = quality.Bitrate;
+
+        if (requiresEncoderReset)
+        {
+            DisposeVideoEncoder();
+        }
+    }
+
+    private void DisposeVideoEncoder()
+    {
+        _videoEncoder?.Dispose();
+        _videoEncoder = null;
+    }
+
     /// <summary>
     /// 视频采集循环
     /// </summary>
     private void VideoCaptureLoop()
     {
         using var frame = new Mat();
-        var frameInterval = TimeSpan.FromMilliseconds(33); // ~30fps
+        var frameRate = Math.Max(1, _effectiveVideoQuality?.FrameRate ?? 30);
+        var frameInterval = TimeSpan.FromMilliseconds(1000d / frameRate);
 
         while (_isVideoCaptureRunning)
         {
@@ -1166,7 +1263,9 @@ public class WebRtcService : IWebRtcService
         _sendTransport.SetVideoCodecType(_currentVideoCodec);
         
         // 设置视频比特率
-        var quality = VideoQuality ?? VideoQualitySettings.GetPreset(VideoQualityPreset.High);
+        var quality = _effectiveVideoQuality
+            ?? VideoQuality
+            ?? VideoQualitySettings.GetPreset(VideoQualityPreset.AutoHighest);
         _sendTransport.VideoBitrate = quality.Bitrate;
 
         _logger.LogInformation("Send transport created: {TransportId}, codec={Codec}", transportId, _currentVideoCodec);
@@ -1734,7 +1833,9 @@ public class WebRtcService : IWebRtcService
         try
         {
             // 应用视频质量配置
-            var quality = VideoQuality ?? VideoQualitySettings.GetPreset(VideoQualityPreset.High);
+            var quality = _effectiveVideoQuality
+                ?? VideoQuality
+                ?? VideoQualitySettings.GetPreset(VideoQualityPreset.AutoHighest);
             
             // 使用配置的分辨率，如果配置中没有则使用传入的值
             var targetWidth = quality.Width > 0 ? quality.Width : width;
@@ -1753,6 +1854,20 @@ public class WebRtcService : IWebRtcService
             _videoEncoder.Bitrate = quality.Bitrate;
             _videoEncoder.FrameRate = quality.FrameRate;
             _videoEncoder.KeyFrameInterval = quality.KeyFrameInterval;
+
+            // 高质量档位同时降低编码速度优先级，换取更好的画面细节。
+            switch (_videoEncoder)
+            {
+                case Vp8Encoder vp8Encoder:
+                    vp8Encoder.CpuUsed = quality.CpuUsed;
+                    break;
+                case Vp9Encoder vp9Encoder:
+                    vp9Encoder.CpuUsed = quality.CpuUsed;
+                    break;
+                case H264Encoder h264Encoder:
+                    h264Encoder.Preset = quality.Bitrate >= 8_000_000 ? "fast" : "veryfast";
+                    break;
+            }
             
             _videoEncoder.OnFrameEncoded += (data, isKeyFrame) =>
             {

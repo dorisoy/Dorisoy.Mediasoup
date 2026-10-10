@@ -31,9 +31,9 @@ public class MediaSettings
     #region 视频质量设置
 
     /// <summary>
-    /// 视频质量预设 (Low/Medium/High/Ultra)
+    /// 视频质量预设（自动最高/低画质/标准画质/高画质/超高画质）
     /// </summary>
-    public string VideoQualityPreset { get; set; } = "High";
+    public string VideoQualityPreset { get; set; } = "自动最高";
 
     /// <summary>
     /// 视频编解码器类型 (VP8/VP9/H264)

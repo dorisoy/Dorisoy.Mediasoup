@@ -1583,7 +1583,7 @@ public class MediasoupTransport : IDisposable
     /// <summary>
     /// 视频目标比特率 (bps)，用于 RTP 参数协商
     /// </summary>
-    public int VideoBitrate { get; set; } = 5_000_000;
+    public int VideoBitrate { get; set; } = 20_000_000;
 
     /// <summary>
     /// 设置当前视频编解码器类型

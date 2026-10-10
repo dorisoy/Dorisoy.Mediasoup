@@ -241,7 +241,7 @@ public partial class MainViewModel : ObservableObject
     /// 选中的视频质量配置
     /// </summary>
     [ObservableProperty]
-    private VideoQualitySettings _selectedVideoQuality = VideoQualitySettings.GetPreset(VideoQualityPreset.High);
+    private VideoQualitySettings _selectedVideoQuality = VideoQualitySettings.GetPreset(VideoQualityPreset.AutoHighest);
 
     /// <summary>
     /// 可用的视频编解码器列表
@@ -3213,13 +3213,26 @@ public partial class MainViewModel : ObservableObject
     {
         if(value != null)
         {
-            _webRtcService.VideoQuality = value;
+            _ = ApplyVideoQualityAsync(value);
             _logger.LogInformation("视频质量已更改: {Quality} - {Resolution} @ {Bitrate}",
                 value.DisplayName, value.Resolution, value.BitrateDescription);
             StatusMessage = $"视频质量: {value.DisplayName} ({value.Resolution})";
 
             // 保存设置
             SaveMediaSettings();
+        }
+    }
+
+    private async Task ApplyVideoQualityAsync(VideoQualitySettings quality)
+    {
+        try
+        {
+            await _webRtcService.ApplyVideoQualityAsync(quality);
+        }
+        catch(Exception ex)
+        {
+            _logger.LogError(ex, "应用视频质量失败: {Quality}", quality.DisplayName);
+            StatusMessage = "视频质量切换失败，请检查摄像头是否支持该分辨率";
         }
     }
 
