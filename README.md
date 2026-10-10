@@ -36,13 +36,53 @@ Dorisoy.Mediasoup 是一个基于 .NET 10 和 Mediasoup SFU（选择性转发单
 
 ## 屏幕截图
 
-<img src="https://github.com/dorisoy/Dorisoy.Mediasoup/blob/main/screen/1.png"/>
+### 服务端启动
 
-<img src="https://github.com/dorisoy/Dorisoy.Mediasoup/blob/main/screen/2.png"/>
+![Mediasoup 服务端启动日志](screen/1.png)
 
-<img src="https://github.com/dorisoy/Dorisoy.Mediasoup/blob/main/screen/3.png"/>
+*Worker、WebRTC 服务与会议服务启动后的控制台日志。*
 
-<img src="https://github.com/dorisoy/Dorisoy.Mediasoup/blob/main/screen/4.png"/>
+### 入会与设备预览
+
+![WPF 客户端入会界面](screen/2.png)
+
+*加入房间前可输入服务器地址和房间信息，并完成摄像头、麦克风设备预览。*
+
+### 会议设置
+
+![会议系统设置](screen/3.png)
+
+*会议中的系统设置面板，集中配置音视频设备、画质和视频编解码器。*
+
+### 即时聊天
+
+![群聊与多媒体消息](screen/4.png)
+
+*支持房间群聊、图片与文件等多媒体消息，以及未读消息提醒。*
+
+### 协同白板
+
+![协同白板](screen/5.png)
+
+*会议白板提供画笔、形状、文字、橡皮擦等协作工具。*
+
+### 编码器选择
+
+![H.264 编码器设置](screen/6.png)
+
+*可根据设备能力在 VP8、VP9、H.264 等视频编码器之间选择，并调整视频质量。*
+
+### 屏幕共享
+
+![屏幕共享](screen/7.png)
+
+*支持会议中共享桌面、窗口或区域内容。*
+
+### 表情互动
+
+![表情反应浮层](screen/8.png)
+
+*会中表情反应面板支持快速反馈与互动。*
 
 ---
 

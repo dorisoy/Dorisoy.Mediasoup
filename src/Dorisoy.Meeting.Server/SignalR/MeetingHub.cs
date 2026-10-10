@@ -315,6 +315,63 @@ namespace Dorisoy.Meeting.Server
 
         #endregion
 
+        #region Collaboration messages
+
+        /// <summary>
+        /// 将会中协作消息转发给同一房间内的其他 Peer。
+        /// 发送者身份由服务端当前连接确定，不能由客户端请求伪造。
+        /// </summary>
+        public async Task<MeetingMessage> BroadcastMessage(BroadcastMessageRequest request)
+        {
+            if (request == null || string.IsNullOrWhiteSpace(request.Type) || request.Data == null)
+            {
+                return MeetingMessage.Failure("广播消息参数无效");
+            }
+
+            try
+            {
+                var peer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+                var room = peer == null ? null : await peer.GetRoomAsync();
+                if (peer == null || room == null)
+                {
+                    return MeetingMessage.Failure("当前未加入房间");
+                }
+
+                var recipients = (await room.GetPeerIdsAsync())
+                    .Where(peerId => peerId != UserId)
+                    .ToArray();
+                if (recipients.Length == 0)
+                {
+                    return MeetingMessage.Success("房间内暂无其他参与者");
+                }
+
+                SendNotification(
+                    recipients,
+                    "broadcastMessage",
+                    new BroadcastMessageNotification
+                    {
+                        Type = request.Type,
+                        SenderId = peer.PeerId,
+                        SenderName = peer.DisplayName,
+                        Data = request.Data,
+                    });
+
+                _logger.LogDebug(
+                    "BroadcastMessage forwarded: Type={Type}, Sender={SenderPeerId}, Recipients={RecipientCount}",
+                    request.Type,
+                    peer.PeerId,
+                    recipients.Length);
+                return MeetingMessage.Success("广播消息已发送");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "BroadcastMessage 调用失败: Type={Type}, Sender={SenderPeerId}", request.Type, UserId);
+                return MeetingMessage.Failure("广播消息发送失败");
+            }
+        }
+
+        #endregion
+
         #region Transport
 
         /// <summary>

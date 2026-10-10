@@ -2741,7 +2741,7 @@ public partial class MainViewModel : ObservableObject
             {
                 emoji,
                 senderName = CurrentUserName,
-                senderId = SelectedPeerIndex.ToString()
+                senderId = CurrentPeerId ?? string.Empty
             };
 
             await _signalRService.InvokeAsync("BroadcastMessage", new
@@ -2834,7 +2834,7 @@ public partial class MainViewModel : ObservableObject
 
         var message = new ChatMessage
         {
-            SenderId = SelectedPeerIndex.ToString(),
+            SenderId = CurrentPeerId ?? string.Empty,
             SenderName = CurrentUserName,
             ReceiverId = receiverId ?? "",
             Content = content,
@@ -2923,7 +2923,7 @@ public partial class MainViewModel : ObservableObject
 
             var message = new ChatMessage
             {
-                SenderId = SelectedPeerIndex.ToString(),
+                SenderId = CurrentPeerId ?? string.Empty,
                 SenderName = CurrentUserName,
                 ReceiverId = receiverId ?? "",
                 Content = $"[图片] {fileInfo.Name}",
@@ -3046,7 +3046,7 @@ public partial class MainViewModel : ObservableObject
 
         var message = new ChatMessage
         {
-            SenderId = SelectedPeerIndex.ToString(),
+            SenderId = CurrentPeerId ?? string.Empty,
             SenderName = CurrentUserName,
             ReceiverId = receiverId ?? "",
             Content = $"[文件] {fileInfo.Name}",
@@ -3186,7 +3186,7 @@ public partial class MainViewModel : ObservableObject
                 return;
 
             // 检查私聊消息：如果有 ReceiverId 且不是发给自己的，忽略
-            if(!string.IsNullOrEmpty(msgData.ReceiverId) && msgData.ReceiverId != CurrentUserName)
+            if(!string.IsNullOrEmpty(msgData.ReceiverId) && msgData.ReceiverId != CurrentPeerId)
             {
                 return;
             }
@@ -5735,7 +5735,7 @@ public partial class MainViewModel : ObservableObject
                 return;
 
             // 检查私聊消息：如果有 ReceiverId 且不是发给自己的，忽略
-            if(!string.IsNullOrEmpty(msgData.ReceiverId) && msgData.ReceiverId != CurrentUserName)
+            if(!string.IsNullOrEmpty(msgData.ReceiverId) && msgData.ReceiverId != CurrentPeerId)
             {
                 return;
             }
