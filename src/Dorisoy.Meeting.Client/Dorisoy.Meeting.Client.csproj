@@ -71,9 +71,9 @@
 
     <!-- 音频资源文件 - 复制到输出目录 -->
     <ItemGroup>
-        <None Update="Resources\sounds\**\*">
+        <Content Include="Assets\sounds\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
+        </Content>
     </ItemGroup>
 
     <!-- FFmpeg 原生库 - 复制到输出目录 -->

@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using NAudio.Wave;
 using System.Collections.Concurrent;
 using System.IO;
+using Dorisoy.Meeting.Client.Models;
 
 namespace Dorisoy.Meeting.Client.Services;
 
@@ -83,7 +84,7 @@ public class SoundService : IDisposable
     public SoundService(ILogger<SoundService> logger)
     {
         _logger = logger;
-        _soundsBasePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Resources", "sounds");
+        _soundsBasePath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Assets", "sounds");
         
         // 异步预加载常用音频
         Task.Run(PreloadCommonSoundsAsync);
@@ -200,11 +201,16 @@ public class SoundService : IDisposable
         if (_isMuted) return;
         if (string.IsNullOrEmpty(emoji)) return;
 
+        // 举手使用专用提示音，其他表情使用对应的表情音效。
+        if (emoji is "✋" or "👋" or "🤚" or "🖐️" or "🖐" or "✌️" or "✌")
+        {
+            PlaySound(SoundType.RaiseHand);
+            return;
+        }
+
         // 根据表情映射到对应的音效
         var emojiType = emoji switch
         {
-            // 举手相关
-            "✋" or "👋" or "🤚" or "🖐️" or "✌️" => EmojiSoundType.Ok,
             
             // 鼓掌相关
             "👏" or "🙌" => EmojiSoundType.Applause,
@@ -244,6 +250,21 @@ public class SoundService : IDisposable
         };
 
         PlayEmojiSound(emojiType);
+    }
+
+    /// <summary>
+    /// 从聊天文本中查找第一个已支持的表情并播放提示音。
+    /// </summary>
+    public bool TryPlayEmojiSoundFromText(string? content)
+    {
+        if (_isMuted || string.IsNullOrWhiteSpace(content)) return false;
+
+        var emoji = CommonEmojis.Catalog.FirstOrDefault(option =>
+            content.Contains(option.Text, StringComparison.Ordinal));
+        if (emoji == null) return false;
+
+        PlayEmojiSoundByEmoji(emoji.Text);
+        return true;
     }
 
     /// <summary>

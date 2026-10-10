@@ -2541,6 +2541,7 @@ public partial class MainViewModel : ObservableObject
                 data = reaction
             });
 
+            _soundService.PlayEmojiSoundByEmoji(emoji);
             _logger.LogInformation("发送表情反应: {Emoji}", emoji);
             StatusMessage = $"发送表情: {emoji}";
         }
@@ -2650,6 +2651,8 @@ public partial class MainViewModel : ObservableObject
                     timestamp = message.Timestamp
                 }
             });
+
+            _soundService.TryPlayEmojiSoundFromText(content);
         }
         catch(Exception ex)
         {
@@ -3053,6 +3056,11 @@ public partial class MainViewModel : ObservableObject
             }
 
             AddMessageToCollection(message);
+
+            if (message.MessageType == ChatMessageType.Text)
+            {
+                _soundService.TryPlayEmojiSoundFromText(message.Content);
+            }
 
             // 如果不在当前聊天，增加未读数
             if(string.IsNullOrEmpty(message.ReceiverId))
@@ -5469,8 +5477,12 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("收到广播聊天消息: From={From}, Type={Type}, Content={Content}",
                 message.SenderName, message.MessageType, message.Content);
 
-            // 播放新消息提示音
-            _soundService.PlaySound(SoundService.SoundType.Message);
+            // 普通消息播放消息提示音；文本中包含表情时改为播放对应表情音效。
+            if (message.MessageType != ChatMessageType.Text
+                || !_soundService.TryPlayEmojiSoundFromText(message.Content))
+            {
+                _soundService.PlaySound(SoundService.SoundType.Message);
+            }
 
             // 如果不在当前聊天，增加未读数
             if(string.IsNullOrEmpty(message.ReceiverId))
