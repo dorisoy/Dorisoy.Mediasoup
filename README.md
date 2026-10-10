@@ -38,7 +38,7 @@ Dorisoy.Mediasoup 是一个基于 .NET 10 和 Mediasoup SFU（选择性转发单
 
 ### 服务端启动
 
-![Mediasoup 服务端启动日志](screen/1.png)
+![Mediasoup 服务端启动日志](screen/9.png)
 
 *Worker、WebRTC 服务与会议服务启动后的控制台日志。*
 
