@@ -7,7 +7,8 @@
         //"WorkerPath": "/Users/alby/Workspace/OpenSource/Multimedia/versatica/mediasoup/worker/out/xcode/debug/mediasoup-worker",
         //"WorkerPath": "/Users/alby/Workspace/OpenSource/Multimedia/versatica/prebuild/3.15.7/mediasoup-worker",
         //"WorkerPath": "/Users/alby/Workspace/OpenSource/Multimedia/versatica/mediasoup/worker/out/Debug/mediasoup-worker",
-        "NumberOfWorkers": 1,
+        // <=0 表示自动：min(max(CPU/2, 2), 8)。每个 Worker 的 WebRtcServer 端口为 44444 + Worker 序号，防火墙需放行连续端口。
+        "NumberOfWorkers": 0,
         "UseWebRtcServer": true
     },
     "MediasoupSettings": {
@@ -132,11 +133,13 @@
                     }
                 }
             ],
-            "InitialAvailableOutgoingBitrate": 1000000,
+            // 客户端下行聚合：1 路高清(4 Mbps) + 最多 63 路缩略(160 Kbps) + 音频。
+            "InitialAvailableOutgoingBitrate": 20000000,
             "MinimumAvailableOutgoingBitrate": 600000,
             "MaxSctpMessageSize": 262144,
             // Additional options that are not part of WebRtcTransportOptions.
-            "MaximumIncomingBitrate": 1500000
+            // 上行：4 Mbps 高清 + 160 Kbps 缩略 + 音频/协议开销。
+            "MaximumIncomingBitrate": 6000000
         },
         // mediasoup PlainTransport options for legacy RTP endpoints (FFmpeg,
         // GStreamer).

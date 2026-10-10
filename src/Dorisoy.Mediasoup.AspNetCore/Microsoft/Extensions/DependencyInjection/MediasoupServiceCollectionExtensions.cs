@@ -56,10 +56,9 @@ namespace Microsoft.Extensions.DependencyInjection
             mediasoupOptions.MediasoupStartupSettings.MediasoupVersion = mediasoupStartupSettings.MediasoupVersion;
             mediasoupOptions.MediasoupStartupSettings.WorkerInProcess = mediasoupStartupSettings.WorkerInProcess;
             mediasoupOptions.MediasoupStartupSettings.WorkerPath = mediasoupStartupSettings.WorkerPath;
-            mediasoupOptions.MediasoupStartupSettings.NumberOfWorkers =
-                !mediasoupStartupSettings.NumberOfWorkers.HasValue || mediasoupStartupSettings.NumberOfWorkers <= 0
-                    ? Environment.ProcessorCount
-                    : mediasoupStartupSettings.NumberOfWorkers;
+            mediasoupOptions.MediasoupStartupSettings.NumberOfWorkers = MediasoupServer.ResolveNumberOfWorkers(
+                mediasoupStartupSettings.NumberOfWorkers
+            );
             mediasoupOptions.MediasoupStartupSettings.UseWebRtcServer = mediasoupStartupSettings.UseWebRtcServer;
 
             // WorkerSettings
@@ -127,6 +126,8 @@ namespace Microsoft.Extensions.DependencyInjection
                 webRtcTransportSettings.MinimumAvailableOutgoingBitrate;
             mediasoupOptions.MediasoupSettings.WebRtcTransportSettings.MaxSctpMessageSize =
                 webRtcTransportSettings.MaxSctpMessageSize;
+            mediasoupOptions.MediasoupSettings.WebRtcTransportSettings.MaximumIncomingBitrate =
+                webRtcTransportSettings.MaximumIncomingBitrate;
 
             // 如果没有设置 ListenInfos 则获取本机所有的 IPv4 地址进行设置。
             var webRtcTransportListenInfos = mediasoupOptions.MediasoupSettings.WebRtcTransportSettings.ListenInfos;

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using FBS.WebRtcTransport;
 using Microsoft.Extensions.Logging;
@@ -34,6 +36,8 @@ namespace Dorisoy.Meeting.Server
 
         private readonly AsyncAutoResetEvent _roomsLock = new();
 
+        private static readonly TimeSpan CapacityMetricsInterval = TimeSpan.FromSeconds(5);
+
         #endregion Private Fields
 
         public RtpCapabilities DefaultRtpCapabilities { get; }
@@ -51,6 +55,8 @@ namespace Dorisoy.Meeting.Server
             DefaultRtpCapabilities = ORTC.GenerateRouterRtpCapabilities(rtpCodecCapabilities);
 
             _roomsLock.Set();
+
+            _ = Task.Run(LogCapacityMetricsLoopAsync);
         }
 
         public async Task<Peer> JoinAsync(string peerId, string connectionId, IHubClient hubClient, JoinRequest joinRequest)
@@ -116,26 +122,29 @@ namespace Dorisoy.Meeting.Server
                     // Room 如果不存在则创建
                     if (!_rooms.TryGetValue(joinRoomRequest.RoomId, out var room))
                     {
-                        // Router media codecs.
-                        var mediaCodecs = _mediasoupOptions.MediasoupSettings.RouterSettings.RtpCodecCapabilities;
-
-                        // Create a mediasoup Router.
-                        var worker = _mediasoupServer.GetWorker();
-                        var router = await worker.CreateRouterAsync(new RouterOptions { MediaCodecs = mediaCodecs });
-
-                        // Create a mediasoup AudioLevelObserver.
-                        var audioLevelObserver = await router.CreateAudioLevelObserverAsync(
-                            new AudioLevelObserverOptions
-                            {
-                                MaxEntries = 1,
-                                Threshold = -80,
-                                Interval = 800,
-                            }
+                        var primaryShard =
+                            await CreateMediaShardAsync(0, Array.Empty<IWorker>())
+                            ?? throw new Exception("JoinRoomAsync() | No mediasoup worker available.");
+                        var maxShardCount = RoomMediaShardPolicy.GetMaxShardCount(_mediasoupServer.GetWorkers().Count);
+                        var pipeListenInfo = Room.CreateDefaultPipeListenInfo(
+                            _mediasoupOptions.MediasoupSettings.PlainTransportSettings.ListenInfo?.PortRange
                         );
 
-                        var webRtcServer = worker.GetDefaultWebRtcServer();
-                        room = new Room(_loggerFactory, webRtcServer, router, audioLevelObserver, joinRoomRequest.RoomId, "Default");
+                        room = new Room(
+                            _loggerFactory,
+                            primaryShard,
+                            maxShardCount,
+                            CreateMediaShardAsync,
+                            pipeListenInfo,
+                            joinRoomRequest.RoomId,
+                            "Default"
+                        );
                         _rooms[room.RoomId] = room;
+
+                        _logger.LogInformation(
+                            "JoinRoomAsync() | Room {RoomId} created on worker {WorkerIndex}, max shards {MaxShards}",
+                            room.RoomId, primaryShard.WorkerIndex, maxShardCount
+                        );
                     }
 
                     var result = await peer.JoinRoomAsync(room);
@@ -262,6 +271,16 @@ namespace Dorisoy.Meeting.Server
                 finally
                 {
                     _roomsLock.Set();
+                }
+
+                // 5. 关闭房间全部分片 Router，释放 PipeTransport/PipeProducer/PipeConsumer
+                try
+                {
+                    await room.CloseAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "DismissRoomAsync() | 关闭房间 {RoomId} 媒体分片失败", room.RoomId);
                 }
 
                 return new DismissRoomResult
@@ -902,6 +921,159 @@ namespace Dorisoy.Meeting.Server
             {
                 throw new DisconnectedException($"New: {connectionId} Old:{peer.ConnectionId}");
             }
+        }
+
+        /// <summary>
+        /// 创建房间媒体分片：优先选择房间尚未使用的 Worker；没有空闲 Worker 时返回 null。
+        /// </summary>
+        private async Task<RoomMediaShard?> CreateMediaShardAsync(int shardIndex, IReadOnlyCollection<IWorker> excludedWorkers)
+        {
+            var workerCount = _mediasoupServer.GetWorkers().Count;
+            IWorker? worker = null;
+            for (var i = 0; i < workerCount; i++)
+            {
+                var candidate = _mediasoupServer.GetWorker();
+                if (!excludedWorkers.Contains(candidate))
+                {
+                    worker = candidate;
+                    break;
+                }
+            }
+
+            if (worker == null)
+            {
+                return null;
+            }
+
+            // Router media codecs.
+            var mediaCodecs = _mediasoupOptions.MediasoupSettings.RouterSettings.RtpCodecCapabilities;
+
+            // Create a mediasoup Router.
+            var router = await worker.CreateRouterAsync(new RouterOptions { MediaCodecs = mediaCodecs });
+            try
+            {
+                // Create a mediasoup AudioLevelObserver.
+                var audioLevelObserver = await router.CreateAudioLevelObserverAsync(
+                    new AudioLevelObserverOptions
+                    {
+                        MaxEntries = 1,
+                        Threshold = -80,
+                        Interval = 800,
+                    }
+                );
+
+                return new RoomMediaShard(
+                    shardIndex,
+                    _mediasoupServer.GetWorkerIndex(worker),
+                    worker,
+                    router,
+                    worker.GetDefaultWebRtcServer(),
+                    audioLevelObserver
+                );
+            }
+            catch
+            {
+                await router.CloseAsync();
+                throw;
+            }
+        }
+
+        private async Task LogCapacityMetricsLoopAsync()
+        {
+            using var timer = new PeriodicTimer(CapacityMetricsInterval);
+            while (await timer.WaitForNextTickAsync())
+            {
+                try
+                {
+                    await LogCapacityMetricsAsync();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogDebug(ex, "LogCapacityMetricsAsync() failed");
+                }
+            }
+        }
+
+        /// <summary>
+        /// 每 5 秒输出房间级容量指标和 Worker 上的 Router 分布。码率按固定档位估算，不代表实测值。
+        /// </summary>
+        private async Task LogCapacityMetricsAsync()
+        {
+            Room[] rooms;
+            await _roomsLock.WaitAsync();
+            try
+            {
+                rooms = _rooms.Values.ToArray();
+            }
+            finally
+            {
+                _roomsLock.Set();
+            }
+
+            if (rooms.Length == 0)
+            {
+                return;
+            }
+
+            var workerRouters = new Dictionary<int, int>();
+            foreach (var room in rooms)
+            {
+                Peer[] peers;
+                try
+                {
+                    peers = await room.GetPeersAsync();
+                }
+                catch
+                {
+                    continue;
+                }
+
+                var snapshot = room.GetMediaSnapshot();
+                foreach (var shard in snapshot.Shards)
+                {
+                    workerRouters[shard.WorkerIndex] = workerRouters.GetValueOrDefault(shard.WorkerIndex) + 1;
+                }
+
+                if (peers.Length == 0)
+                {
+                    continue;
+                }
+
+                int primary = 0, thumbnail = 0, audio = 0;
+                long egress = 0, ingress = 0;
+                foreach (var peer in peers)
+                {
+                    var budget = await peer.GetConsumerBudgetAsync();
+                    primary += budget.Primary;
+                    thumbnail += budget.Thumbnail;
+                    audio += budget.Audio;
+                    egress += budget.EstimatedBitrate;
+
+                    var producers = await peer.GetProducersASync();
+                    ingress += producers.Values.Sum(item => MediaCapacityEstimator.EstimateBitrate(item.Source, item.Data.Kind));
+                }
+
+                _logger.LogInformation(
+                    "Capacity | Room:{RoomId} Peers:{Peers} Producers:{Producers} Consumers:{Consumers} (HD:{Primary} Thumb:{Thumbnail} Audio:{Audio}) Pipes:{Pipes} EstIngress:{Ingress:F1}Mbps EstEgress:{Egress:F1}Mbps Shards:[{Shards}]",
+                    room.RoomId,
+                    peers.Length,
+                    snapshot.ProducerCount,
+                    primary + thumbnail + audio,
+                    primary,
+                    thumbnail,
+                    audio,
+                    snapshot.PipeProducerCount,
+                    ingress / 1_000_000d,
+                    egress / 1_000_000d,
+                    string.Join(", ", snapshot.Shards.Select(item => $"#{item.Index}@W{item.WorkerIndex}:{item.PeerCount}"))
+                );
+            }
+
+            _logger.LogInformation(
+                "Capacity | Workers:{WorkerCount} RoutersPerWorker:[{Distribution}]",
+                _mediasoupServer.GetWorkers().Count,
+                string.Join(", ", workerRouters.OrderBy(item => item.Key).Select(item => $"W{item.Key}:{item.Value}"))
+            );
         }
     }
 }

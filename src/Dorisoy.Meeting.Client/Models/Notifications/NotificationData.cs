@@ -38,6 +38,11 @@ public class NewConsumerData
     public string Kind { get; set; } = string.Empty;
 
     /// <summary>
+    /// 明确的媒体源，例如 audio:mic、video:cam、video:thumb。
+    /// </summary>
+    public string Source { get; set; } = string.Empty;
+
+    /// <summary>
     /// 生产者 ID
     /// </summary>
     public string ProducerId { get; set; } = string.Empty;
@@ -88,6 +93,27 @@ public class ProducerClosedData
     /// 生产者 ID
     /// </summary>
     public string ProducerId { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// 发言者通知条目（服务端 AudioLevelObserver 按音量排序）
+/// </summary>
+public class ActiveSpeakerData
+{
+    /// <summary>
+    /// 发言者 Peer ID
+    /// </summary>
+    public string? PeerId { get; set; }
+
+    /// <summary>
+    /// 音频生产者 ID
+    /// </summary>
+    public string? ProducerId { get; set; }
+
+    /// <summary>
+    /// 音量（dBov）
+    /// </summary>
+    public double Volume { get; set; }
 }
 
 /// <summary>

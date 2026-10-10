@@ -55,6 +55,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wpf.Ui.ToastNotifications",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wpf.Ui.Tray", "UI\Wpf.Ui.Tray\Wpf.Ui.Tray.csproj", "{9276894F-D0E5-AA6D-5713-ABD8998F54F5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Dorisoy.Meeting.Server.Tests", "src\Dorisoy.Meeting.Server.Tests\Dorisoy.Meeting.Server.Tests.csproj", "{66DA19F0-1E6E-41A7-86D1-51BECF776325}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -257,6 +259,18 @@ Global
 		{9276894F-D0E5-AA6D-5713-ABD8998F54F5}.Release|x64.Build.0 = Release|Any CPU
 		{9276894F-D0E5-AA6D-5713-ABD8998F54F5}.Release|x86.ActiveCfg = Release|Any CPU
 		{9276894F-D0E5-AA6D-5713-ABD8998F54F5}.Release|x86.Build.0 = Release|Any CPU
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325}.Debug|x64.Build.0 = Debug|Any CPU
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325}.Debug|x86.Build.0 = Debug|Any CPU
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325}.Release|Any CPU.Build.0 = Release|Any CPU
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325}.Release|x64.ActiveCfg = Release|Any CPU
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325}.Release|x64.Build.0 = Release|Any CPU
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325}.Release|x86.ActiveCfg = Release|Any CPU
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -278,6 +292,7 @@ Global
 		{F3CF028F-8A7F-712D-C6C9-58CD6A703DAE} = {54B396EB-145E-06CA-FFB9-56CB827DB37A}
 		{D4B7AC22-2B6D-4A82-EEE6-8FFE68C70A70} = {54B396EB-145E-06CA-FFB9-56CB827DB37A}
 		{9276894F-D0E5-AA6D-5713-ABD8998F54F5} = {54B396EB-145E-06CA-FFB9-56CB827DB37A}
+		{66DA19F0-1E6E-41A7-86D1-51BECF776325} = {3022B5C8-029D-4820-A750-50C26012C147}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {A9333FD9-616F-4567-9803-93532D97E02B}

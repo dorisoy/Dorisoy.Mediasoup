@@ -199,6 +199,12 @@ public partial class MainViewModel : ObservableObject
     private bool _isLeftToolbarVisible = true;
 
     /// <summary>
+    /// 底部控制栏是否展开
+    /// </summary>
+    [ObservableProperty]
+    private bool _isBottomControlBarVisible = true;
+
+    /// <summary>
     /// 是否已举手
     /// </summary>
     [ObservableProperty]
@@ -364,6 +370,30 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty]
     private RemoteVideoItem? _maximizedRemoteVideo;
 
+    /// <summary>
+    /// 当前被提升为高清的远端主画面
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(StageRemoteVideo))]
+    [NotifyPropertyChangedFor(nameof(IsStageLayout))]
+    [NotifyPropertyChangedFor(nameof(IsGridLayout))]
+    private RemoteVideoItem? _primaryRemoteVideo;
+
+    /// <summary>
+    /// 主舞台显示的远端视频：高清主画面优先，否则显示第一个远端缩略画面
+    /// </summary>
+    public RemoteVideoItem? StageRemoteVideo => PrimaryRemoteVideo ?? RemoteVideos.FirstOrDefault();
+
+    /// <summary>
+    /// 是否使用“大主画面 + 横向缩略条”布局
+    /// </summary>
+    public bool IsStageLayout => RemoteVideos.Count > 0 && (PrimaryRemoteVideo != null || AllVideos.Count > StageLayoutThreshold);
+
+    /// <summary>
+    /// 是否使用均匀网格布局
+    /// </summary>
+    public bool IsGridLayout => !IsStageLayout;
+
     #endregion
 
     #region 屏幕共享相关属性
@@ -466,6 +496,7 @@ public partial class MainViewModel : ObservableObject
     private string? _sendTransportId;
     private string? _recvTransportId;
     private string? _videoProducerId;
+    private string? _thumbnailVideoProducerId;
     private string? _audioProducerId;
 
     /// <summary>
@@ -491,6 +522,28 @@ public partial class MainViewModel : ObservableObject
     /// 用于解决竞态条件：当同一个 Peer 的多个 consumer 几乎同时到达时，防止重复创建 transport
     /// </summary>
     private readonly HashSet<string> _peerTransportCreatingSet = new();
+
+    private const string PrimaryVideoSource = "video:cam";
+    private const int ActiveSpeakerStableDelayMs = 800;
+    private const int StageLayoutThreshold = 4;
+
+    private sealed record RemoteVideoConsumerRoute(string PeerId, string Source);
+
+    /// <summary>
+    /// consumerId 到 peer/source 的映射，同一用户的高清与缩略流聚合到同一张卡片。
+    /// 只在 UI 线程访问。
+    /// </summary>
+    private readonly Dictionary<string, RemoteVideoConsumerRoute> _remoteVideoConsumerRoutes = new();
+
+    /// <summary>
+    /// 串行化主画面切换请求，保证同一时刻只有一个远端用户被提升为高清。
+    /// </summary>
+    private readonly SemaphoreSlim _primaryVideoSelectionLock = new(1, 1);
+    private string? _primaryVideoPeerId;
+    private bool _isPrimaryVideoPinned;
+    private string? _activeSpeakerCandidatePeerId;
+    private DateTime _activeSpeakerCandidateSince;
+    private int _activeSpeakerCandidateVersion;
 
     #endregion
 
@@ -527,7 +580,13 @@ public partial class MainViewModel : ObservableObject
 
         // 订阅 RemoteVideos 集合变化事件 - 同步更新 AllVideos
         RemoteVideos.CollectionChanged += OnRemoteVideosCollectionChanged;
-        AllVideos.CollectionChanged += (s, e) => OnPropertyChanged(nameof(HasNoVideos));
+        AllVideos.CollectionChanged += (s, e) =>
+        {
+            OnPropertyChanged(nameof(HasNoVideos));
+            OnPropertyChanged(nameof(StageRemoteVideo));
+            OnPropertyChanged(nameof(IsStageLayout));
+            OnPropertyChanged(nameof(IsGridLayout));
+        };
 
         // 订阅重连事件
         _signalRService.OnReconnecting += OnSignalRReconnecting;
@@ -890,6 +949,16 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// 折叠或展开底部控制栏。
+    /// </summary>
+    [RelayCommand]
+    private void ToggleBottomControlBar()
+    {
+        IsBottomControlBarVisible = !IsBottomControlBarVisible;
+        StatusMessage = IsBottomControlBarVisible ? "已展开底部控制栏" : "已折叠底部控制栏";
+    }
+
+    /// <summary>
     /// 更新视频网格中的本地视频显示状态
     /// </summary>
     private void UpdateLocalVideoInGrid()
@@ -951,6 +1020,7 @@ public partial class MainViewModel : ObservableObject
                     {
                         AllVideos.Add(localItem);
                     }
+                    ResetPrimaryVideoState();
                     break;
             }
 
@@ -1981,9 +2051,10 @@ public partial class MainViewModel : ObservableObject
 
     /// <summary>
     /// 最大化/还原远程视频
+    /// 最大化远端视频时固定其为高清主画面并暂停发言者自动切换；还原时关闭高清并恢复自动切换。
     /// </summary>
     [RelayCommand]
-    private void ToggleMaximizeRemoteVideo(RemoteVideoItem? video)
+    private async Task ToggleMaximizeRemoteVideoAsync(RemoteVideoItem? video)
     {
         if(video == null)
             return;
@@ -1994,19 +2065,157 @@ public partial class MainViewModel : ObservableObject
             video.IsMaximized = false;
             MaximizedRemoteVideo = null;
             _logger.LogInformation("还原远程视频: {DisplayName}", video.DisplayName);
-        }
-        else
-        {
-            // 取消之前的最大化
-            if(MaximizedRemoteVideo != null)
+            if(!video.IsLocal)
             {
-                MaximizedRemoteVideo.IsMaximized = false;
+                _isPrimaryVideoPinned = false;
+                await SelectPrimaryVideoAsync(null, "restore");
             }
-            // 最大化当前视频
-            video.IsMaximized = true;
-            MaximizedRemoteVideo = video;
-            _logger.LogInformation("最大化远程视频: {DisplayName}", video.DisplayName);
+            return;
         }
+
+        // 取消之前的最大化
+        if(MaximizedRemoteVideo != null)
+        {
+            MaximizedRemoteVideo.IsMaximized = false;
+        }
+        // 最大化当前视频
+        video.IsMaximized = true;
+        MaximizedRemoteVideo = video;
+        _logger.LogInformation("最大化远程视频: {DisplayName}", video.DisplayName);
+
+        if(video.IsLocal)
+            return;
+
+        _isPrimaryVideoPinned = true;
+        _activeSpeakerCandidateVersion++;
+        if(!await SelectPrimaryVideoAsync(video.PeerId, "manual"))
+        {
+            StatusMessage = "高清主画面切换失败，继续显示缩略画面";
+        }
+    }
+
+    /// <summary>
+    /// 请求服务端将指定用户提升为高清主画面；peerId 为 null 时关闭高清 Consumer。
+    /// </summary>
+    private async Task<bool> SelectPrimaryVideoAsync(string? peerId, string reason)
+    {
+        if(!IsJoinedRoom)
+            return false;
+
+        await _primaryVideoSelectionLock.WaitAsync();
+        try
+        {
+            // 自动切换在排队期间可能被手动固定取代，拿到锁后需要重新检查。
+            if(reason == "active-speaker" && _isPrimaryVideoPinned)
+                return false;
+            if(peerId == _primaryVideoPeerId)
+                return true;
+
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+            var result = await _signalRService.InvokeAsync("SelectPrimaryVideo", new { ProducerPeerId = peerId });
+            if(!result.IsSuccess)
+            {
+                _logger.LogWarning("主画面切换失败: Target={PeerId}, Reason={Reason}, Message={Message}",
+                    peerId, reason, result.Message);
+                return false;
+            }
+
+            _primaryVideoPeerId = peerId;
+            Application.Current?.Dispatcher.Invoke(ApplyPrimaryVideoSelection);
+            _logger.LogInformation("主画面切换完成: Target={PeerId}, Reason={Reason}, Elapsed={Elapsed}ms, Message={Message}",
+                peerId, reason, stopwatch.ElapsedMilliseconds, result.Message);
+            return true;
+        }
+        catch(Exception ex)
+        {
+            _logger.LogWarning(ex, "主画面切换异常: Target={PeerId}, Reason={Reason}", peerId, reason);
+            return false;
+        }
+        finally
+        {
+            _primaryVideoSelectionLock.Release();
+        }
+    }
+
+    private void ApplyPrimaryVideoSelection()
+    {
+        foreach(var item in RemoteVideos)
+        {
+            item.IsPrimary = !string.IsNullOrEmpty(_primaryVideoPeerId) && item.PeerId == _primaryVideoPeerId;
+        }
+        PrimaryRemoteVideo = RemoteVideos.FirstOrDefault(v => v.IsPrimary);
+    }
+
+    private void ResetPrimaryVideoState()
+    {
+        _remoteVideoConsumerRoutes.Clear();
+        _primaryVideoPeerId = null;
+        _isPrimaryVideoPinned = false;
+        _activeSpeakerCandidatePeerId = null;
+        _activeSpeakerCandidateVersion++;
+        PrimaryRemoteVideo = null;
+        if(MaximizedRemoteVideo is { IsLocal: false })
+        {
+            MaximizedRemoteVideo.IsMaximized = false;
+            MaximizedRemoteVideo = null;
+        }
+    }
+
+    /// <summary>
+    /// 处理发言者通知：未手动固定主画面时，发言者稳定 800ms 后自动切换高清。
+    /// </summary>
+    private void HandleActiveSpeaker(object? data)
+    {
+        string? peerId = null;
+        if(data != null)
+        {
+            var json = JsonSerializer.Serialize(data);
+            var speakers = JsonSerializer.Deserialize<List<ActiveSpeakerData>>(json, JsonOptions);
+            peerId = speakers?.FirstOrDefault()?.PeerId;
+        }
+
+        // 静音或本人发言时取消待定切换，保留当前主画面。
+        if(string.IsNullOrEmpty(peerId) || peerId == CurrentPeerId)
+        {
+            _activeSpeakerCandidatePeerId = null;
+            _activeSpeakerCandidateVersion++;
+            return;
+        }
+
+        if(_isPrimaryVideoPinned)
+            return;
+
+        if(peerId != _activeSpeakerCandidatePeerId)
+        {
+            _activeSpeakerCandidatePeerId = peerId;
+            _activeSpeakerCandidateSince = DateTime.UtcNow;
+            var version = ++_activeSpeakerCandidateVersion;
+            _ = PromoteActiveSpeakerAfterDelayAsync(peerId, version);
+            return;
+        }
+
+        if((DateTime.UtcNow - _activeSpeakerCandidateSince).TotalMilliseconds >= ActiveSpeakerStableDelayMs)
+        {
+            _ = PromoteActiveSpeakerAsync(peerId);
+        }
+    }
+
+    private async Task PromoteActiveSpeakerAfterDelayAsync(string peerId, int version)
+    {
+        await Task.Delay(ActiveSpeakerStableDelayMs);
+        if(version != _activeSpeakerCandidateVersion)
+            return;
+        await PromoteActiveSpeakerAsync(peerId);
+    }
+
+    private async Task PromoteActiveSpeakerAsync(string peerId)
+    {
+        if(_isPrimaryVideoPinned || peerId == _primaryVideoPeerId)
+            return;
+        // 未开启摄像头的发言者不抢占主画面。
+        if(!RemoteVideos.Any(v => v.PeerId == peerId))
+            return;
+        await SelectPrimaryVideoAsync(peerId, "active-speaker");
     }
 
     /// <summary>
@@ -3324,30 +3533,11 @@ public partial class MainViewModel : ObservableObject
             _logger.LogInformation("SwitchCameraAsync() | Switching camera to device: {DeviceId}", deviceId);
             StatusMessage = "正在切换摄像头...";
 
-            // 1. 先关闭服务器端的旧 Producer（如果存在）
-            var oldProducerId = _videoProducerId;
-            if(!string.IsNullOrEmpty(oldProducerId))
+            // 1. 高清与缩略 Producer 必须成对关闭，避免旧 SSRC 残留。
+            if(!string.IsNullOrEmpty(_videoProducerId) || !string.IsNullOrEmpty(_thumbnailVideoProducerId))
             {
-                _logger.LogInformation("SwitchCameraAsync() | Closing old video producer: {ProducerId}", oldProducerId);
-                try
-                {
-                    var closeResult = await _signalRService.InvokeAsync("CloseProducer", oldProducerId);
-                    if(closeResult.IsSuccess)
-                    {
-                        _logger.LogInformation("SwitchCameraAsync() | CloseProducer succeeded for {ProducerId}", oldProducerId);
-                        // 等待服务端完成状态清理
-                        await Task.Delay(CloseProducerWaitMs);
-                    }
-                    else
-                    {
-                        _logger.LogWarning("SwitchCameraAsync() | CloseProducer returned failure: {Message}", closeResult.Message);
-                    }
-                }
-                catch(Exception ex)
-                {
-                    _logger.LogWarning(ex, "SwitchCameraAsync() | CloseProducer exception, will continue anyway");
-                }
-                _videoProducerId = null;
+                await CloseVideoProducersAsync();
+                await Task.Delay(CloseProducerWaitMs);
             }
 
             // 2. 停止当前摄像头
@@ -3377,7 +3567,7 @@ public partial class MainViewModel : ObservableObject
                     try
                     {
                         await ProduceVideoWithResultAsync();
-                        if(!string.IsNullOrEmpty(_videoProducerId))
+                        if(!string.IsNullOrEmpty(_videoProducerId) && !string.IsNullOrEmpty(_thumbnailVideoProducerId))
                         {
                             success = true;
                             _logger.LogInformation("SwitchCameraAsync() | ProduceVideoAsync succeeded on attempt {Attempt}", retry + 1);
@@ -3417,24 +3607,73 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     private async Task ProduceVideoWithResultAsync()
     {
-        // 从 SendTransport 获取实际使用的 SSRC，确保与 RTP 发送一致
-        var videoSsrc = _webRtcService.SendTransport?.VideoSsrc ?? 0;
+        var sendTransport = _webRtcService.SendTransport
+            ?? throw new InvalidOperationException("Send Transport 尚未创建");
         var currentCodec = _webRtcService.CurrentVideoCodec;
-        var produceRequest = RtpParametersFactory.CreateVideoProduceRequest(videoSsrc, currentCodec);
-        _logger.LogInformation("ProduceVideoWithResultAsync() | 创建视频 Producer: SSRC={Ssrc}, Codec={Codec}, Source={Source}",
-            videoSsrc, currentCodec, produceRequest.Source);
+        var primaryRequest = RtpParametersFactory.CreateVideoProduceRequest(
+            sendTransport.VideoSsrc,
+            currentCodec,
+            source: "video:cam",
+            mid: "0",
+            maxBitrate: 4_000_000);
+        var thumbnailRequest = RtpParametersFactory.CreateVideoProduceRequest(
+            sendTransport.ThumbnailVideoSsrc,
+            currentCodec,
+            source: "video:thumb",
+            mid: "1",
+            maxBitrate: 160_000);
 
-        var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
-        if(result.IsSuccess && result.Data != null)
+        var primaryResult = await _signalRService.InvokeAsync<ProduceResponse>("Produce", primaryRequest);
+        if(!primaryResult.IsSuccess || primaryResult.Data == null)
+            throw new Exception(primaryResult.Message ?? "高清 Producer 创建失败");
+
+        _videoProducerId = primaryResult.Data.Id;
+        try
         {
-            _videoProducerId = result.Data.Id;
-            _logger.LogInformation("ProduceVideoWithResultAsync() | Video producer created: {ProducerId}, SSRC: {Ssrc}", _videoProducerId, videoSsrc);
+            var thumbnailResult = await _signalRService.InvokeAsync<ProduceResponse>("Produce", thumbnailRequest);
+            if(!thumbnailResult.IsSuccess || thumbnailResult.Data == null)
+                throw new Exception(thumbnailResult.Message ?? "缩略 Producer 创建失败");
+
+            _thumbnailVideoProducerId = thumbnailResult.Data.Id;
+            _logger.LogInformation(
+                "双视频 Producer 已创建: Primary={PrimaryProducerId}/{PrimarySsrc}, Thumbnail={ThumbnailProducerId}/{ThumbnailSsrc}, Codec={Codec}",
+                _videoProducerId,
+                sendTransport.VideoSsrc,
+                _thumbnailVideoProducerId,
+                sendTransport.ThumbnailVideoSsrc,
+                currentCodec);
             StatusMessage = "视频推送中";
         }
-        else
+        catch
         {
-            _logger.LogWarning("ProduceVideoWithResultAsync() | Failed to produce video: {Message}", result.Message);
-            throw new Exception(result.Message ?? "Produce 失败");
+            // 双流是一组生命周期；第二路失败时回滚第一路，避免半开状态。
+            await CloseVideoProducersAsync();
+            throw;
+        }
+    }
+
+    private async Task CloseVideoProducersAsync()
+    {
+        var producerIds = new[] { _videoProducerId, _thumbnailVideoProducerId }
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Cast<string>()
+            .Distinct()
+            .ToArray();
+
+        _videoProducerId = null;
+        _thumbnailVideoProducerId = null;
+        foreach(var producerId in producerIds)
+        {
+            try
+            {
+                var result = await _signalRService.InvokeAsync("CloseProducer", producerId);
+                if(!result.IsSuccess)
+                    _logger.LogWarning("关闭视频 Producer {ProducerId} 失败: {Message}", producerId, result.Message);
+            }
+            catch(Exception ex)
+            {
+                _logger.LogWarning(ex, "关闭视频 Producer {ProducerId} 异常", producerId);
+            }
         }
     }
 
@@ -3577,12 +3816,8 @@ public partial class MainViewModel : ObservableObject
                 // 关闭摄像头
                 await _webRtcService.StopCameraAsync();
 
-                // 关闭 Producer
-                if(!string.IsNullOrEmpty(_videoProducerId))
-                {
-                    await _signalRService.InvokeAsync("CloseProducer", _videoProducerId);
-                    _videoProducerId = null;
-                }
+                // 高清与缩略 Producer 成对关闭。
+                await CloseVideoProducersAsync();
 
                 UpdateMediaStateOnUiThread(camera: false, mic: null);
                 LocalVideoFrame = null;
@@ -3754,7 +3989,7 @@ public partial class MainViewModel : ObservableObject
             rtpCapabilities = _routerRtpCapabilities,
             sctpCapabilities = (object?)null,
             displayName = CurrentUserName,  // 使用用户输入的真实用户名
-            sources = new[] { "audio:mic", "video:cam" },
+            sources = new[] { "audio:mic", "video:cam", "video:thumb" },
             appData = new Dictionary<string, object>()
         };
 
@@ -4119,6 +4354,7 @@ public partial class MainViewModel : ObservableObject
         _sendTransportId = null;
         _recvTransportId = null;
         _videoProducerId = null;
+        _thumbnailVideoProducerId = null;
         _audioProducerId = null;
 
         // 清理待恢复的 Consumer 列表
@@ -4181,6 +4417,7 @@ public partial class MainViewModel : ObservableObject
         _sendTransportId = null;
         _recvTransportId = null;
         _videoProducerId = null;
+        _thumbnailVideoProducerId = null;
         _audioProducerId = null;
         _currentAccessToken = string.Empty;
 
@@ -4252,6 +4489,7 @@ public partial class MainViewModel : ObservableObject
         _sendTransportId = null;
         _recvTransportId = null;
         _videoProducerId = null;
+        _thumbnailVideoProducerId = null;
         _audioProducerId = null;
         _currentAccessToken = string.Empty;
 
@@ -4472,28 +4710,11 @@ public partial class MainViewModel : ObservableObject
     {
         try
         {
-            // 从 SendTransport 获取实际使用的 SSRC，确保与 RTP 发送一致
-            var videoSsrc = _webRtcService.SendTransport?.VideoSsrc ?? 0;
-            var currentCodec = _webRtcService.CurrentVideoCodec;
-            var produceRequest = RtpParametersFactory.CreateVideoProduceRequest(videoSsrc, currentCodec);
-            _logger.LogInformation("创建视频 Producer: SSRC={Ssrc}, Codec={Codec}", videoSsrc, currentCodec);
-
-            var result = await _signalRService.InvokeAsync<ProduceResponse>("Produce", produceRequest);
-            if(result.IsSuccess && result.Data != null)
-            {
-                _videoProducerId = result.Data.Id;
-                _logger.LogInformation("Video producer created: {ProducerId}, SSRC: {Ssrc}", _videoProducerId, videoSsrc);
-                StatusMessage = "视频推送中";
-            }
-            else
-            {
-                _logger.LogWarning("Failed to produce video: {Message}", result.Message);
-                StatusMessage = $"视频推送失败: {result.Message}";
-            }
+            await ProduceVideoWithResultAsync();
         }
         catch(Exception ex)
         {
-            _logger.LogError(ex, "Failed to produce video");
+            _logger.LogError(ex, "创建双视频 Producer 失败");
             StatusMessage = $"视频推送异常: {ex.Message}";
         }
     }
@@ -4556,40 +4777,148 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
-    /// 处理远端视频帧
+    /// 处理远端视频帧：按 consumer 映射到对应 Peer 卡片的高清或缩略帧
     /// </summary>
     private void OnRemoteVideoFrameReceived(string consumerId, WriteableBitmap frame)
     {
         try
         {
-            _logger.LogDebug("收到远端视频帧: ConsumerId={ConsumerId}, Frame={Width}x{Height}",
-                consumerId, frame?.PixelWidth ?? 0, frame?.PixelHeight ?? 0);
-
-            // 查找或创建对应的远端视频项
-            var existingVideo = RemoteVideos.FirstOrDefault(v => v.ConsumerId == consumerId);
-            if(existingVideo != null)
+            if(!_remoteVideoConsumerRoutes.TryGetValue(consumerId, out var route))
             {
-                existingVideo.VideoFrame = frame;
+                // 未登记的 Consumer（已关闭或尚未收到 newConsumer）不创建卡片，避免同一用户重复显示。
+                _logger.LogDebug("忽略未登记 Consumer 的视频帧: {ConsumerId}", consumerId);
+                return;
             }
+
+            var video = RemoteVideos.FirstOrDefault(v => v.PeerId == route.PeerId);
+            if(video == null)
+                return;
+
+            if(route.Source == PrimaryVideoSource)
+                video.PrimaryFrame = frame;
             else
-            {
-                // 创建新的远端视频项
-                var remoteVideo = new RemoteVideoItem
-                {
-                    ConsumerId = consumerId,
-                    VideoFrame = frame,
-                    DisplayName = $"远端用户_{consumerId.Substring(0, Math.Min(8, consumerId.Length))}"
-                };
-
-                RemoteVideos.Add(remoteVideo);
-                HasNoRemoteVideos = false;
-                _logger.LogInformation("添加远端视频: {ConsumerId}", consumerId);
-            }
+                video.ThumbnailFrame = frame;
         }
         catch(Exception ex)
         {
             _logger.LogError(ex, "处理远端视频帧失败");
         }
+    }
+
+    private static string ResolveConsumerSource(NewConsumerData notification)
+    {
+        if(!string.IsNullOrWhiteSpace(notification.Source))
+            return notification.Source;
+        if(notification.ProducerAppData?.TryGetValue("source", out var source) == true
+            && source?.ToString() is { Length: > 0 } sourceText)
+            return sourceText;
+        return notification.Kind == "video" ? PrimaryVideoSource : "audio:mic";
+    }
+
+    private string ResolvePeerDisplayName(string peerId)
+    {
+        var displayName = Peers.FirstOrDefault(p => p.PeerId == peerId)?.DisplayName;
+        return string.IsNullOrWhiteSpace(displayName)
+            ? $"远端用户_{peerId.Substring(0, Math.Min(8, peerId.Length))}"
+            : displayName;
+    }
+
+    /// <summary>
+    /// 以 PeerId 为稳定身份登记视频 Consumer，同一用户只保留一张卡片。
+    /// </summary>
+    private void AttachRemoteVideoConsumer(string peerId, string consumerId, string producerId, string source)
+    {
+        _remoteVideoConsumerRoutes[consumerId] = new RemoteVideoConsumerRoute(peerId, source);
+
+        var video = RemoteVideos.FirstOrDefault(v => v.PeerId == peerId);
+        if(video == null)
+        {
+            video = new RemoteVideoItem
+            {
+                PeerId = peerId,
+                DisplayName = ResolvePeerDisplayName(peerId),
+                IsPrimary = peerId == _primaryVideoPeerId,
+            };
+            RemoteVideos.Add(video);
+            HasNoRemoteVideos = false;
+            if(video.IsPrimary)
+                PrimaryRemoteVideo = video;
+        }
+
+        if(source == PrimaryVideoSource)
+        {
+            video.PrimaryConsumerId = consumerId;
+            video.PrimaryFrame = null;
+        }
+        else
+        {
+            video.ConsumerId = consumerId;
+            video.ProducerId = producerId;
+            video.ThumbnailConsumerId = consumerId;
+            video.ThumbnailFrame = null;
+        }
+
+        OnPropertyChanged(nameof(StageRemoteVideo));
+        _logger.LogInformation("登记远端视频 Consumer: PeerId={PeerId}, Source={Source}, ConsumerId={ConsumerId}",
+            peerId, source, consumerId);
+    }
+
+    /// <summary>
+    /// 清除单路视频 Consumer；两路都关闭后移除该用户卡片。
+    /// </summary>
+    private void DetachRemoteVideoConsumer(string consumerId)
+    {
+        if(!_remoteVideoConsumerRoutes.Remove(consumerId, out var route))
+            return;
+
+        var video = RemoteVideos.FirstOrDefault(v => v.PeerId == route.PeerId);
+        if(video == null)
+            return;
+
+        if(video.PrimaryConsumerId == consumerId)
+        {
+            video.PrimaryConsumerId = null;
+            video.PrimaryFrame = null;
+        }
+        if(video.ThumbnailConsumerId == consumerId)
+        {
+            video.ThumbnailConsumerId = null;
+            video.ThumbnailFrame = null;
+            video.ConsumerId = string.Empty;
+        }
+
+        _logger.LogInformation("移除远端视频 Consumer: PeerId={PeerId}, Source={Source}, ConsumerId={ConsumerId}",
+            route.PeerId, route.Source, consumerId);
+
+        if(video.HasNoVideoConsumers)
+            RemoveRemoteVideoItem(video);
+    }
+
+    private void RemoveRemoteVideoItem(RemoteVideoItem video)
+    {
+        foreach(var consumerId in _remoteVideoConsumerRoutes
+                     .Where(kv => kv.Value.PeerId == video.PeerId)
+                     .Select(kv => kv.Key)
+                     .ToList())
+        {
+            _remoteVideoConsumerRoutes.Remove(consumerId);
+        }
+
+        if(MaximizedRemoteVideo == video)
+        {
+            video.IsMaximized = false;
+            MaximizedRemoteVideo = null;
+            _isPrimaryVideoPinned = false;
+        }
+        if(SelectedRemoteVideo == video)
+            SelectedRemoteVideo = null;
+        if(PrimaryRemoteVideo == video)
+            PrimaryRemoteVideo = null;
+
+        RemoteVideos.Remove(video);
+        HasNoRemoteVideos = RemoteVideos.Count == 0;
+        OnPropertyChanged(nameof(StageRemoteVideo));
+        _logger.LogInformation("移除远端视频卡片: PeerId={PeerId}", video.PeerId);
     }
 
     private void OnWebRtcStateChanged(string state)
@@ -4726,6 +5055,9 @@ public partial class MainViewModel : ObservableObject
                         break;
                     case "producerClosed":
                         HandleProducerClosed(notification.Data);
+                        break;
+                    case "activeSpeaker":
+                        HandleActiveSpeaker(notification.Data);
                         break;
                     case "chatMessage":
                         HandleChatMessage(notification.Data);
@@ -4865,12 +5197,23 @@ public partial class MainViewModel : ObservableObject
                     notification.PeerId, peer.DisplayName);
             }
 
-            // 移除该 peer 对应的所有远端视频
+            // 移除该 peer 对应的远端视频卡片（含高清/缩略映射）
             var videosToRemove = RemoteVideos.Where(v => v.PeerId == notification.PeerId).ToList();
             foreach(var video in videosToRemove)
             {
-                RemoteVideos.Remove(video);
-                _logger.LogInformation("移除远端视频: ConsumerId={ConsumerId}, PeerId={PeerId}", video.ConsumerId, notification.PeerId);
+                RemoveRemoteVideoItem(video);
+            }
+
+            // 主画面用户离开时清除服务端高清选择，恢复自动切换。
+            if(_activeSpeakerCandidatePeerId == notification.PeerId)
+            {
+                _activeSpeakerCandidatePeerId = null;
+                _activeSpeakerCandidateVersion++;
+            }
+            if(_primaryVideoPeerId == notification.PeerId)
+            {
+                _isPrimaryVideoPinned = false;
+                _ = SelectPrimaryVideoAsync(null, "peer-left");
             }
 
             // 更新无远端视频状态
@@ -5073,30 +5416,15 @@ public partial class MainViewModel : ObservableObject
             return;
 
         var peerId = notification.ProducerPeerId ?? "unknown";
-        _logger.LogInformation("New consumer: ConsumerId={ConsumerId}, Kind={Kind}, ProducerPeerId={ProducerPeerId}",
-            notification.ConsumerId, notification.Kind, peerId);
+        var source = ResolveConsumerSource(notification);
+        _logger.LogInformation("New consumer: ConsumerId={ConsumerId}, Kind={Kind}, Source={Source}, ProducerPeerId={ProducerPeerId}",
+            notification.ConsumerId, notification.Kind, source, peerId);
 
-        // 如果是视频 Consumer，立即在 UI 中添加占位符
+        // 视频 Consumer 按 PeerId 聚合到同一张卡片
         if(notification.Kind == "video")
         {
             Application.Current?.Dispatcher.Invoke(() =>
-            {
-                // 检查是否已存在
-                var existing = RemoteVideos.FirstOrDefault(v => v.ConsumerId == notification.ConsumerId);
-                if(existing == null)
-                {
-                    var remoteVideo = new RemoteVideoItem
-                    {
-                        ConsumerId = notification.ConsumerId,
-                        PeerId = peerId,
-                        DisplayName = $"远端用户_{peerId.Substring(0, Math.Min(8, peerId.Length))}",
-                        VideoFrame = null // 占位符，等待视频帧
-                    };
-                    RemoteVideos.Add(remoteVideo);
-                    HasNoRemoteVideos = false;
-                    _logger.LogInformation("添加远端视频占位符: {ConsumerId}, PeerId={PeerId}", notification.ConsumerId, peerId);
-                }
-            });
+                AttachRemoteVideoConsumer(peerId, notification.ConsumerId, notification.ProducerId, source));
         }
 
         // ==== 单一 Recv Transport 方案（符合 Mediasoup 最佳实践） ====
@@ -5161,16 +5489,8 @@ public partial class MainViewModel : ObservableObject
         {
             _logger.LogInformation("Consumer closed: {ConsumerId}", notification.ConsumerId);
 
-            // 从 RemoteVideos 集合中移除对应的视频项
-            var videoToRemove = RemoteVideos.FirstOrDefault(v => v.ConsumerId == notification.ConsumerId);
-            if(videoToRemove != null)
-            {
-                RemoteVideos.Remove(videoToRemove);
-                _logger.LogInformation("移除远端视频: {ConsumerId}", notification.ConsumerId);
-
-                // 更新无远端视频状态
-                HasNoRemoteVideos = RemoteVideos.Count == 0;
-            }
+            // 只清除对应的一路；高清关闭时卡片回退到缩略帧
+            DetachRemoteVideoConsumer(notification.ConsumerId);
 
             await _webRtcService.RemoveConsumerAsync(notification.ConsumerId);
         }
@@ -6232,6 +6552,11 @@ public class RemoteVideoItem : ObservableObject
     private string _peerId = string.Empty;
     private string _displayName = string.Empty;
     private WriteableBitmap? _videoFrame;
+    private string? _thumbnailConsumerId;
+    private string? _primaryConsumerId;
+    private WriteableBitmap? _thumbnailFrame;
+    private WriteableBitmap? _primaryFrame;
+    private bool _isPrimary;
     private bool _isSelected;
     private bool _isHorizontallyMirrored;
     private bool _isVerticallyMirrored;
@@ -6276,11 +6601,89 @@ public class RemoteVideoItem : ObservableObject
         set => DisplayName = value;
     }
 
+    /// <summary>
+    /// 当前显示帧：高清帧优先，切换等待期间回退到缩略帧。
+    /// 本地视频项直接读写该属性。
+    /// </summary>
     public WriteableBitmap? VideoFrame
     {
-        get => _videoFrame;
-        set => SetProperty(ref _videoFrame, value);
+        get => _primaryFrame ?? _thumbnailFrame ?? _videoFrame;
+        set
+        {
+            if(ReferenceEquals(_videoFrame, value))
+                return;
+            _videoFrame = value;
+            OnPropertyChanged();
+        }
     }
+
+    /// <summary>
+    /// 缩略流 Consumer ID（video:thumb）
+    /// </summary>
+    public string? ThumbnailConsumerId
+    {
+        get => _thumbnailConsumerId;
+        set => SetProperty(ref _thumbnailConsumerId, value);
+    }
+
+    /// <summary>
+    /// 高清流 Consumer ID（video:cam）
+    /// </summary>
+    public string? PrimaryConsumerId
+    {
+        get => _primaryConsumerId;
+        set
+        {
+            if(SetProperty(ref _primaryConsumerId, value))
+                OnPropertyChanged(nameof(IsPrimaryPending));
+        }
+    }
+
+    public WriteableBitmap? ThumbnailFrame
+    {
+        get => _thumbnailFrame;
+        set
+        {
+            if(SetProperty(ref _thumbnailFrame, value))
+                OnPropertyChanged(nameof(VideoFrame));
+        }
+    }
+
+    public WriteableBitmap? PrimaryFrame
+    {
+        get => _primaryFrame;
+        set
+        {
+            if(SetProperty(ref _primaryFrame, value))
+            {
+                OnPropertyChanged(nameof(VideoFrame));
+                OnPropertyChanged(nameof(IsPrimaryPending));
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否已被提升为高清主画面
+    /// </summary>
+    public bool IsPrimary
+    {
+        get => _isPrimary;
+        set
+        {
+            if(SetProperty(ref _isPrimary, value))
+                OnPropertyChanged(nameof(IsPrimaryPending));
+        }
+    }
+
+    /// <summary>
+    /// 已选为主画面但高清帧尚未到达
+    /// </summary>
+    public bool IsPrimaryPending => _isPrimary && _primaryFrame == null;
+
+    /// <summary>
+    /// 是否已无任何远端视频 Consumer
+    /// </summary>
+    public bool HasNoVideoConsumers => string.IsNullOrEmpty(_thumbnailConsumerId) && string.IsNullOrEmpty(_primaryConsumerId);
 
     /// <summary>
     /// 是否被选中

@@ -928,6 +928,29 @@ namespace Dorisoy.Meeting.Server
         {
             try
             {
+                // 自动订阅仅允许音频和缩略视频；高清必须由观看者显式选择。
+                string? selectedPrimaryPeerId = null;
+                if (producer.Data.Kind == MediaKind.VIDEO && producer.Source == ConsumerSubscriptionPolicy.PrimaryVideoSource)
+                {
+                    var consumerPeer = await _scheduler.GetPeerAsync(consumerPeerId, null);
+                    if (consumerPeer == null)
+                        return;
+                    selectedPrimaryPeerId = await consumerPeer.GetPrimaryVideoSelectionAsync();
+                }
+
+                if (!ConsumerSubscriptionPolicy.ShouldAutoConsume(producer.Data.Kind, producer.Source, producerPeerId, selectedPrimaryPeerId))
+                {
+                    if (producer.Data.Kind == MediaKind.VIDEO && producer.Source != ConsumerSubscriptionPolicy.PrimaryVideoSource)
+                    {
+                        _logger.LogWarning(
+                            "拒绝自动消费未知视频源: ConsumerPeerId={ConsumerPeerId}, ProducerId={ProducerId}, Source={Source}",
+                            consumerPeerId,
+                            producer.ProducerId,
+                            producer.Source);
+                    }
+                    return;
+                }
+
                 await CreateConsumer(consumerPeerId, producerPeerId, producer);
             }
             catch (Exception ex)
@@ -937,6 +960,64 @@ namespace Dorisoy.Meeting.Server
                     "SafeCreateConsumer failed: ConsumerPeerId={ConsumerPeerId}, ProducerPeerId={ProducerPeerId}, ProducerId={ProducerId}",
                     consumerPeerId, producerPeerId, producer.ProducerId
                 );
+            }
+        }
+
+        /// <summary>
+        /// 选择当前唯一高清主画面。Producer 尚未就绪时保留选择，后续 Produce 会自动补建。
+        /// </summary>
+        public async Task<MeetingMessage> SelectPrimaryVideo(SelectPrimaryVideoRequest request)
+        {
+            try
+            {
+                var selfPeer = await _scheduler.GetPeerAsync(UserId, ConnectionId);
+                if (selfPeer == null)
+                    return MeetingMessage.Failure("找不到当前 Peer");
+
+                var targetPeerId = string.IsNullOrWhiteSpace(request?.ProducerPeerId)
+                    ? null
+                    : request.ProducerPeerId;
+                if (targetPeerId == UserId)
+                    return MeetingMessage.Failure("不能选择本地视频作为远端主画面");
+
+                Peer? targetPeer = null;
+                Producer? targetProducer = null;
+                if (targetPeerId != null)
+                {
+                    targetPeer = await _scheduler.GetPeerAsync(targetPeerId, null);
+                    if (targetPeer == null)
+                        return MeetingMessage.Failure("目标 Peer 不存在");
+                    var producers = await targetPeer.GetProducersASync();
+                    targetProducer = producers.Values.FirstOrDefault(item => item.Source == "video:cam");
+                }
+
+                await selfPeer.ExecutePrimaryVideoSwitchAsync(targetPeerId, async () =>
+                {
+                    // 先建目标高清再关旧高清；锁释放前只保留目标 Producer 的一路。
+                    if (targetPeer != null && targetProducer != null)
+                        await CreateConsumer(UserId, targetPeer.PeerId, targetProducer);
+                    await selfPeer.CloseConsumersBySourceAsync("video:cam", targetProducer?.ProducerId);
+                });
+
+                var budget = await selfPeer.GetConsumerBudgetAsync();
+                _logger.LogInformation(
+                    "主画面选择完成: Viewer={ViewerPeerId}, Target={TargetPeerId}, Pending={Pending}, Consumers=HD:{Primary}/Thumb:{Thumbnail}/Audio:{Audio}, EstimatedDownlink={EstimatedBitrate}",
+                    UserId,
+                    targetPeerId,
+                    targetPeerId != null && targetProducer == null,
+                    budget.Primary,
+                    budget.Thumbnail,
+                    budget.Audio,
+                    budget.EstimatedBitrate);
+
+                return targetPeerId != null && targetProducer == null
+                    ? MeetingMessage.Success("主画面选择已保存，等待高清 Producer")
+                    : MeetingMessage.Success("主画面切换成功");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "SelectPrimaryVideo 调用失败");
+                return MeetingMessage.Failure($"主画面切换失败: {ex.Message}");
             }
         }
 
@@ -2196,6 +2277,7 @@ namespace Dorisoy.Meeting.Server
                 {
                     ProducerPeerId = producerPeerId,
                     Kind = consumer.Data.Kind,
+                    Source = producer.Source,
                     ProducerId = producer.ProducerId,
                     ConsumerId = consumer.ConsumerId,
                     RtpParameters = consumer.Data.RtpParameters,

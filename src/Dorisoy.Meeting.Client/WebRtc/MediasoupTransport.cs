@@ -146,6 +146,7 @@ public class MediasoupTransport : IDisposable
         _logger = logger;
         TransportId = transportId;
         _direction = direction;
+        _activeVideoRtpState = _primaryVideoRtpState;
     }
 
     /// <summary>
@@ -417,8 +418,9 @@ public class MediasoupTransport : IDisposable
             {
                 // 找到同类型且尚未收到 RTP 包的 Consumer
                 // 优先选择最近创建的（按创建时间倒序）
+                // 服务端已给出 SSRC 的 Consumer 不参与猜测，避免高清切换期间的残留包串流。
                 var unassignedConsumer = _remoteConsumers.Values
-                    .Where(c => c.Kind == kind && !c.HasReceivedRtp)
+                    .Where(c => c.Kind == kind && !c.HasReceivedRtp && c.Ssrc == 0)
                     .OrderByDescending(c => c.CreatedAt)  // 最近创建的优先
                     .FirstOrDefault();
                     
@@ -451,7 +453,12 @@ public class MediasoupTransport : IDisposable
     
             // 5. 所有同类型 Consumer 都已分配，尝试用 PayloadType 匹配已有的 Consumer
             // 这可能是因为服务端重新分配了 SSRC
-            consumer = _remoteConsumers.Values.FirstOrDefault(c => c.PayloadType == payloadType && c.Kind == kind && c.HasReceivedRtp);
+            // 双流场景下多个 Consumer 共用 PT，只有唯一候选时才允许按 PT 修正映射。
+            var payloadTypeCandidates = _remoteConsumers.Values
+                .Where(c => c.PayloadType == payloadType && c.Kind == kind && c.HasReceivedRtp)
+                .Take(2)
+                .ToList();
+            consumer = payloadTypeCandidates.Count == 1 ? payloadTypeCandidates[0] : null;
             if (consumer != null)
             {
                 if (_recvRtpPacketCount % 50 == 1)
@@ -814,7 +821,7 @@ public class MediasoupTransport : IDisposable
     }
 
     // 发送 track 状态
-    private bool _hasAddedSendVideoTrack;
+    private bool _hasAddedSendVideoTracks;
     private bool _hasAddedSendAudioTrack;
 
     /// <summary>
@@ -828,35 +835,31 @@ public class MediasoupTransport : IDisposable
 
         try
         {
-            // 添加视频发送 track
-            if (!_hasAddedSendVideoTrack)
+            // 按 SDP m-line 顺序添加高清和缩略两条视频 track。
+            if (!_hasAddedSendVideoTracks)
             {
-                // SDP 协商层统一使用 VP8 名称（SIPSorcery 原生支持）
-                // 使用实际编解码器的 Payload Type，这样 RTP 发送时会使用正确的 PT
                 var videoPayloadType = GetVideoPayloadType();
                 var videoCodecName = GetVideoCodecName();
-                
-                // SIPSorcery 对 VP9/H264 的 SDP 处理可能有问题，因此 SDP 层统一使用 VP8
-                // 但保留实际的 Payload Type、这样 SendRtpRaw 会使用正确的 PT
-                var sdpCodecName = "VP8"; // SDP 协商统一用 VP8
-                
-                // 创建视频格式 - PT 使用实际编解码器的 Payload Type
+                const string sdpCodecName = "VP8";
                 var videoFormat = new SDPAudioVideoMediaFormat(
                     SDPMediaTypesEnum.video,
                     videoPayloadType,
                     sdpCodecName,
                     VIDEO_CLOCK_RATE);
 
-                // 创建 SendOnly 的视频 track
-                var videoTrack = new MediaStreamTrack(
-                    SDPMediaTypesEnum.video,
-                    false,
-                    new List<SDPAudioVideoMediaFormat> { videoFormat },
-                    MediaStreamStatusEnum.SendOnly);
+                for (var streamIndex = 0; streamIndex < 2; streamIndex++)
+                {
+                    var videoTrack = new MediaStreamTrack(
+                        SDPMediaTypesEnum.video,
+                        false,
+                        new List<SDPAudioVideoMediaFormat> { videoFormat },
+                        MediaStreamStatusEnum.SendOnly);
+                    _peerConnection.addTrack(videoTrack);
+                }
 
-                _peerConnection.addTrack(videoTrack);
-                _hasAddedSendVideoTrack = true;
-                _logger.LogInformation("Added video track for sending (SendOnly), ActualCodec={Codec}, SdpCodec={SdpCodec}, PT={PayloadType}", 
+                _hasAddedSendVideoTracks = true;
+                _logger.LogInformation(
+                    "Added primary and thumbnail video tracks, ActualCodec={Codec}, SdpCodec={SdpCodec}, PT={PayloadType}",
                     videoCodecName, sdpCodecName, videoPayloadType);
             }
 
@@ -913,13 +916,19 @@ public class MediasoupTransport : IDisposable
 
         try
         {
-            // 获取视频 track 的 SSRC
-            var videoTrack = _peerConnection.VideoLocalTrack;
-            if (videoTrack != null && videoTrack.Ssrc > 0)
+            // 两条 video m-line 各自拥有独立 SSRC。
+            var videoStreams = _peerConnection.VideoStreamList;
+            if (videoStreams.Count > 0 && videoStreams[0].LocalTrack?.Ssrc > 0)
             {
-                _videoSsrc = videoTrack.Ssrc;
-                _logger.LogInformation("Updated video SSRC from track: {Ssrc}", _videoSsrc);
+                _primaryVideoRtpState.Ssrc = videoStreams[0].LocalTrack.Ssrc;
             }
+            if (videoStreams.Count > 1 && videoStreams[1].LocalTrack?.Ssrc > 0)
+            {
+                _thumbnailVideoRtpState.Ssrc = videoStreams[1].LocalTrack.Ssrc;
+            }
+            _logger.LogInformation(
+                "Updated video SSRCs from tracks: primary={PrimarySsrc}, thumbnail={ThumbnailSsrc}",
+                _primaryVideoRtpState.Ssrc, _thumbnailVideoRtpState.Ssrc);
 
             // 获取音频 track 的 SSRC
             var audioTrack = _peerConnection.AudioLocalTrack;
@@ -1616,57 +1625,91 @@ public class MediasoupTransport : IDisposable
         };
     }
 
-    // RTP 发送状态
-    private uint _videoSsrc = (uint)Random.Shared.Next(100000000, 999999999);
+    // RTP 发送状态。两路视频必须完全隔离序号、时间戳和 PictureID。
+    private sealed class VideoRtpState
+    {
+        public VideoRtpState(int streamIndex, int frameRate)
+        {
+            StreamIndex = streamIndex;
+            FrameRate = frameRate;
+            Ssrc = (uint)Random.Shared.Next(100000000, 999999999);
+            SequenceNumber = (ushort)Random.Shared.Next(0, 65535);
+            Timestamp = (uint)Random.Shared.Next(0, int.MaxValue);
+        }
+
+        public int StreamIndex { get; }
+        public int FrameRate { get; }
+        public uint Ssrc { get; set; }
+        public ushort SequenceNumber { get; set; }
+        public uint Timestamp { get; set; }
+        public long FrameCount { get; set; }
+        public ushort Vp8PictureId { get; set; }
+        public ushort Vp9PictureId { get; set; }
+    }
+
+    private readonly VideoRtpState _primaryVideoRtpState = new(0, 30);
+    private readonly VideoRtpState _thumbnailVideoRtpState = new(1, 10);
+    private readonly object _videoSendLock = new();
+    private VideoRtpState _activeVideoRtpState;
     private uint _audioSsrc = (uint)Random.Shared.Next(100000000, 999999999);
-    private ushort _videoSeqNum;
     private ushort _audioSeqNum;
-    private uint _videoTimestamp;
     private uint _audioTimestamp;
-    private long _videoFrameCount;
     private long _audioFrameCount;
+
+    // 兼容现有打包代码，发送期间这些属性指向当前视频流的独立状态。
+    private uint _videoSsrc { get => _activeVideoRtpState.Ssrc; set => _activeVideoRtpState.Ssrc = value; }
+    private ushort _videoSeqNum { get => _activeVideoRtpState.SequenceNumber; set => _activeVideoRtpState.SequenceNumber = value; }
+    private uint _videoTimestamp { get => _activeVideoRtpState.Timestamp; set => _activeVideoRtpState.Timestamp = value; }
+    private long _videoFrameCount { get => _activeVideoRtpState.FrameCount; set => _activeVideoRtpState.FrameCount = value; }
+    private ushort _vp8PictureId { get => _activeVideoRtpState.Vp8PictureId; set => _activeVideoRtpState.Vp8PictureId = value; }
+    private ushort _vp9PictureId { get => _activeVideoRtpState.Vp9PictureId; set => _activeVideoRtpState.Vp9PictureId = value; }
 
     /// <summary>
     /// 发送视频 RTP 包 - 支持 MTU 分片，自动选择编解码器
     /// </summary>
     public void SendVideoRtpPacketAsync(byte[] videoData, bool isKeyFrame)
+        => SendVideoRtpPacketAsync(videoData, isKeyFrame, false);
+
+    public void SendVideoRtpPacketAsync(byte[] videoData, bool isKeyFrame, bool isThumbnail)
     {
         if (_peerConnection == null || !_connected)
             return;
 
-        try
+        lock (_videoSendLock)
         {
-            _videoFrameCount++;
-
-            // 根据当前编解码器类型选择打包方法
-            switch (_currentVideoCodec)
+            _activeVideoRtpState = isThumbnail ? _thumbnailVideoRtpState : _primaryVideoRtpState;
+            try
             {
-                case VideoCodecType.VP8:
-                    SendVp8Frame(videoData, isKeyFrame);
-                    break;
-                case VideoCodecType.VP9:
-                    SendVp9Frame(videoData, isKeyFrame);
-                    break;
-                case VideoCodecType.H264:
-                    SendH264Frame(videoData, isKeyFrame);
-                    break;
-                default:
-                    SendVp8Frame(videoData, isKeyFrame);
-                    break;
+                _videoFrameCount++;
+                switch (_currentVideoCodec)
+                {
+                    case VideoCodecType.VP8:
+                        SendVp8Frame(videoData, isKeyFrame);
+                        break;
+                    case VideoCodecType.VP9:
+                        SendVp9Frame(videoData, isKeyFrame);
+                        break;
+                    case VideoCodecType.H264:
+                        SendH264Frame(videoData, isKeyFrame);
+                        break;
+                    default:
+                        SendVp8Frame(videoData, isKeyFrame);
+                        break;
+                }
+
+                _videoTimestamp += (uint)(VIDEO_CLOCK_RATE / _activeVideoRtpState.FrameRate);
+                if (_videoFrameCount % 100 == 0)
+                {
+                    _logger.LogDebug(
+                        "Video stats: stream={Stream}, codec={Codec}, frames={Frames}, ssrc={Ssrc}, seq={Seq}",
+                        isThumbnail ? "thumbnail" : "primary", _currentVideoCodec,
+                        _videoFrameCount, _videoSsrc, _videoSeqNum);
+                }
             }
-
-            // 更新时间戳 (90kHz 时钟，30fps = 3000 增量)
-            _videoTimestamp += VIDEO_CLOCK_RATE / 30; // 假设 30fps
-
-            if (_videoFrameCount % 100 == 0)
+            catch (Exception ex)
             {
-                _logger.LogDebug("Video stats: codec={Codec}, frames={Frames}, ssrc={Ssrc}, seq={Seq}", 
-                    _currentVideoCodec, _videoFrameCount, _videoSsrc, _videoSeqNum);
+                _logger.LogTrace(ex, "Error sending {Stream} video RTP packet", isThumbnail ? "thumbnail" : "primary");
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogTrace(ex, "Error sending video RTP packet");
         }
     }
 
@@ -1956,9 +1999,6 @@ public class MediasoupTransport : IDisposable
             vp8Data.Length, packetCount, isKeyFrame);
     }
 
-    // VP9 PictureID 计数器
-    private ushort _vp9PictureId;
-
     /// <summary>
     /// 发送单个 VP9 RTP 包
     /// </summary>
@@ -2048,9 +2088,20 @@ public class MediasoupTransport : IDisposable
 
         try
         {
-            // SendRtpRaw 期望只接收 payload（不含 RTP 头）
-            // 它会自动使用 PeerConnection 内部管理的 SSRC 和序列号
-            _peerConnection.SendRtpRaw(mediaType, payload, timestamp, marker, payloadType);
+            // 视频必须发往对应 m-line 的 VideoStream，否则两路流会共享第一条 track 的 SSRC。
+            if (mediaType == SDPMediaTypesEnum.video)
+            {
+                var streams = _peerConnection.VideoStreamList;
+                if (_activeVideoRtpState.StreamIndex >= streams.Count)
+                    return;
+
+                streams[_activeVideoRtpState.StreamIndex]
+                    .SendRtpRaw(payload, timestamp, marker, payloadType, seqNum);
+            }
+            else
+            {
+                _peerConnection.SendRtpRaw(mediaType, payload, timestamp, marker, payloadType, seqNum);
+            }
 
             // 详细日志（用于调试）
             if (_videoFrameCount <= 5 || marker == 1)
@@ -2063,9 +2114,6 @@ public class MediasoupTransport : IDisposable
             _logger.LogWarning(ex, "Failed to send RTP packet: type={Type}, pt={PT}", mediaType, payloadType);
         }
     }
-
-    // VP8 PictureID 计数器（用于 VP8 Payload Descriptor 扩展）
-    private ushort _vp8PictureId;
 
     /// <summary>
     /// 创建 VP8 RTP 负载（添加 VP8 负载描述符）- RFC 7741
@@ -2245,23 +2293,34 @@ public class MediasoupTransport : IDisposable
     /// </summary>
     public void ResetRtpState()
     {
-        _videoSsrc = (uint)Random.Shared.Next(100000000, 999999999);
+        ResetVideoRtpState(_primaryVideoRtpState);
+        ResetVideoRtpState(_thumbnailVideoRtpState);
+        _activeVideoRtpState = _primaryVideoRtpState;
         _audioSsrc = (uint)Random.Shared.Next(100000000, 999999999);
-        _videoSeqNum = (ushort)Random.Shared.Next(0, 65535);
         _audioSeqNum = (ushort)Random.Shared.Next(0, 65535);
-        _videoTimestamp = (uint)Random.Shared.Next(0, int.MaxValue);
         _audioTimestamp = (uint)Random.Shared.Next(0, int.MaxValue);
-        _videoFrameCount = 0;
         _audioFrameCount = 0;
 
-        _logger.LogInformation("RTP state reset: videoSsrc={VideoSsrc}, audioSsrc={AudioSsrc}", 
-            _videoSsrc, _audioSsrc);
+        _logger.LogInformation(
+            "RTP state reset: primary={PrimarySsrc}, thumbnail={ThumbnailSsrc}, audio={AudioSsrc}",
+            _primaryVideoRtpState.Ssrc, _thumbnailVideoRtpState.Ssrc, _audioSsrc);
+    }
+
+    private static void ResetVideoRtpState(VideoRtpState state)
+    {
+        state.Ssrc = (uint)Random.Shared.Next(100000000, 999999999);
+        state.SequenceNumber = (ushort)Random.Shared.Next(0, 65535);
+        state.Timestamp = (uint)Random.Shared.Next(0, int.MaxValue);
+        state.FrameCount = 0;
+        state.Vp8PictureId = 0;
+        state.Vp9PictureId = 0;
     }
 
     /// <summary>
-    /// 获取视频 SSRC
+    /// 获取高清与缩略视频 SSRC
     /// </summary>
-    public uint VideoSsrc => _videoSsrc;
+    public uint VideoSsrc => _primaryVideoRtpState.Ssrc;
+    public uint ThumbnailVideoSsrc => _thumbnailVideoRtpState.Ssrc;
 
     /// <summary>
     /// 获取音频 SSRC
@@ -2302,7 +2361,7 @@ public class MediasoupTransport : IDisposable
         // 重置所有状态标志
         _connected = false;
         _peerConnectionStarted = false;
-        _hasAddedSendVideoTrack = false;
+        _hasAddedSendVideoTracks = false;
         _hasAddedSendAudioTrack = false;
         
         _logger.LogInformation("Transport {TransportId} closed", TransportId);

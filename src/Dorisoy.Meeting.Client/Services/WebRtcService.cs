@@ -35,8 +35,15 @@ public class WebRtcService : IWebRtcService
     // RTP 媒体解码器
     private RtpMediaDecoder? _rtpDecoder;
     
-    // 视频编码器 - 支持 VP8/VP9/H264
+    // 视频编码器 - 高清与缩略流复用一次采集，分别独立编码
+    private readonly object _videoEncoderLock = new();
     private IVideoEncoder? _videoEncoder;
+    private IVideoEncoder? _thumbnailVideoEncoder;
+    private long _lastThumbnailEncodeTicks;
+    private const int ThumbnailWidth = 320;
+    private const int ThumbnailHeight = 180;
+    private const int ThumbnailFrameRate = 10;
+    private const int ThumbnailBitrate = 160_000;
     private AudioFramePacketizer? _audioPacketizer;
     
     // 当前视频编解码器类型
@@ -205,12 +212,10 @@ public class WebRtcService : IWebRtcService
                 _logger.LogInformation("视频编解码器切换: {OldCodec} -> {NewCodec}", _currentVideoCodec, value);
                 _currentVideoCodec = value;
                 
-                // 如果正在采集视频，需要重新初始化编码器
-                if (_isVideoCaptureRunning && _videoEncoder != null)
+                // 编解码器切换时同时释放高清与缩略编码器，下一帧原子重建。
+                if (_isVideoCaptureRunning || _isScreenSharing)
                 {
-                    // 释放旧编码器
-                    _videoEncoder.Dispose();
-                    _videoEncoder = null;
+                    DisposeVideoEncoder();
                 }
                 
                 // 通知 RTP 解码器切换解码器类型
@@ -231,6 +236,11 @@ public class WebRtcService : IWebRtcService
     /// 发送 Transport
     /// </summary>
     public MediasoupTransport? SendTransport => _sendTransport;
+
+    public uint VideoSsrc => _sendTransport?.VideoSsrc ?? 0;
+    public uint ThumbnailVideoSsrc => _sendTransport?.ThumbnailVideoSsrc ?? 0;
+    public uint AudioSsrc => _sendTransport?.AudioSsrc ?? 0;
+    public bool IsProducingThumbnailVideo => IsProducingVideo && _thumbnailVideoEncoder != null;
 
     /// <summary>
     /// 接收 Transport
@@ -567,8 +577,14 @@ public class WebRtcService : IWebRtcService
 
     private void DisposeVideoEncoder()
     {
-        _videoEncoder?.Dispose();
-        _videoEncoder = null;
+        lock (_videoEncoderLock)
+        {
+            _videoEncoder?.Dispose();
+            _videoEncoder = null;
+            _thumbnailVideoEncoder?.Dispose();
+            _thumbnailVideoEncoder = null;
+            _lastThumbnailEncodeTicks = 0;
+        }
     }
 
     /// <summary>
@@ -642,8 +658,8 @@ public class WebRtcService : IWebRtcService
                 // 触发视频数据事件
                 OnVideoData?.Invoke(imageData, width, height);
 
-                // VP8 编码并发送
-                EncodeAndSendVideoFrame(imageData, width, height);
+                // 同一次采集分别生成高清主流和 10fps 缩略流。
+                EncodeAndSendVideoFrames(imageData, width, height);
 
                 // 在 UI 线程更新显示，使用复制的数据
                 var capturedData = imageData;
@@ -738,6 +754,7 @@ public class WebRtcService : IWebRtcService
         }
 
         _localVideoBitmap = null;
+        DisposeVideoEncoder();
 
         _logger.LogInformation("Camera stopped");
         OnConnectionStateChanged?.Invoke("video_stopped");
@@ -975,8 +992,8 @@ public class WebRtcService : IWebRtcService
             // 触发视频数据事件
             OnVideoData?.Invoke(imageData, width, height);
             
-            // 编码并发送视频帧
-            EncodeAndSendVideoFrame(imageData, width, height);
+            // 屏幕共享沿用双流发送，使未选中主画面的客户端仍可看到缩略预览。
+            EncodeAndSendVideoFrames(imageData, width, height);
         }
         catch (Exception ex)
         {
@@ -1825,72 +1842,104 @@ public class WebRtcService : IWebRtcService
     /// <summary>
     /// 初始化视频编码器 - 根据当前编解码器类型创建对应编码器
     /// </summary>
-    private bool EnsureVideoEncoderInitialized(int width, int height)
+    private bool EnsureVideoEncodersInitialized(int width, int height)
     {
-        if (_videoEncoder != null)
-            return true;
-
-        try
+        lock (_videoEncoderLock)
         {
-            // 应用视频质量配置
-            var quality = _effectiveVideoQuality
-                ?? VideoQuality
-                ?? VideoQualitySettings.GetPreset(VideoQualityPreset.AutoHighest);
-            
-            // 使用配置的分辨率，如果配置中没有则使用传入的值
-            var targetWidth = quality.Width > 0 ? quality.Width : width;
-            var targetHeight = quality.Height > 0 ? quality.Height : height;
-            
-            // 根据当前编解码器类型创建对应的编码器
-            _videoEncoder = CreateVideoEncoder(_currentVideoCodec, targetWidth, targetHeight);
-            
-            if (_videoEncoder == null)
-            {
-                _logger.LogWarning("创建视频编码器失败: {Codec}", _currentVideoCodec);
-                return false;
-            }
-            
-            // 设置编码参数
-            _videoEncoder.Bitrate = quality.Bitrate;
-            _videoEncoder.FrameRate = quality.FrameRate;
-            _videoEncoder.KeyFrameInterval = quality.KeyFrameInterval;
+            if (_videoEncoder != null && _thumbnailVideoEncoder != null)
+                return true;
 
-            // 高质量档位同时降低编码速度优先级，换取更好的画面细节。
-            switch (_videoEncoder)
+            try
             {
-                case Vp8Encoder vp8Encoder:
-                    vp8Encoder.CpuUsed = quality.CpuUsed;
-                    break;
-                case Vp9Encoder vp9Encoder:
-                    vp9Encoder.CpuUsed = quality.CpuUsed;
-                    break;
-                case H264Encoder h264Encoder:
-                    h264Encoder.Preset = quality.Bitrate >= 8_000_000 ? "fast" : "veryfast";
-                    break;
+                var quality = _effectiveVideoQuality
+                    ?? VideoQuality
+                    ?? VideoQualitySettings.GetPreset(VideoQualityPreset.AutoHighest);
+                var targetWidth = Math.Min(1920, quality.Width > 0 ? quality.Width : width);
+                var targetHeight = Math.Min(1080, quality.Height > 0 ? quality.Height : height);
+                var targetFrameRate = Math.Min(30, Math.Max(1, quality.FrameRate));
+                var targetBitrate = Math.Min(4_000_000, Math.Max(160_000, quality.Bitrate));
+
+                _videoEncoder = CreateVideoEncoder(_currentVideoCodec, targetWidth, targetHeight);
+                _thumbnailVideoEncoder = CreateVideoEncoder(_currentVideoCodec, ThumbnailWidth, ThumbnailHeight);
+                if (_videoEncoder == null || _thumbnailVideoEncoder == null)
+                {
+                    _logger.LogWarning("创建双视频编码器失败: {Codec}", _currentVideoCodec);
+                    DisposeVideoEncoder();
+                    return false;
+                }
+
+                ConfigureVideoEncoder(
+                    _videoEncoder,
+                    targetBitrate,
+                    targetFrameRate,
+                    Math.Max(1, quality.KeyFrameInterval),
+                    quality.CpuUsed);
+                ConfigureVideoEncoder(
+                    _thumbnailVideoEncoder,
+                    ThumbnailBitrate,
+                    ThumbnailFrameRate,
+                    2,
+                    Math.Max(6, quality.CpuUsed));
+
+                _videoEncoder.OnFrameEncoded += (data, isKeyFrame) =>
+                {
+                    OnEncodedVideoFrame?.Invoke(data, isKeyFrame);
+                    _sendTransport?.SendVideoRtpPacketAsync(data, isKeyFrame, isThumbnail: false);
+                };
+                _thumbnailVideoEncoder.OnFrameEncoded += (data, isKeyFrame) =>
+                    _sendTransport?.SendVideoRtpPacketAsync(data, isKeyFrame, isThumbnail: true);
+
+                if (!_videoEncoder.Initialize() || !_thumbnailVideoEncoder.Initialize())
+                {
+                    _logger.LogWarning("初始化双视频编码器失败: {Codec}", _currentVideoCodec);
+                    DisposeVideoEncoder();
+                    return false;
+                }
+
+                _logger.LogInformation(
+                    "{Codec} 双编码器已初始化: 主流 {Width}x{Height}@{Fps} {Bitrate}bps; 缩略 {ThumbWidth}x{ThumbHeight}@{ThumbFps} {ThumbBitrate}bps",
+                    _currentVideoCodec,
+                    targetWidth,
+                    targetHeight,
+                    targetFrameRate,
+                    targetBitrate,
+                    ThumbnailWidth,
+                    ThumbnailHeight,
+                    ThumbnailFrameRate,
+                    ThumbnailBitrate);
+                return true;
             }
-            
-            _videoEncoder.OnFrameEncoded += (data, isKeyFrame) =>
+            catch (Exception ex)
             {
-                OnEncodedVideoFrame?.Invoke(data, isKeyFrame);
-                // 通过 SendTransport 发送 RTP 包
-                _sendTransport?.SendVideoRtpPacketAsync(data, isKeyFrame);
-            };
-            
-            if (!_videoEncoder.Initialize())
-            {
-                _logger.LogWarning("初始化视频编码器失败: {Codec}", _currentVideoCodec);
-                _videoEncoder = null;
+                _logger.LogError(ex, "创建双视频编码器异常: {Codec}", _currentVideoCodec);
+                DisposeVideoEncoder();
                 return false;
             }
-            
-            _logger.LogInformation("{Codec} 编码器已初始化: {Width}x{Height} @ {Fps}fps, {Bitrate}bps (Quality: {Quality})",
-                _currentVideoCodec, targetWidth, targetHeight, quality.FrameRate, quality.Bitrate, quality.DisplayName);
-            return true;
         }
-        catch (Exception ex)
+    }
+
+    private static void ConfigureVideoEncoder(
+        IVideoEncoder encoder,
+        int bitrate,
+        int frameRate,
+        int keyFrameInterval,
+        int cpuUsed)
+    {
+        encoder.Bitrate = bitrate;
+        encoder.FrameRate = frameRate;
+        encoder.KeyFrameInterval = keyFrameInterval;
+
+        switch (encoder)
         {
-            _logger.LogError(ex, "创建视频编码器异常: {Codec}", _currentVideoCodec);
-            return false;
+            case Vp8Encoder vp8Encoder:
+                vp8Encoder.CpuUsed = cpuUsed;
+                break;
+            case Vp9Encoder vp9Encoder:
+                vp9Encoder.CpuUsed = cpuUsed;
+                break;
+            case H264Encoder h264Encoder:
+                h264Encoder.Preset = "veryfast";
+                break;
         }
     }
     
@@ -1946,21 +1995,61 @@ public class WebRtcService : IWebRtcService
     /// <summary>
     /// 编码并发送视频帧
     /// </summary>
-    private void EncodeAndSendVideoFrame(byte[] bgrData, int width, int height)
+    private void EncodeAndSendVideoFrames(byte[] bgrData, int width, int height)
     {
         try
         {
-            // 确保编码器已初始化
-            if (!EnsureVideoEncoderInitialized(width, height))
+            if (!EnsureVideoEncodersInitialized(width, height))
                 return;
 
-            // 编码帧
-            _videoEncoder?.Encode(bgrData, width, height);
+            var quality = _effectiveVideoQuality
+                ?? VideoQuality
+                ?? VideoQualitySettings.GetPreset(VideoQualityPreset.AutoHighest);
+            var primaryWidth = Math.Min(1920, quality.Width > 0 ? quality.Width : width);
+            var primaryHeight = Math.Min(1080, quality.Height > 0 ? quality.Height : height);
+            var primaryData = ResizeBgrFrameIfNeeded(bgrData, width, height, primaryWidth, primaryHeight);
+
+            lock (_videoEncoderLock)
+            {
+                _videoEncoder?.Encode(primaryData, primaryWidth, primaryHeight);
+
+                var now = Environment.TickCount64;
+                if (now - _lastThumbnailEncodeTicks >= 100)
+                {
+                    var thumbnailData = ResizeBgrFrameIfNeeded(
+                        bgrData,
+                        width,
+                        height,
+                        ThumbnailWidth,
+                        ThumbnailHeight);
+                    _thumbnailVideoEncoder?.Encode(thumbnailData, ThumbnailWidth, ThumbnailHeight);
+                    _lastThumbnailEncodeTicks = now;
+                }
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogTrace(ex, "Error encoding video frame");
+            _logger.LogTrace(ex, "Error encoding dual video frames");
         }
+    }
+
+    private static byte[] ResizeBgrFrameIfNeeded(
+        byte[] sourceData,
+        int sourceWidth,
+        int sourceHeight,
+        int targetWidth,
+        int targetHeight)
+    {
+        if (sourceWidth == targetWidth && sourceHeight == targetHeight)
+            return sourceData;
+
+        using var source = new Mat(sourceHeight, sourceWidth, MatType.CV_8UC3);
+        System.Runtime.InteropServices.Marshal.Copy(sourceData, 0, source.Data, sourceData.Length);
+        using var resized = new Mat();
+        Cv2.Resize(source, resized, new OpenCvSharp.Size(targetWidth, targetHeight), 0, 0, InterpolationFlags.Area);
+        var resizedData = new byte[targetWidth * targetHeight * 3];
+        System.Runtime.InteropServices.Marshal.Copy(resized.Data, resizedData, 0, resizedData.Length);
+        return resizedData;
     }
 
     /// <summary>
@@ -1988,9 +2077,8 @@ public class WebRtcService : IWebRtcService
     /// </summary>
     private void DisposeEncoders()
     {
-        _videoEncoder?.Dispose();
-        _videoEncoder = null;
-        
+        DisposeVideoEncoder();
+
         _audioPacketizer?.Dispose();
         _audioPacketizer = null;
     }

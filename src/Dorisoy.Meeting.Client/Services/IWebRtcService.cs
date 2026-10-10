@@ -71,6 +71,18 @@ public interface IWebRtcService : IDisposable
     MediasoupTransport? SendTransport { get; }
 
     /// <summary>
+    /// 高清、缩略视频及音频实际发送 SSRC。
+    /// </summary>
+    uint VideoSsrc { get; }
+    uint ThumbnailVideoSsrc { get; }
+    uint AudioSsrc { get; }
+
+    /// <summary>
+    /// 缩略视频是否随当前视频源持续发送。
+    /// </summary>
+    bool IsProducingThumbnailVideo { get; }
+
+    /// <summary>
     /// 接收 Transport
     /// </summary>
     MediasoupTransport? RecvTransport { get; }

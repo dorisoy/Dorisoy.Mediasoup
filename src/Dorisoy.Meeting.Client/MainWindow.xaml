@@ -113,16 +113,9 @@
                         </Style>
                     </Border.Style>
                     <Grid>
-                        <!-- 视频网格列表（本地+远端视频） -->
-                        <ItemsControl ItemsSource="{Binding AllVideos}">
-                            <ItemsControl.ItemsPanel>
-                                <ItemsPanelTemplate>
-                                    <UniformGrid Columns="{Binding AllVideos.Count, 
-                                        Converter={StaticResource VideoGridColumnsConverter}}" />
-                                </ItemsPanelTemplate>
-                            </ItemsControl.ItemsPanel>
-                            <ItemsControl.ItemTemplate>
-                                <DataTemplate>
+                        <Grid.Resources>
+                            <!-- 视频卡片模板（网格布局与缩略条共用） -->
+                                <DataTemplate x:Key="VideoTileTemplate">
                                     <Border Margin="4"
                                             Padding="0"
                                             CornerRadius="8"
@@ -407,8 +400,139 @@
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
-                            </ItemsControl.ItemTemplate>
+                        </Grid.Resources>
+
+                        <!-- 视频网格列表（本地+远端视频）- 少量参与者且未提升主画面时使用 -->
+                        <ItemsControl ItemsSource="{Binding AllVideos}"
+                                      ItemTemplate="{StaticResource VideoTileTemplate}"
+                                      Visibility="{Binding IsGridLayout, Converter={StaticResource BoolToVisConverter}}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <UniformGrid Columns="{Binding AllVideos.Count,
+                                        Converter={StaticResource VideoGridColumnsConverter}}" />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
                         </ItemsControl>
+
+                        <!-- 大主画面 + 横向虚拟化缩略条 -->
+                        <Grid Visibility="{Binding IsStageLayout, Converter={StaticResource BoolToVisConverter}}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="*" />
+                                <RowDefinition Height="178" />
+                            </Grid.RowDefinitions>
+
+                            <!-- 主画面：高清帧优先，切换期间显示该用户缩略帧 -->
+                            <Border Grid.Row="0"
+                                    Margin="4"
+                                    CornerRadius="8"
+                                    ClipToBounds="True"
+                                    Background="{DynamicResource ControlFillColorDefaultBrush}">
+                                <Border.InputBindings>
+                                    <MouseBinding MouseAction="LeftDoubleClick"
+                                                  Command="{Binding ToggleMaximizeRemoteVideoCommand}"
+                                                  CommandParameter="{Binding StageRemoteVideo}" />
+                                </Border.InputBindings>
+                                <Grid>
+                                    <Image Source="{Binding StageRemoteVideo.VideoFrame}"
+                                           Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           RenderTransformOrigin="0.5,0.5">
+                                        <Image.RenderTransform>
+                                            <ScaleTransform ScaleX="{Binding StageRemoteVideo.HorizontalScale}"
+                                                            ScaleY="{Binding StageRemoteVideo.VerticalScale}" />
+                                        </Image.RenderTransform>
+                                    </Image>
+
+                                    <!-- 无视频帧时显示头像 -->
+                                    <StackPanel HorizontalAlignment="Center"
+                                                VerticalAlignment="Center"
+                                                Visibility="{Binding StageRemoteVideo.VideoFrame, Converter={StaticResource NullToVisibleConverter}}">
+                                        <ui:SymbolIcon Symbol="Person48"
+                                                       FontSize="80"
+                                                       Opacity="0.3" />
+                                        <TextBlock Text="{Binding StageRemoteVideo.DisplayName}"
+                                                   Opacity="0.5"
+                                                   FontSize="20"
+                                                   HorizontalAlignment="Center"
+                                                   Margin="0,16,0,0" />
+                                    </StackPanel>
+
+                                    <!-- 用户名与清晰度标签 - 左下角 -->
+                                    <Border Background="#80000000"
+                                            Padding="12,8"
+                                            HorizontalAlignment="Left"
+                                            VerticalAlignment="Bottom"
+                                            Margin="16"
+                                            CornerRadius="6">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="{Binding StageRemoteVideo.DisplayName}"
+                                                       Foreground="White"
+                                                       FontSize="14"
+                                                       FontWeight="SemiBold" />
+                                            <TextBlock Text="  高清"
+                                                       Foreground="#81C784"
+                                                       FontSize="12"
+                                                       VerticalAlignment="Center"
+                                                       Visibility="{Binding StageRemoteVideo.PrimaryFrame, Converter={StaticResource NullToCollapsedConverter}}" />
+                                            <TextBlock Text="  正在切换高清…"
+                                                       Foreground="#FFD54F"
+                                                       FontSize="12"
+                                                       VerticalAlignment="Center"
+                                                       Visibility="{Binding StageRemoteVideo.IsPrimaryPending, Converter={StaticResource BoolToVisConverter}}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <!-- 固定主画面（最大化）按钮 - 右上角 -->
+                                    <ui:Button Width="40"
+                                               Height="40"
+                                               CornerRadius="20"
+                                               HorizontalAlignment="Right"
+                                               VerticalAlignment="Top"
+                                               Margin="16"
+                                               Padding="0"
+                                               Appearance="Secondary"
+                                               ToolTip="固定并最大化"
+                                               Command="{Binding ToggleMaximizeRemoteVideoCommand}"
+                                               CommandParameter="{Binding StageRemoteVideo}">
+                                        <ui:SymbolIcon Symbol="FullScreenMaximize24"
+                                                       FontSize="18" />
+                                    </ui:Button>
+                                </Grid>
+                            </Border>
+
+                            <!-- 缩略条：保留全部参与者，仅实例化可见卡片 -->
+                            <ItemsControl Grid.Row="1"
+                                          ItemsSource="{Binding AllVideos}"
+                                          ItemTemplate="{StaticResource VideoTileTemplate}"
+                                          VirtualizingPanel.IsVirtualizing="True"
+                                          VirtualizingPanel.VirtualizationMode="Recycling"
+                                          VirtualizingPanel.ScrollUnit="Pixel"
+                                          ScrollViewer.CanContentScroll="True">
+                                <ItemsControl.Template>
+                                    <ControlTemplate TargetType="ItemsControl">
+                                        <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                                                      VerticalScrollBarVisibility="Disabled"
+                                                      CanContentScroll="True"
+                                                      Focusable="False">
+                                            <ItemsPresenter />
+                                        </ScrollViewer>
+                                    </ControlTemplate>
+                                </ItemsControl.Template>
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <VirtualizingStackPanel Orientation="Horizontal" />
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemContainerStyle>
+                                    <Style TargetType="ContentPresenter">
+                                        <Setter Property="Width"
+                                                Value="260" />
+                                        <Setter Property="Height"
+                                                Value="166" />
+                                    </Style>
+                                </ItemsControl.ItemContainerStyle>
+                            </ItemsControl>
+                        </Grid>
 
                         <!-- 无视频时的占位符 -->
                         <StackPanel HorizontalAlignment="Center"
@@ -586,11 +710,25 @@
                 <Border Background="#88000000"
                         VerticalAlignment="Bottom"
                         Height="90"
-                        CornerRadius="0,0,0,0">
+                        CornerRadius="0,0,0,0"
+                        Visibility="{Binding IsBottomControlBarVisible, Converter={StaticResource BoolToVisConverter}}">
                     <Grid>
                         <StackPanel Orientation="Horizontal"
                                     HorizontalAlignment="Center"
                                     VerticalAlignment="Center">
+
+                            <!-- 底部控制栏折叠开关 -->
+                            <StackPanel Margin="12,0">
+                                <ui:Button Command="{Binding ToggleBottomControlBarCommand}"
+                                           ToolTip="折叠底部控制栏"
+                                           Appearance="Transparent"
+                                           Width="56"
+                                           Height="56"
+                                           CornerRadius="28">
+                                    <ui:SymbolIcon Symbol="ChevronDown24"
+                                                   FontSize="24" />
+                                </ui:Button>
+                            </StackPanel>
 
                             <!-- 工具栏显隐开关 -->
                             <StackPanel Margin="12,0">
@@ -862,6 +1000,21 @@
                     </Grid>
                 </Border>
 
+                <!-- 底部控制栏折叠后保留展开入口 -->
+                <ui:Button Command="{Binding ToggleBottomControlBarCommand}"
+                           ToolTip="展开底部控制栏"
+                           Appearance="Transparent"
+                           Width="48"
+                           Height="32"
+                           CornerRadius="16"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Bottom"
+                           Margin="0,0,0,12"
+                           Panel.ZIndex="101"
+                           Visibility="{Binding IsBottomControlBarVisible, Converter={StaticResource InverseBoolToVisConverter}}">
+                    <ui:SymbolIcon Symbol="ChevronUp24"
+                                   FontSize="20" />
+                </ui:Button>
 
                 <!-- 本地视频预览 - 悬浮右下角 -->
                 <Border Margin="0,0,20,20"

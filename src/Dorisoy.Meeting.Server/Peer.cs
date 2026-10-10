@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
+using System.Threading;
 using System.Threading.Tasks;
 using FBS.RtpParameters;
 using FBS.WebRtcTransport;
@@ -81,6 +82,9 @@ namespace Dorisoy.Meeting.Server
         private readonly Dictionary<string, Consumer> _consumers = new();
 
         private readonly AsyncReaderWriterLock _consumersLock = new();
+        private readonly SemaphoreSlim _primaryVideoSwitchLock = new(1, 1);
+        private string? _selectedPrimaryVideoPeerId;
+        private volatile bool _primaryVideoSwitchInProgress;
 
         private readonly Dictionary<string, Producer> _producers = new();
 
@@ -166,6 +170,8 @@ namespace Dorisoy.Meeting.Server
                 {
                     CheckRoom("CreateWebRtcTransportAsync()");
 
+                    // Transport 始终创建在 Peer 所属分片的 Router 上，建立后不迁移。
+                    var shard = _room!.GetPeerShard(PeerId);
                     var webRtcTransportOptions = new Mediasoup.WebRtcTransportOptions
                     {
                         ListenInfos = _webRtcTransportSettings.ListenInfos,
@@ -173,7 +179,7 @@ namespace Dorisoy.Meeting.Server
                         MaxSctpMessageSize = _webRtcTransportSettings.MaxSctpMessageSize,
                         EnableSctp = createWebRtcTransportRequest.SctpCapabilities != null,
                         NumSctpStreams = createWebRtcTransportRequest.SctpCapabilities?.NumStreams,
-                        WebRtcServer = _room!.WebRtcServer,
+                        WebRtcServer = shard.WebRtcServer,
                         AppData = new Dictionary<string, object> { { "Consuming", !isSend }, { "Producing", isSend } },
                     };
 
@@ -183,7 +189,7 @@ namespace Dorisoy.Meeting.Server
                         webRtcTransportOptions.EnableTcp = true;
                     }
 
-                    var transport = await _room!.Router.CreateWebRtcTransportAsync(webRtcTransportOptions);
+                    var transport = await shard.Router.CreateWebRtcTransportAsync(webRtcTransportOptions);
                     await using (await _transportsLock.WriteLockAsync())
                     {
                         // 幂等操作：只对 send transport 应用
@@ -287,7 +293,7 @@ namespace Dorisoy.Meeting.Server
                     CheckRoom("CreatePlainTransportAsync()");
 
                     var transport =
-                        await _room!.Router.CreatePlainTransportAsync(plainTransportOptions)
+                        await _room!.GetPeerShard(PeerId).Router.CreatePlainTransportAsync(plainTransportOptions)
                         ?? throw new Exception("CreatePlainTransportAsync() | Router.CreatePlainTransport failed");
 
                     await using (await _transportsLock.WriteLockAsync())
@@ -569,16 +575,20 @@ namespace Dorisoy.Meeting.Server
                                 PeerId, producer.ProducerId, producer.Source, string.Join(", ", _producers.Keys)
                             );
 
-                            // Add into the audioLevelObserver.
+                            // Add into the audioLevelObserver of the producer's own shard; the Room aggregates all shards.
+                            var producerShard = _room!.GetPeerShard(PeerId);
                             if (producer.Data.Kind == MediaKind.AUDIO)
                             {
                                 // Fire and forget
-                                _room!
+                                producerShard
                                     .AudioLevelObserver.AddProducerAsync(
                                         new RtpObserverAddRemoveProducerOptions { ProducerId = producer.ProducerId }
                                     )
                                     .ContinueWithOnFaultedHandleLog(_logger);
                             }
+
+                            // 登记到房间分片映射，并把音频/缩略流管道到其他分片。
+                            _room.RegisterProducer(producer, producerShard);
 
                             return new PeerProduceResult { Producer = producer, PullPaddings = matchedPullPaddings };
                         }
@@ -632,7 +642,23 @@ namespace Dorisoy.Meeting.Server
                                     );
                                 }
 
-                                var canConsume = await _room!.Router.CanConsumeAsync(producer.ProducerId, _rtpCapabilities);
+                                var source = producer.Source ?? string.Empty;
+                                var kind = producer.Data.Kind;
+                                var currentCount = kind == MediaKind.VIDEO
+                                    ? _consumers.Values.Count(item => item.Source == source)
+                                    : _consumers.Values.Count(item => item.Data.Kind == MediaKind.AUDIO);
+                                // 切换锁内先建后关，允许短暂多一路；切换结束前会关闭旧高清 Consumer。
+                                var limit = ConsumerSubscriptionPolicy.GetConsumerLimit(kind, source, _primaryVideoSwitchInProgress);
+                                if (limit == 0)
+                                    throw new Exception($"ConsumeAsync() | Unknown video source:{source} is not allowed.");
+                                if (!ConsumerSubscriptionPolicy.CanAddConsumer(kind, source, currentCount, _primaryVideoSwitchInProgress))
+                                    throw new Exception($"ConsumeAsync() | Source:{source} Kind:{kind} budget exceeded ({limit}).");
+
+                                // Consumer 始终在本地分片消费原 Producer 或其 PipeProducer（二者 ProducerId 相同）。
+                                var consumerShard = _room!.GetPeerShard(PeerId);
+                                await _room.EnsureProducerOnShardAsync(producer.ProducerId, consumerShard);
+
+                                var canConsume = await consumerShard.Router.CanConsumeAsync(producer.ProducerId, _rtpCapabilities);
                                 if (!canConsume)
                                 {
                                     _logger.LogWarning(
@@ -869,6 +895,65 @@ namespace Dorisoy.Meeting.Server
                         return true;
                     }
                 }
+            }
+        }
+
+        public async Task ExecutePrimaryVideoSwitchAsync(string? producerPeerId, Func<Task> switchAction)
+        {
+            await _primaryVideoSwitchLock.WaitAsync();
+            try
+            {
+                _selectedPrimaryVideoPeerId = string.IsNullOrWhiteSpace(producerPeerId) ? null : producerPeerId;
+                _primaryVideoSwitchInProgress = true;
+                await switchAction();
+            }
+            finally
+            {
+                _primaryVideoSwitchInProgress = false;
+                _primaryVideoSwitchLock.Release();
+            }
+        }
+
+        public async Task<string?> GetPrimaryVideoSelectionAsync()
+        {
+            await _primaryVideoSwitchLock.WaitAsync();
+            try
+            {
+                return _selectedPrimaryVideoPeerId;
+            }
+            finally
+            {
+                _primaryVideoSwitchLock.Release();
+            }
+        }
+
+        public async Task<int> CloseConsumersBySourceAsync(string source, string? keepProducerId = null)
+        {
+            await using (await _consumersLock.WriteLockAsync())
+            {
+                var consumers = _consumers.Values
+                    .Where(item => item.Source == source && item.ProducerId != keepProducerId)
+                    .ToArray();
+                foreach (var consumer in consumers)
+                {
+                    await consumer.CloseAsync();
+                }
+                return consumers.Length;
+            }
+        }
+
+        public async Task<(int Primary, int Thumbnail, int Audio, long EstimatedBitrate)> GetConsumerBudgetAsync()
+        {
+            await using (await _consumersLock.ReadLockAsync())
+            {
+                var primary = _consumers.Values.Count(item => item.Source == "video:cam");
+                var thumbnail = _consumers.Values.Count(item => item.Source == "video:thumb");
+                var audio = _consumers.Values.Count(item => item.Data.Kind == MediaKind.AUDIO);
+                var estimatedBitrate =
+                    primary * MediaCapacityEstimator.PrimaryVideoBitrate
+                    + thumbnail * MediaCapacityEstimator.ThumbnailVideoBitrate
+                    + audio * MediaCapacityEstimator.AudioBitrate;
+                return (primary, thumbnail, audio, estimatedBitrate);
             }
         }
 

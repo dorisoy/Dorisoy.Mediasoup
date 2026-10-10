@@ -19,8 +19,10 @@ namespace Microsoft.AspNetCore.Builder
             var mediasoupOptions = app.ApplicationServices.GetRequiredService<MediasoupOptions>();
             var defaultWebRtcServerSettings = mediasoupOptions.MediasoupSettings.WebRtcServerSettings;
             var mediasoupServer = app.ApplicationServices.GetRequiredService<MediasoupServer>();
-            var numberOfWorkers = mediasoupOptions.MediasoupStartupSettings.NumberOfWorkers;
-            numberOfWorkers = !numberOfWorkers.HasValue || numberOfWorkers <= 0 ? Environment.ProcessorCount : numberOfWorkers;
+            var numberOfWorkers = MediasoupServer.ResolveNumberOfWorkers(
+                mediasoupOptions.MediasoupStartupSettings.NumberOfWorkers
+            );
+            logger.LogInformation("Mediasoup worker count: {NumberOfWorkers}", numberOfWorkers);
 
             if (mediasoupOptions.MediasoupStartupSettings.WorkerInProcess)
             {

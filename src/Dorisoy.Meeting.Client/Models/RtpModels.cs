@@ -357,7 +357,15 @@ public static class RtpParametersFactory
     /// </summary>
     /// <param name="ssrc">视频 SSRC，如果为 0 则自动生成</param>
     /// <param name="codecType">视频编解码器类型</param>
-    public static MediasoupTypes.ProduceRequest CreateVideoProduceRequest(uint ssrc = 0, VideoCodecType codecType = VideoCodecType.VP8)
+    /// <param name="source">媒体源，高清为 video:cam，缩略流为 video:thumb</param>
+    /// <param name="mid">发送 Transport 中对应的 m-line 标识</param>
+    /// <param name="maxBitrate">该路流的最大码率</param>
+    public static MediasoupTypes.ProduceRequest CreateVideoProduceRequest(
+        uint ssrc = 0,
+        VideoCodecType codecType = VideoCodecType.VP8,
+        string source = "video:cam",
+        string mid = "0",
+        int maxBitrate = 4_000_000)
     {
         if (ssrc == 0)
             ssrc = (uint)_random.Next(100000000, 999999999);
@@ -369,11 +377,11 @@ public static class RtpParametersFactory
         return new MediasoupTypes.ProduceRequest
         {
             Kind = MediaKind.VIDEO,
-            Source = "video:cam",
-            AppData = new Dictionary<string, object> { { "source", "video:cam" } },
+            Source = source,
+            AppData = new Dictionary<string, object> { { "source", source } },
             RtpParameters = new MediasoupTypes.RtpParameters
             {
-                Mid = "0",
+                Mid = mid,
                 Codecs = new List<MediasoupTypes.RtpCodecParameters>
                 {
                     new MediasoupTypes.RtpCodecParameters
@@ -412,7 +420,7 @@ public static class RtpParametersFactory
                     {
                         Ssrc = ssrc,
                         Rtx = new RtxT { Ssrc = rtxSsrc },
-                        MaxBitrate = 1500000
+                        MaxBitrate = (uint)maxBitrate
                     }
                 },
                 Rtcp = new RtcpParametersT
@@ -459,7 +467,7 @@ public static class RtpParametersFactory
             AppData = new Dictionary<string, object> { { "source", "audio:mic" } },
             RtpParameters = new MediasoupTypes.RtpParameters
             {
-                Mid = "1",
+                Mid = "2",
                 Codecs = new List<MediasoupTypes.RtpCodecParameters>
                 {
                     new MediasoupTypes.RtpCodecParameters

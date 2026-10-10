@@ -42,6 +42,11 @@ namespace Dorisoy.Meeting.Server
         public MediaKind Kind { get; set; }
 
         /// <summary>
+        /// 明确的媒体源，例如 audio:mic、video:cam、video:thumb。
+        /// </summary>
+        public string Source { get; set; }
+
+        /// <summary>
         /// 生产者 Id
         /// </summary>
         public string ProducerId { get; set; }
@@ -78,6 +83,11 @@ namespace Dorisoy.Meeting.Server
     public class ProduceSourcesNotification
     {
         public HashSet<string> Sources { get; set; }
+    }
+
+    public class SelectPrimaryVideoRequest
+    {
+        public string? ProducerPeerId { get; set; }
     }
 
     /// <summary>

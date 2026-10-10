@@ -18,7 +18,7 @@ namespace Dorisoy.Mediasoup
                 {
                     WorkerPath = "mediasoup-worker",
                     MediasoupVersion = "0.0.1",
-                    NumberOfWorkers = Environment.ProcessorCount,
+                    NumberOfWorkers = MediasoupServer.ResolveNumberOfWorkers(null),
                 },
                 MediasoupSettings = new MediasoupSettings
                 {
@@ -134,10 +134,10 @@ namespace Dorisoy.Mediasoup
                                 }
                             },
                         ],
-                        InitialAvailableOutgoingBitrate = 1_000_000,
+                        InitialAvailableOutgoingBitrate = 20_000_000,
                         MinimumAvailableOutgoingBitrate = 600_000,
                         MaxSctpMessageSize = 256 * 1024,
-                        MaximumIncomingBitrate = 1_500_000,
+                        MaximumIncomingBitrate = 6_000_000,
                     },
                     PlainTransportSettings = new PlainTransportSettings
                     {

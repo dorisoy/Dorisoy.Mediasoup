@@ -489,7 +489,7 @@ public static class MediasoupSdpBuilder
         sb.AppendLine("s=mediasoup-server");
         sb.AppendLine("t=0 0");
         sb.AppendLine("a=ice-lite");
-        sb.AppendLine("a=group:BUNDLE 0 1");
+        sb.AppendLine("a=group:BUNDLE 0 1 2");
         sb.AppendLine("a=msid-semantic: WMS *");
 
         // 获取端口
@@ -518,11 +518,30 @@ public static class MediasoupSdpBuilder
         sb.AppendLine($"a=fmtp:{videoRtxPayloadType} apt={videoPayloadType}");
         sb.AppendLine("a=extmap:4 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time");
 
+        // Thumbnail video m= section. Track order must match MediasoupTransport.AddSendTracks().
+        sb.AppendLine($"m=video {port} UDP/TLS/RTP/SAVPF {videoPayloadType} {videoRtxPayloadType}");
+        sb.AppendLine($"c=IN IP4 {ip}");
+        AppendIceAndDtls(sb, iceParameters, iceCandidates, dtlsParameters);
+        sb.AppendLine("a=mid:1");
+        sb.AppendLine("a=recvonly");
+        sb.AppendLine("a=rtcp-mux");
+        sb.AppendLine("a=rtcp-rsize");
+        sb.AppendLine($"a=rtpmap:{videoPayloadType} {videoCodecName}/90000");
+        AppendVideoFmtp(sb, videoCodec, videoPayloadType);
+        sb.AppendLine($"a=rtcp-fb:{videoPayloadType} nack");
+        sb.AppendLine($"a=rtcp-fb:{videoPayloadType} nack pli");
+        sb.AppendLine($"a=rtcp-fb:{videoPayloadType} ccm fir");
+        sb.AppendLine($"a=rtcp-fb:{videoPayloadType} goog-remb");
+        sb.AppendLine($"a=rtcp-fb:{videoPayloadType} transport-cc");
+        sb.AppendLine($"a=rtpmap:{videoRtxPayloadType} rtx/90000");
+        sb.AppendLine($"a=fmtp:{videoRtxPayloadType} apt={videoPayloadType}");
+        sb.AppendLine("a=extmap:4 http://www.webrtc.org/experiments/rtp-hdrext/abs-send-time");
+
         // Audio m= section (recvonly from server perspective)
         sb.AppendLine($"m=audio {port} UDP/TLS/RTP/SAVPF {AUDIO_PAYLOAD_TYPE}");
         sb.AppendLine($"c=IN IP4 {ip}");
         AppendIceAndDtls(sb, iceParameters, iceCandidates, dtlsParameters);
-        sb.AppendLine("a=mid:1");
+        sb.AppendLine("a=mid:2");
         sb.AppendLine("a=recvonly");
         sb.AppendLine("a=rtcp-mux");
         sb.AppendLine("a=rtcp-rsize");

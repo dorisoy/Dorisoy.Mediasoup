@@ -28,6 +28,51 @@ namespace Dorisoy.Mediasoup
         }
 
         /// <summary>
+        /// 解析 Worker 数量。配置值小于等于 0 或未配置时取 min(max(CPU/2, 2), 8)。
+        /// </summary>
+        public static int ResolveNumberOfWorkers(int? configuredNumberOfWorkers)
+        {
+            if (configuredNumberOfWorkers > 0)
+            {
+                return configuredNumberOfWorkers.Value;
+            }
+
+            return Math.Min(Math.Max(Environment.ProcessorCount / 2, 2), 8);
+        }
+
+        /// <summary>
+        /// Get a snapshot of all mediasoup Workers.
+        /// </summary>
+        public IReadOnlyList<IWorker> GetWorkers()
+        {
+            _workersLock.EnterReadLock();
+            try
+            {
+                return _workers.ToArray();
+            }
+            finally
+            {
+                _workersLock.ExitReadLock();
+            }
+        }
+
+        /// <summary>
+        /// Get index of the Worker, or -1 if it is not registered.
+        /// </summary>
+        public int GetWorkerIndex(IWorker worker)
+        {
+            _workersLock.EnterReadLock();
+            try
+            {
+                return _workers.IndexOf(worker);
+            }
+            finally
+            {
+                _workersLock.ExitReadLock();
+            }
+        }
+
+        /// <summary>
         /// Get next mediasoup Worker.
         /// </summary>
         public IWorker GetWorker()

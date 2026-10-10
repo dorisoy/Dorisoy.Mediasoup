@@ -414,3 +414,4 @@ dist/
 UI/
 SIPSorcery-10.0.3/
 SIPSorceryMedia.Abstractions-8.0.12/
+.artifacts/
