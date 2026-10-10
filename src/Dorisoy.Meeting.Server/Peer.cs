@@ -500,10 +500,11 @@ namespace Dorisoy.Meeting.Server
                                 }
                                 catch (Exception ex)
                                 {
-                                    _logger.LogWarning(ex, 
-                                        "ProduceAsync() | Peer:{PeerId} failed to close old Producer:{ProducerId}, will continue creating new one",
+                                    _logger.LogError(ex,
+                                        "ProduceAsync() | Peer:{PeerId} failed to close old Producer:{ProducerId}; aborting replacement to preserve RTP state",
                                         PeerId, existingProducer.ProducerId
                                     );
+                                    throw;
                                 }
                             }
 

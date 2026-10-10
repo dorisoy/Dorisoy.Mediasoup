@@ -286,8 +286,8 @@ namespace Dorisoy.Mediasoup
                     "ProcessResponse() | Worker[{WorkerId}] Request failed [method:{Method}, id:{Id}, reason:\"{Reason}\"]",
                     _workerId,
                     sent.RequestMessage.Method,
-                    response.Reason,
-                    response.Id
+                    response.Id,
+                    response.Reason
                 );
 
                 sent.Reject(
@@ -402,15 +402,10 @@ namespace Dorisoy.Mediasoup
             // Finalizes the buffer and adds a 4 byte prefix with the size of the buffer.
             bufferBuilder.FinishSizePrefixed(messageOffset.Value);
 
-            // Zero copy.
-            var buffer = bufferBuilder.DataBuffer.ToArraySegment(
-                bufferBuilder.DataBuffer.Position,
-                bufferBuilder.DataBuffer.Length - bufferBuilder.DataBuffer.Position
-            );
+            // 消息会异步排队发送，必须在归还对象池前复制 payload。
+            var buffer = new ArraySegment<byte>(bufferBuilder.SizedByteArray());
 
-            // Clear the buffer builder, so it's reused for the next request.
             bufferBuilder.Clear();
-
             BufferPool.Return(bufferBuilder);
 
             if (buffer.Count > MessageMaxLen)
@@ -466,15 +461,10 @@ namespace Dorisoy.Mediasoup
             // Finalizes the buffer and adds a 4 byte prefix with the size of the buffer.
             bufferBuilder.FinishSizePrefixed(messageOffset.Value);
 
-            // Zero copy.
-            var buffer = bufferBuilder.DataBuffer.ToArraySegment(
-                bufferBuilder.DataBuffer.Position,
-                bufferBuilder.DataBuffer.Length - bufferBuilder.DataBuffer.Position
-            );
+            // 消息会异步排队发送，必须在归还对象池前复制 payload。
+            var buffer = new ArraySegment<byte>(bufferBuilder.SizedByteArray());
 
-            // Clear the buffer builder, so it's reused for the next request.
             bufferBuilder.Clear();
-
             BufferPool.Return(bufferBuilder);
 
             if (buffer.Count > MessageMaxLen)

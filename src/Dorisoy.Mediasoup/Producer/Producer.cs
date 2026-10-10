@@ -143,11 +143,11 @@ namespace Dorisoy.Mediasoup
 
             await using (await _closeLock.WriteLockAsync())
             {
-                CloseInternal();
+                await CloseInternalAsync();
             }
         }
 
-        private void CloseInternal()
+        private async Task CloseInternalAsync()
         {
             if (Closed)
             {
@@ -169,16 +169,14 @@ namespace Dorisoy.Mediasoup
                 new FBS.Transport.CloseProducerRequestT { ProducerId = _internal.ProducerId }
             );
 
-            // Fire and forget
-            _channel
-                .RequestAsync(
-                    bufferBuilder,
-                    Method.TRANSPORT_CLOSE_CONSUMER,
-                    FBS.Request.Body.Transport_CloseConsumerRequest,
-                    requestOffset.Value,
-                    _internal.TransportId
-                )
-                .ContinueWithOnFaultedHandleLog(_logger);
+            // 等待 worker 确认关闭后再移除本地 Producer，避免同一 SSRC 被立即重新生产。
+            await _channel.RequestAsync(
+                bufferBuilder,
+                Method.TRANSPORT_CLOSE_PRODUCER,
+                FBS.Request.Body.Transport_CloseProducerRequest,
+                requestOffset.Value,
+                _internal.TransportId
+            );
 
             Emit("@close");
 
@@ -540,7 +538,7 @@ namespace Dorisoy.Mediasoup
 
                 if (_consumers.Count == 0)
                 {
-                    CloseInternal();
+                    await CloseInternalAsync();
                     _checkConsumersTimer?.Dispose();
                 }
                 else

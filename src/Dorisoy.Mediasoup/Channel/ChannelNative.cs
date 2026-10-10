@@ -86,7 +86,7 @@ namespace Dorisoy.Mediasoup
             // 将数据的长度写入 messageLen
             //var temp2 = BitConverter.GetBytes(requestMessage!.Payload.Array!.Length); // 4 bytes
             var temp2 = BitConverter.GetBytes(requestMessage!.Payload.Count); // 4 bytes
-            Marshal.Copy(temp2, 0, messageLen, requestMessage!.Payload.Count);
+            Marshal.Copy(temp2, 0, messageLen, temp2.Length);
 
             // 将消息句柄写入 messageCtx，以便 OnChannelReadFree 释放。
             var temp3 = GCHandle.ToIntPtr(messageBytesHandle).IntPtrToBytes(); // 4 or 8 bytes
