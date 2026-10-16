@@ -271,18 +271,14 @@ public unsafe class H264Encoder : IVideoEncoder
                     _isFirstFrame = false;
                     
                     _frame->pict_type = AVPictureType.AV_PICTURE_TYPE_I;
-                    #pragma warning disable CS0618
                     _frame->flags |= ffmpeg.AV_FRAME_FLAG_KEY;
-                    #pragma warning restore CS0618
                     
                     _logger.LogInformation("强制生成关键帧: frame={FrameIndex}", _frameIndex - 1);
                 }
                 else
                 {
                     _frame->pict_type = AVPictureType.AV_PICTURE_TYPE_NONE;
-                    #pragma warning disable CS0618
                     _frame->flags &= ~ffmpeg.AV_FRAME_FLAG_KEY;
-                    #pragma warning restore CS0618
                 }
 
                 var sendResult = ffmpeg.avcodec_send_frame(_codecContext, _frame);

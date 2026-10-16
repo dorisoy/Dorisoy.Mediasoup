@@ -825,9 +825,8 @@ public class MediasoupTransport : IDisposable
     private bool _hasAddedSendAudioTrack;
 
     /// <summary>
-    /// 为 Send Transport 添加本地发送 track - 这是让 Answer 方向变成 sendonly 的关键
-    /// 注意：SIPSorcery 库对 VP9/H264 的 SDP 支持不完善，因此 SDP 协商层统一使用 VP8 名称
-    /// 实际 RTP 发送时会使用正确的 Payload Type 和打包格式
+    /// 为 Send Transport 添加本地发送 track - 这是让 Answer 方向变成 sendonly 的关键。
+    /// SDP 中的编码器名称必须与实际 RTP 负载匹配，否则 mediasoup 会创建错误类型的 Producer。
     /// </summary>
     private void AddSendTracks()
     {
@@ -840,11 +839,10 @@ public class MediasoupTransport : IDisposable
             {
                 var videoPayloadType = GetVideoPayloadType();
                 var videoCodecName = GetVideoCodecName();
-                const string sdpCodecName = "VP8";
                 var videoFormat = new SDPAudioVideoMediaFormat(
                     SDPMediaTypesEnum.video,
                     videoPayloadType,
-                    sdpCodecName,
+                    videoCodecName,
                     VIDEO_CLOCK_RATE);
 
                 for (var streamIndex = 0; streamIndex < 2; streamIndex++)
@@ -859,8 +857,8 @@ public class MediasoupTransport : IDisposable
 
                 _hasAddedSendVideoTracks = true;
                 _logger.LogInformation(
-                    "Added primary and thumbnail video tracks, ActualCodec={Codec}, SdpCodec={SdpCodec}, PT={PayloadType}",
-                    videoCodecName, sdpCodecName, videoPayloadType);
+                    "Added primary and thumbnail video tracks, Codec={Codec}, PT={PayloadType}",
+                    videoCodecName, videoPayloadType);
             }
 
             // 添加音频发送 track
@@ -1194,10 +1192,10 @@ public class MediasoupTransport : IDisposable
 
             _logger.LogDebug("Created local answer:\n{Sdp}", answer.sdp);
 
-            // 设置本地 SDP
-            #pragma warning disable CS4014 // setLocalDescription 是同步方法，警告可忽略
-            _peerConnection.setLocalDescription(answer);
-            #pragma warning restore CS4014
+            // 必须等待本地 SDP 完成应用后再读取 DTLS 指纹并连接服务端。
+            // setLocalDescription 返回 Task；此前未等待会导致接收 Transport 尚未准备好时
+            // 就发送 ConnectWebRtcTransport，服务器不会建立接收侧 DTLS 会话。
+            await _peerConnection.setLocalDescription(answer);
 
             // 启动 PeerConnection - 确保只启动一次
             if (!_peerConnectionStarted)
@@ -1478,14 +1476,16 @@ public class MediasoupTransport : IDisposable
     }
 
     /// <summary>
-    /// 从 MimeType 提取编解码器名称（用于 SDP 协商）
-    /// SIPSorcery 对 VP9/H264 的 SDP 支持有限，统一使用 VP8 名称以确保兼容性
+    /// 从 MIME 类型提取 SDP 编解码器名称。
+    /// 名称必须保留实际编码格式；将 H264/VP9 声明为 VP8 会使 SIPSorcery
+    /// 在 setRemoteDescription 阶段返回 VideoIncompatible。
     /// </summary>
     private static string GetCodecNameFromMimeType(string mimeType)
     {
-        // SIPSorcery 对 VP9/H264 处理有问题，SDP 层统一使用 VP8 名称
-        // 但实际的 PayloadType 是正确的，这不影响 RTP 传输
-        return "VP8";
+        var slashIndex = mimeType.IndexOf('/');
+        return slashIndex >= 0 && slashIndex < mimeType.Length - 1
+            ? mimeType[(slashIndex + 1)..]
+            : mimeType;
     }
 
     /// <summary>
